@@ -126,6 +126,10 @@ function CourseSummary({ course }: { course: Course }) {
     problems.acuteAngleNotes > 0 && `${problems.acuteAngleNotes} angles under 60°`,
     problems.difficultyOutsideRange > 0 &&
       `${problems.difficultyOutsideRange} controls outside the class's difficulty`,
+    problems.courseLineCrossings > 0 && `${problems.courseLineCrossings} course lines cross`,
+    problems.courseLinesThroughControls > 0 &&
+      `${problems.courseLinesThroughControls} course lines pass through another control`,
+    problems.finalLegTooLong && 'long last leg into the finish',
   ].filter(Boolean)
   return (
     <dl>

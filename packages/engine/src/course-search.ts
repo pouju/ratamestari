@@ -7,6 +7,7 @@ import {
   type Format,
 } from '@ratamestari/rules'
 import type { ControlSiteCandidate } from './control-sites'
+import { distanceToSegment, segmentsCross } from './polyline'
 import { BLOCKED, type CostGrid } from './cost-grid'
 import { seededRandom, type Random } from './random'
 import { cellCenterOf, cellIndexOf } from './raster'
@@ -28,6 +29,9 @@ export interface CourseProblems {
   readonly acuteAngleWarnings: number
   readonly acuteAngleNotes: number
   readonly difficultyOutsideRange: number
+  readonly courseLineCrossings: number
+  readonly courseLinesThroughControls: number
+  readonly finalLegTooLong: boolean
 }
 
 export interface Course {
@@ -54,20 +58,32 @@ const LEG_PROFILES: Readonly<Record<Format, LegProfile>> = {
 }
 const START_DISTANCE_FROM_FINISH: readonly [number, number] = [0.05, 0.2]
 const MAX_START_DIFFICULTY = 2
-const DEFAULT_IMPROVEMENT_STEPS = 400
+const DEFAULT_IMPROVEMENT_STEPS: Readonly<Record<Format, number>> = { long: 800, middle: 400 }
 const TREE_LIMIT_SHARE_OF_TARGET = 0.25
 const SWAP_LEG_TIME_RANGE: readonly [number, number] = [0.5, 1.6]
-const INSERT_LEG_TIME_RANGE: readonly [number, number] = [0.2, 0.8]
+const INSERT_LEG_TIME_RANGE: readonly [number, number] = [0.3, 1.2]
 const TIME_TOLERANCE_SHARE = 0.02
 const LENGTH_CHANGE_CHANCE = 0.3
 const MIN_CONTROLS = 3
 const PENALTY = {
-  timeErrorPerPercent: 1,
+  timeErrorPerPercent: 2,
   spacing: 50,
-  acuteAngleWarning: 10,
+  acuteAngleWarning: 20,
   acuteAngleNote: 3,
   difficultyOutsideRange: 4,
+  courseLineCrossing: 15,
+  courseLineThroughControl: 10,
+  finalLegPerPercentOverLimit: 5,
 } as const
+const CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS = 37.5
+const FINAL_LEG_MAX_SHARE_OF_TARGET = 0.04
+const REVERSE_SECTION_CHANCE = 0.25
+const HEADING_HOME_SHARE_OF_TARGET = 0.25
+const BRING_LAST_CONTROL_HOME_CHANCE = 0.5
+const START_ADVANCE_FROM_FINISH_DEGREES: readonly [number, number] = [10, 70]
+const MIN_ADVANCE_PER_CONTROL_DEGREES = 2
+const MAX_ADVANCE_PER_EXPECTED = 2.5
+const ADVANCE_SLACK_DEGREES = 15
 const NO_SITE = -1
 
 type Point = { readonly position: LocalPoint }
@@ -111,17 +127,28 @@ export function searchCourse(
     return timesFrom(from)[to]!
   }
 
-  const evaluation = createEvaluation(pool, spec, toFinish, legSeconds, targetSeconds)
-  const startIndex = pickStart(pool, toFinish, targetSeconds, random)
+  const evaluation = createEvaluation(pool, spec, finish, toFinish, legSeconds, targetSeconds)
+  const loop = planLoop(pool, toFinish, targetSeconds, random)
+  const startIndex = pickStart(pool, toFinish, targetSeconds, loop, finish, random)
   if (startIndex === NO_SITE) return null
 
-  let order = buildGreedy(startIndex, pool, toFinish, timesFrom, targetSeconds, spec, random)
+  let order = buildGreedy(
+    startIndex,
+    pool,
+    toFinish,
+    timesFrom,
+    targetSeconds,
+    spec,
+    loop,
+    finish,
+    random,
+  )
   let best = evaluation.score(startIndex, order)
   onProgress(toCourse(best))
 
-  const steps = spec.improvementSteps ?? DEFAULT_IMPROVEMENT_STEPS
+  const steps = spec.improvementSteps ?? DEFAULT_IMPROVEMENT_STEPS[spec.format]
   for (let step = 0; step < steps; step++) {
-    const candidate = proposeChange(startIndex, order, pool, timesFrom, best, random)
+    const candidate = proposeChange(startIndex, order, pool, toFinish, timesFrom, best, random)
     if (!candidate) continue
     const scored = evaluation.score(startIndex, candidate)
     if (scored.score < best.score) {
@@ -159,6 +186,7 @@ interface ScoredCourse {
 function createEvaluation(
   pool: readonly ControlSiteCandidate[],
   spec: CourseSpec,
+  finish: LocalPoint,
   toFinish: Float32Array,
   legSecondsBetween: (from: number, to: number) => number,
   targetSeconds: number,
@@ -204,11 +232,23 @@ function createEvaluation(
       return difficulty < minDifficulty || difficulty > maxDifficulty
     }).length
 
+    const stops = [...sequence.map(i => pool[i]!.position), finish]
+    const courseLineCrossings = countCourseLineCrossings(stops)
+    const courseLinesThroughControls = countCourseLinesThroughControls(stops)
+    const finalLegShare = legSeconds[legSeconds.length - 1]! / targetSeconds
+    const finalLegPercentOverLimit = Math.max(
+      0,
+      100 * (finalLegShare - FINAL_LEG_MAX_SHARE_OF_TARGET),
+    )
+
     const problems = {
       spacing: spacingProblems,
       acuteAngleWarnings,
       acuteAngleNotes,
       difficultyOutsideRange,
+      courseLineCrossings,
+      courseLinesThroughControls,
+      finalLegTooLong: finalLegPercentOverLimit > 0,
     }
     const timeErrorPercent = (100 * Math.abs(estimatedSeconds - targetSeconds)) / targetSeconds
     const isUnreachable = !Number.isFinite(estimatedSeconds)
@@ -224,28 +264,75 @@ function createEvaluation(
           PENALTY.spacing * spacingProblems +
           PENALTY.acuteAngleWarning * acuteAngleWarnings +
           PENALTY.acuteAngleNote * acuteAngleNotes +
-          PENALTY.difficultyOutsideRange * difficultyOutsideRange,
+          PENALTY.difficultyOutsideRange * difficultyOutsideRange +
+          PENALTY.courseLineCrossing * courseLineCrossings +
+          PENALTY.courseLineThroughControl * courseLinesThroughControls +
+          PENALTY.finalLegPerPercentOverLimit * finalLegPercentOverLimit,
     }
   }
   return { score }
 }
 
-function pickStart(
+interface Loop {
+  readonly centre: LocalPoint
+  readonly direction: 1 | -1
+}
+
+function planLoop(
   pool: readonly ControlSiteCandidate[],
   toFinish: Float32Array,
   targetSeconds: number,
   random: Random,
+): Loop {
+  const reachable = pool.filter((_, i) => toFinish[i]! <= targetSeconds / 2)
+  const massX = reachable.reduce((sum, site) => sum + site.position[0], 0) / reachable.length
+  const massY = reachable.reduce((sum, site) => sum + site.position[1], 0) / reachable.length
+  return {
+    centre: [massX, massY] as const as LocalPoint,
+    direction: random.next() < 0.5 ? 1 : -1,
+  }
+}
+
+const loopAngle = (loop: Loop, [x, y]: LocalPoint) =>
+  Math.atan2(y - loop.centre[1], x - loop.centre[0])
+
+const loopAdvance = (loop: Loop, fromAngle: number, toAngle: number) => {
+  const turn = (toAngle - fromAngle) * loop.direction
+  return ((turn % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)
+}
+
+const radians = (degrees: number) => (degrees * Math.PI) / 180
+
+function pickStart(
+  pool: readonly ControlSiteCandidate[],
+  toFinish: Float32Array,
+  targetSeconds: number,
+  loop: Loop,
+  finish: LocalPoint,
+  random: Random,
 ): number {
   const [nearShare, farShare] = START_DISTANCE_FROM_FINISH
-  const inRange = (maxDifficulty: number) =>
-    pool.flatMap((site, i) =>
-      site.technicalDifficulty <= maxDifficulty &&
-      toFinish[i]! >= nearShare * targetSeconds &&
-      toFinish[i]! <= farShare * targetSeconds
-        ? [i]
-        : [],
-    )
-  return random.pick(inRange(MAX_START_DIFFICULTY)) ?? random.pick(inRange(5)) ?? NO_SITE
+  const finishAngle = loopAngle(loop, finish)
+  const [minAdvance, maxAdvance] = START_ADVANCE_FROM_FINISH_DEGREES.map(radians) as [
+    number,
+    number,
+  ]
+  const inRange = (maxDifficulty: number, isAheadOfFinish: boolean) =>
+    pool.flatMap((site, i) => {
+      if (site.technicalDifficulty > maxDifficulty) return []
+      if (toFinish[i]! < nearShare * targetSeconds || toFinish[i]! > farShare * targetSeconds) {
+        return []
+      }
+      const advance = loopAdvance(loop, finishAngle, loopAngle(loop, site.position))
+      if (isAheadOfFinish && (advance < minAdvance || advance > maxAdvance)) return []
+      return [i]
+    })
+  return (
+    random.pick(inRange(MAX_START_DIFFICULTY, true)) ??
+    random.pick(inRange(MAX_START_DIFFICULTY, false)) ??
+    random.pick(inRange(5, false)) ??
+    NO_SITE
+  )
 }
 
 function buildGreedy(
@@ -255,8 +342,13 @@ function buildGreedy(
   timesFrom: (poolIndex: number) => Float32Array,
   targetSeconds: number,
   spec: CourseSpec,
+  loop: Loop,
+  finish: LocalPoint,
   random: Random,
 ): number[] {
+  const startAngle = loopAngle(loop, pool[startIndex]!.position)
+  const arcToFinish = loopAdvance(loop, startAngle, loopAngle(loop, finish))
+  let travelledArc = 0
   const profile = LEG_PROFILES[spec.format]
   const [minDifficulty, maxDifficulty] = spec.target.siteDifficulty
   const spacing = controlSpacingForScale(spec.mapScale)
@@ -268,6 +360,7 @@ function buildGreedy(
   for (;;) {
     const remaining = targetSeconds - elapsed
     const shortestLeg = profile.shortLeg[0] * targetSeconds
+    const finalLegMax = FINAL_LEG_MAX_SHARE_OF_TARGET * targetSeconds
     if (remaining - toFinish[current]! < shortestLeg) break
 
     const isLongLeg = random.next() < profile.longLegShare
@@ -275,11 +368,22 @@ function buildGreedy(
       share => share * targetSeconds,
     ) as [number, number]
     const times = timesFrom(current)
+    const currentAngle = loopAngle(loop, pool[current]!.position)
+    const advanceTo = (i: number) =>
+      loopAdvance(loop, currentAngle, loopAngle(loop, pool[i]!.position))
     const used = new Set([startIndex, ...order])
     const fits = (i: number, widen: number) => {
       const t = times[i]!
       if (used.has(i) || t < low / widen || t > high * widen) return false
       if (t + toFinish[i]! > remaining) return false
+      const wouldBeLastControl = remaining - t - toFinish[i]! < shortestLeg
+      if (wouldBeLastControl && toFinish[i]! > finalLegMax) return false
+      const advance = advanceTo(i)
+      const expected = (2 * Math.PI * t) / targetSeconds
+      if (advance < radians(MIN_ADVANCE_PER_CONTROL_DEGREES)) return false
+      if (advance > expected * MAX_ADVANCE_PER_EXPECTED + radians(ADVANCE_SLACK_DEGREES))
+        return false
+      if (travelledArc + advance > arcToFinish) return false
       const site = pool[i]!
       const tooClose = [...used].some(u => {
         const other = pool[u]!
@@ -294,18 +398,41 @@ function buildGreedy(
         const angle = angleAt(pool[previous]!.position, pool[current]!.position, site.position)
         if (angle < ACUTE_ANGLE.noteBelowDegrees) return false
       }
+      const stops = [startIndex, ...order].map(u => pool[u]!.position)
+      const from = pool[current]!.position
+      for (let k = 0; k + 1 < stops.length - 1; k++) {
+        if (segmentsCross(stops[k]!, stops[k + 1]!, from, site.position)) return false
+      }
+      for (let k = 0; k < stops.length - 1; k++) {
+        if (
+          distanceToSegment(stops[k]!, from, site.position) < CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS
+        ) {
+          return false
+        }
+        if (
+          distanceToSegment(site.position, stops[k]!, stops[k + 1]!) <
+          CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS
+        ) {
+          return false
+        }
+      }
       return true
     }
     let candidates = pool.flatMap((_, i) => (fits(i, 1) ? [i] : []))
     if (candidates.length === 0) candidates = pool.flatMap((_, i) => (fits(i, 1.5) ? [i] : []))
     if (candidates.length === 0) break
 
+    const isHeadingHome = remaining < HEADING_HOME_SHARE_OF_TARGET * targetSeconds
     const preference = (i: number) => {
       const difficulty = pool[i]!.technicalDifficulty
       const inRange = difficulty >= minDifficulty && difficulty <= maxDifficulty
-      return random.next() + (inRange ? 1 : 0)
+      const closerToFinish = isHeadingHome ? 2 * (1 - toFinish[i]! / remaining) : 0
+      const expected = (2 * Math.PI * times[i]!) / targetSeconds
+      const onPace = Math.max(0, 1 - Math.abs(advanceTo(i) - expected) / Math.max(expected, 0.01))
+      return random.next() + (inRange ? 1 : 0) + closerToFinish + onPace
     }
     const next = candidates.reduce((a, b) => (preference(b) > preference(a) ? b : a))
+    travelledArc += advanceTo(next)
     order.push(next)
     elapsed += times[next]!
     previous = current
@@ -318,6 +445,7 @@ function proposeChange(
   startIndex: number,
   order: readonly number[],
   pool: readonly ControlSiteCandidate[],
+  toFinish: Float32Array,
   timesFrom: (poolIndex: number) => Float32Array,
   current: ScoredCourse,
   random: Random,
@@ -327,6 +455,29 @@ function proposeChange(
   const isTooLong = current.estimatedSeconds > current.targetSeconds * (1 + TIME_TOLERANCE_SHARE)
   const isTooShort = current.estimatedSeconds < current.targetSeconds * (1 - TIME_TOLERANCE_SHARE)
   const position = Math.floor(random.next() * order.length)
+
+  if (current.problems.finalLegTooLong && random.next() < BRING_LAST_CONTROL_HOME_CHANCE) {
+    const last = order.length - 1
+    const beforeLast = last === 0 ? startIndex : order[last - 1]!
+    const fromBeforeLast = timesFrom(beforeLast)
+    const finalLegMax = FINAL_LEG_MAX_SHARE_OF_TARGET * current.targetSeconds
+    const nearFinish = pool.flatMap((_, i) =>
+      !used.has(i) && toFinish[i]! <= finalLegMax && Number.isFinite(fromBeforeLast[i]!) ? [i] : [],
+    )
+    const home = random.pick(nearFinish)
+    if (home !== undefined) return [...order.slice(0, last), home]
+  }
+
+  if (order.length >= 2 && random.next() < REVERSE_SECTION_CHANCE) {
+    const end = position + 1 + Math.floor(random.next() * (order.length - position - 1))
+    if (end > position) {
+      return [
+        ...order.slice(0, position),
+        ...order.slice(position, end + 1).reverse(),
+        ...order.slice(end + 1),
+      ]
+    }
+  }
 
   if (isTooLong && order.length > MIN_CONTROLS && random.next() < LENGTH_CHANGE_CHANCE) {
     return order.filter((_, i) => i !== position)
@@ -381,4 +532,26 @@ function angleAt(previous: LocalPoint, vertex: LocalPoint, next: LocalPoint): nu
   const lengths = Math.hypot(ax, ay) * Math.hypot(bx, by)
   if (lengths === 0) return 180
   return (Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / lengths))) * 180) / Math.PI
+}
+
+function countCourseLineCrossings(stops: readonly LocalPoint[]): number {
+  let crossings = 0
+  for (let a = 0; a + 1 < stops.length; a++) {
+    for (let b = a + 2; b + 1 < stops.length; b++) {
+      if (segmentsCross(stops[a]!, stops[a + 1]!, stops[b]!, stops[b + 1]!)) crossings++
+    }
+  }
+  return crossings
+}
+
+function countCourseLinesThroughControls(stops: readonly LocalPoint[]): number {
+  let count = 0
+  for (let leg = 0; leg + 1 < stops.length; leg++) {
+    for (let control = 1; control < stops.length - 1; control++) {
+      if (control === leg || control === leg + 1) continue
+      const distance = distanceToSegment(stops[control]!, stops[leg]!, stops[leg + 1]!)
+      if (distance < CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS) count++
+    }
+  }
+  return count
 }

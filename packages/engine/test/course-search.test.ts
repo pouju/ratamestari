@@ -60,6 +60,17 @@ describe('searchCourse', () => {
     expect(course.problems.acuteAngleWarnings).toBe(0)
   })
 
+  it('does not cross its own course lines or run them through other controls', () => {
+    expect(course.problems.courseLineCrossings).toBe(0)
+    expect(course.problems.courseLinesThroughControls).toBe(0)
+  })
+
+  it('ends with a short leg into the finish', () => {
+    const finalLeg = course.legSeconds[course.legSeconds.length - 1]!
+    expect(finalLeg / course.targetSeconds).toBeLessThanOrEqual(0.04)
+    expect(course.problems.finalLegTooLong).toBe(false)
+  })
+
   it('finishes at the competition centre', () => {
     expect(course.finish).toEqual([1000, 1000])
   })
