@@ -1,0 +1,38 @@
+import { describe, expect, it } from 'vitest'
+import { describeSite, summarizeCourse } from '../src/course-summary'
+import { COURSE, site } from './fixtures'
+
+describe('summarizeCourse', () => {
+  it('describes controls in words with leg distances and times', () => {
+    const summary = summarizeCourse(COURSE)
+    expect(summary.controlCount).toBe(2)
+    expect(summary.estimatedWinningMinutes).toBe(7)
+    expect(summary.targetWinningMinutes).toBe(7.5)
+    expect(summary.lengthKilometers).toBe(1.2)
+    expect(summary.ruleProblems).toEqual(['1 controls too close together'])
+    expect(summary.controls[0]).toEqual({
+      number: 1,
+      feature: 'Boulder',
+      technicalDifficulty: 4,
+      legStraightMeters: 500,
+      legMinutes: 2.5,
+    })
+    expect(summary.controls[1]!.feature).toBe('re-entrant')
+    expect(summary.finishLeg).toEqual({ straightMeters: 600, minutes: 3 })
+  })
+
+  it('never contains map coordinates (D3)', () => {
+    const text = JSON.stringify(summarizeCourse(COURSE))
+    for (const value of ['1234.5', '2345.5', '1534.5', '2745.5', '1834.5']) {
+      expect(text).not.toContain(value)
+    }
+  })
+})
+
+describe('describeSite', () => {
+  it('names the ISOM feature and where on it the control is', () => {
+    expect(describeSite(site(0, 0, { isomCode: '505', placement: 'lineEnd' }))).toBe(
+      'Footpath, end',
+    )
+  })
+})
