@@ -9,3 +9,10 @@ export {
 } from './contours'
 export { evaluateLeg, type LegEvaluation } from './leg'
 export { buildTerrain, type Terrain, type TerrainOptions } from './terrain'
+export {
+  findControlSites,
+  type ControlSiteCandidate,
+  type LeadingFeatureDistance,
+  type SitePlacement,
+  type TechnicalDifficulty,
+} from './control-sites'

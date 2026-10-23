@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { localPoint, type LocalPoint } from '@ratamestari/core'
 import { loadOcadMap } from '@ratamestari/map-ocad'
 import { BLOCKED, type CostGrid } from '../src/cost-grid'
+import { findControlSites } from '../src/control-sites'
 import { evaluateLeg } from '../src/leg'
 import { cellCenterOf, cellIndexOf } from '../src/raster'
 import { findRoute } from '../src/router'
@@ -26,13 +27,15 @@ const nearestOpenPoint = (grid: CostGrid, target: LocalPoint): LocalPoint => {
 
 describe.skipIf(!localMapExists)('engine with a local map from git-ignored maps/', () => {
   let terrain: Terrain
+  let features: Parameters<typeof findControlSites>[0]
   let grid: CostGrid
   let centerX: number
   let centerY: number
 
   beforeAll(async () => {
     const map = await loadOcadMap(readLocalMap())
-    terrain = buildTerrain(map.features(), map.info.extent)
+    features = map.features()
+    terrain = buildTerrain(features, map.info.extent)
     grid = terrain.grid
     const [minX, minY, maxX, maxY] = map.info.extent
     centerX = (minX + maxX) / 2
@@ -60,5 +63,12 @@ describe.skipIf(!localMapExists)('engine with a local map from git-ignored maps/
     const leg = evaluateLeg(terrain, from, to)!
     expect(leg.lengthRatio).toBeGreaterThanOrEqual(1)
     expect(leg.contourCrossings).toBeGreaterThan(0)
+  })
+
+  it('finds reachable control sites of several difficulties', () => {
+    const sites = findControlSites(features, grid)
+    expect(sites.length).toBeGreaterThan(0)
+    expect(new Set(sites.map(s => s.technicalDifficulty)).size).toBeGreaterThan(1)
+    expect(sites.every(s => cellIndexOf(grid, s.position) !== null)).toBe(true)
   })
 })

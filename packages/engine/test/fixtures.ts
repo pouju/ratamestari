@@ -47,3 +47,8 @@ export const point = (x: number, y: number): LocalGeometry => ({
   type: 'Point',
   coordinates: localPoint(x, y),
 })
+
+export const polygon = (...points: [number, number][]): LocalGeometry => ({
+  type: 'Polygon',
+  coordinates: [points.map(([x, y]): LocalPoint => localPoint(x, y))],
+})
