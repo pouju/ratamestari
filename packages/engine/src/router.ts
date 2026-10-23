@@ -2,6 +2,7 @@ import type { LocalPoint } from '@ratamestari/core'
 import { REFERENCE_PACE_SECONDS_PER_KM } from '@ratamestari/rules'
 import { BLOCKED, type CostGrid } from './cost-grid'
 import { MinHeap } from './min-heap'
+import { polylineLength } from './polyline'
 import { cellCenterOf, cellIndexOf } from './raster'
 
 export interface Route {
@@ -95,12 +96,4 @@ export function findRoute(
   cells.reverse()
   const points = [from, ...cells.slice(1, -1).map(cell => cellCenterOf(grid, cell)), to]
   return { points, lengthMeters: polylineLength(points), timeSeconds: bestSeconds[goal]! }
-}
-
-function polylineLength(points: readonly LocalPoint[]): number {
-  let length = 0
-  for (let i = 1; i < points.length; i++) {
-    length += Math.hypot(points[i]![0] - points[i - 1]![0], points[i]![1] - points[i - 1]![1])
-  }
-  return length
 }
