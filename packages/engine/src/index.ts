@@ -1,6 +1,11 @@
 export { BLOCKED, buildCostGrid, type CostGrid, type CostGridOptions } from './cost-grid'
 export { cellCenterOf, cellIndexOf, type GridFrame } from './raster'
 export { findRoute, routeTimeSeconds, type Route, type RouteOptions } from './router'
-export { buildContourIndex, countContourCrossings, type ContourIndex } from './contours'
+export {
+  buildContourIndex,
+  countContourCrossings,
+  type ContourCrossings,
+  type ContourIndex,
+} from './contours'
 export { evaluateLeg, type LegEvaluation } from './leg'
 export { buildTerrain, type Terrain, type TerrainOptions } from './terrain'

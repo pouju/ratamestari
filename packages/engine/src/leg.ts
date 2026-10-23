@@ -16,7 +16,9 @@ export interface LegEvaluation {
   readonly lengthRatio: number
   readonly maxDeviationMeters: number
   readonly contourCrossings: number
-  readonly heightChangeMeters: number
+  readonly climbMeters: number
+  readonly descentMeters: number
+  readonly unknownHeightChangeMeters: number
 }
 
 const CORRIDOR_SLOWDOWN = 4
@@ -32,11 +34,8 @@ export function evaluateLeg(
   if (!fastest) return null
 
   const straightMeters = Math.hypot(to[0] - from[0], to[1] - from[1])
-  const contourCrossings = countContourCrossings(
-    terrain.contours,
-    fastest.points,
-    grid.cellSizeMeters,
-  )
+  const crossings = countContourCrossings(terrain.contours, fastest.points, grid.cellSizeMeters)
+  const interval = terrain.contourIntervalMeters
   const alternatives = findAlternatives(grid, from, to, fastest, straightMeters, routeOptions)
 
   return {
@@ -47,8 +46,10 @@ export function evaluateLeg(
     hasRouteChoice: alternatives.length > 0,
     lengthRatio: straightMeters === 0 ? 1 : fastest.lengthMeters / straightMeters,
     maxDeviationMeters: Math.max(...fastest.points.map(p => distanceToSegment(p, from, to))),
-    contourCrossings,
-    heightChangeMeters: contourCrossings * terrain.contourIntervalMeters,
+    contourCrossings: crossings.up + crossings.down + crossings.unknown,
+    climbMeters: crossings.up * interval,
+    descentMeters: crossings.down * interval,
+    unknownHeightChangeMeters: crossings.unknown * interval,
   }
 }
 

@@ -22,6 +22,6 @@ export const buildTerrain = (
   }: TerrainOptions = {},
 ): Terrain => ({
   grid: buildCostGrid(features, extent, gridOptions),
-  contours: buildContourIndex(features),
+  contours: buildContourIndex(features, extent),
   contourIntervalMeters,
 })

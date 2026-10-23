@@ -49,17 +49,20 @@ describe('evaluateLeg', () => {
     expect(leg.maxDeviationMeters).toBeGreaterThan(250)
   })
 
-  it('estimates height change from contour crossings', () => {
+  it('estimates climb from contours rising away from water', () => {
+    const water = feature('301', rectangle(0, 0, 1000, 50))
     const contours = [300, 500, 700].map(y => feature('101', line([0, y], [1000, y])))
-    const leg = evaluateLeg(buildTerrain(contours, SQUARE_KILOMETRE), south, north)!
+    const leg = evaluateLeg(buildTerrain([water, ...contours], SQUARE_KILOMETRE), south, north)!
     expect(leg.contourCrossings).toBe(3)
-    expect(leg.heightChangeMeters).toBe(15)
+    expect(leg.climbMeters).toBe(15)
+    expect(leg.descentMeters).toBe(0)
+    expect(leg.unknownHeightChangeMeters).toBe(0)
   })
 
   it('uses the given contour interval', () => {
     const contours = [feature('101', line([0, 500], [1000, 500]))]
     const terrain = buildTerrain(contours, SQUARE_KILOMETRE, { contourIntervalMeters: 2.5 })
-    expect(evaluateLeg(terrain, south, north)!.heightChangeMeters).toBe(2.5)
+    expect(evaluateLeg(terrain, south, north)!.unknownHeightChangeMeters).toBe(2.5)
   })
 
   it('returns null when there is no route', () => {

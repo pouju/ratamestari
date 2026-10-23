@@ -36,7 +36,10 @@ export function LegDetails({ leg }: { leg: LegEvaluation }) {
       <dd>{formatMeters(leg.maxDeviationMeters)}</dd>
       <dt>Contours crossed</dt>
       <dd>
-        {leg.contourCrossings} (about {Math.round(leg.heightChangeMeters)} m up and down)
+        {leg.contourCrossings}: about {Math.round(leg.climbMeters)} m up,{' '}
+        {Math.round(leg.descentMeters)} m down
+        {leg.unknownHeightChangeMeters > 0 &&
+          `, ${Math.round(leg.unknownHeightChangeMeters)} m direction unknown`}
       </dd>
     </dl>
   )
