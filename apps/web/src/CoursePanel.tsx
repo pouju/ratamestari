@@ -1,0 +1,144 @@
+import type { Course } from '@ratamestari/engine'
+import {
+  ageClassSchema,
+  eventLevelSchema,
+  formatSchema,
+  sexSchema,
+  skillLetterSchema,
+  type CourseRequest,
+} from '@ratamestari/rules'
+import { formatDuration } from './format'
+
+const EVENT_LEVEL_LABELS: Record<CourseRequest['eventLevel'], string> = {
+  national: 'National event',
+  finnishChampionship: 'Finnish championship (SM) final',
+}
+const FORMAT_LABELS: Record<CourseRequest['format'], string> = {
+  long: 'Long distance',
+  middle: 'Middle distance',
+}
+
+interface Props {
+  request: CourseRequest
+  onRequestChange: (request: CourseRequest) => void
+  hasCentre: boolean
+  isPickingCentre: boolean
+  onPickCentre: () => void
+  canGenerate: boolean
+  isGenerating: boolean
+  seed: number
+  onGenerate: (seed: number) => void
+  course: Course | null
+}
+
+export function CoursePanel({
+  request,
+  onRequestChange,
+  hasCentre,
+  isPickingCentre,
+  onPickCentre,
+  canGenerate,
+  isGenerating,
+  seed,
+  onGenerate,
+  course,
+}: Props) {
+  const change = (fields: Partial<CourseRequest>) => onRequestChange({ ...request, ...fields })
+  return (
+    <section>
+      <h2>Course</h2>
+      <button type="button" onClick={onPickCentre} disabled={isPickingCentre}>
+        {isPickingCentre
+          ? 'Click the competition centre on the map…'
+          : hasCentre
+            ? 'Move competition centre'
+            : 'Set competition centre'}
+      </button>
+      <div className="form">
+        <select
+          value={request.eventLevel}
+          onChange={e => change({ eventLevel: eventLevelSchema.parse(e.target.value) })}
+        >
+          {eventLevelSchema.options.map(level => (
+            <option key={level} value={level}>
+              {EVENT_LEVEL_LABELS[level]}
+            </option>
+          ))}
+        </select>
+        <select
+          value={request.format}
+          onChange={e => change({ format: formatSchema.parse(e.target.value) })}
+        >
+          {formatSchema.options.map(format => (
+            <option key={format} value={format}>
+              {FORMAT_LABELS[format]}
+            </option>
+          ))}
+        </select>
+        <span className="class-picker">
+          <select
+            value={request.sex}
+            onChange={e => change({ sex: sexSchema.parse(e.target.value) })}
+          >
+            {sexSchema.options.map(sex => (
+              <option key={sex}>{sex}</option>
+            ))}
+          </select>
+          <select
+            value={request.ageClass}
+            onChange={e => change({ ageClass: ageClassSchema.parse(Number(e.target.value)) })}
+          >
+            {[...ageClassSchema.values].map(age => (
+              <option key={age}>{age}</option>
+            ))}
+          </select>
+          <select
+            value={request.skillLetter}
+            onChange={e => change({ skillLetter: skillLetterSchema.parse(e.target.value) })}
+          >
+            {skillLetterSchema.options.map(letter => (
+              <option key={letter}>{letter}</option>
+            ))}
+          </select>
+        </span>
+      </div>
+      <div className="buttons">
+        <button type="button" disabled={!canGenerate} onClick={() => onGenerate(seed)}>
+          {isGenerating ? 'Setting course…' : 'Generate'}
+        </button>
+        <button type="button" disabled={!canGenerate} onClick={() => onGenerate(seed + 1)}>
+          Another option
+        </button>
+      </div>
+      {!hasCentre && (
+        <p className="note">Set the competition centre first. The finish goes there.</p>
+      )}
+      {course && <CourseSummary course={course} />}
+    </section>
+  )
+}
+
+function CourseSummary({ course }: { course: Course }) {
+  const { problems } = course
+  const problemTexts = [
+    problems.spacing > 0 && `${problems.spacing} controls too close together`,
+    problems.acuteAngleWarnings > 0 && `${problems.acuteAngleWarnings} acute angles under 45°`,
+    problems.acuteAngleNotes > 0 && `${problems.acuteAngleNotes} angles under 60°`,
+    problems.difficultyOutsideRange > 0 &&
+      `${problems.difficultyOutsideRange} controls outside the class's difficulty`,
+  ].filter(Boolean)
+  return (
+    <dl>
+      <dt>Controls</dt>
+      <dd>{course.controls.length}</dd>
+      <dt>Estimated winning time</dt>
+      <dd>
+        {formatDuration(course.estimatedSeconds)} (target {formatDuration(course.targetSeconds)})
+      </dd>
+      <dt>Rule checks</dt>
+      <dd>{problemTexts.length === 0 ? 'No problems found' : problemTexts.join(', ')}</dd>
+      <dt>Option</dt>
+      <dd>Seed {course.seed}</dd>
+    </dl>
+  )
+}

@@ -7,3 +7,5 @@ export const createEngine = (): Engine =>
   Comlink.wrap<EngineApi>(
     new Worker(new URL('./engine.worker.ts', import.meta.url), { type: 'module' }),
   )
+
+export const progressCallback = <T>(onProgress: (value: T) => void) => Comlink.proxy(onProgress)

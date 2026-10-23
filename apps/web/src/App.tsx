@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react'
-import type { ControlSiteCandidate, LegEvaluation } from '@ratamestari/engine'
+import type { LocalPoint } from '@ratamestari/core'
+import type { ControlSiteCandidate, Course, LegEvaluation } from '@ratamestari/engine'
+import type { CourseRequest } from '@ratamestari/rules'
 import { loadOcadMap, type OcadMap } from '@ratamestari/map-ocad'
 import { renderCostMap, type CostMapImage } from './cost-map-image'
-import { createEngine } from './engine'
+import { CoursePanel } from './CoursePanel'
+import { createEngine, progressCallback } from './engine'
 import { LegDetails } from './LegDetails'
 import { DIFFICULTY_COLOURS, MapView, type ControlPair } from './MapView'
 import { rasterizeSvg, type MapImage } from './rasterize'
@@ -19,6 +22,14 @@ type EngineState = 'idle' | 'loading' | 'ready' | 'error'
 type LegState =
   { status: 'none' } | { status: 'evaluated'; leg: LegEvaluation } | { status: 'unreachable' }
 
+const DEFAULT_REQUEST: CourseRequest = {
+  eventLevel: 'finnishChampionship',
+  format: 'long',
+  sex: 'H',
+  ageClass: 21,
+  skillLetter: 'A',
+}
+
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 export function App() {
@@ -32,6 +43,13 @@ export function App() {
   const [costMap, setCostMap] = useState<CostMapImage | null>(null)
   const [showSites, setShowSites] = useState(false)
   const [sites, setSites] = useState<readonly ControlSiteCandidate[] | null>(null)
+  const [competitionCentre, setCompetitionCentre] = useState<LocalPoint | null>(null)
+  const [isPickingCentre, setIsPickingCentre] = useState(false)
+  const [request, setRequest] = useState<CourseRequest>(DEFAULT_REQUEST)
+  const [seed, setSeed] = useState(1)
+  const [course, setCourse] = useState<Course | null>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [showLegTool, setShowLegTool] = useState(true)
 
   async function openFile(file: File) {
     setState({ status: 'loading', fileName: file.name })
@@ -39,6 +57,8 @@ export function App() {
     setLegState({ status: 'none' })
     setCostMap(null)
     setSites(null)
+    setCourse(null)
+    setCompetitionCentre(null)
     const bytes = new Uint8Array(await file.arrayBuffer())
     engine
       .loadMap(bytes)
@@ -74,6 +94,24 @@ export function App() {
     void engine.controlSites().then(setSites)
   }, [engine, engineState, showSites, sites])
 
+  async function generateCourse(nextSeed: number) {
+    if (!competitionCentre) return
+    setSeed(nextSeed)
+    setIsGenerating(true)
+    setShowLegTool(false)
+    try {
+      const result = await engine.generateCourse(
+        request,
+        competitionCentre,
+        nextSeed,
+        progressCallback<Course>(setCourse),
+      )
+      setCourse(result)
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
   function onDrop(e: DragEvent) {
     e.preventDefault()
     const file = e.dataTransfer.files[0]
@@ -92,6 +130,14 @@ export function App() {
             leg={legState.status === 'evaluated' ? legState.leg : null}
             costMap={showCostMap ? costMap : null}
             sites={showSites ? sites : null}
+            course={course}
+            competitionCentre={competitionCentre}
+            isPickingCentre={isPickingCentre}
+            showLegTool={showLegTool}
+            onCentrePicked={centre => {
+              setCompetitionCentre(centre)
+              setIsPickingCentre(false)
+            }}
             onControlsMoved={setControls}
           />
         ) : (
@@ -144,8 +190,31 @@ export function App() {
         )}
 
         {state.status === 'ready' && (
+          <CoursePanel
+            request={request}
+            onRequestChange={setRequest}
+            hasCentre={competitionCentre !== null}
+            isPickingCentre={isPickingCentre}
+            onPickCentre={() => setIsPickingCentre(true)}
+            canGenerate={engineState === 'ready' && competitionCentre !== null && !isGenerating}
+            isGenerating={isGenerating}
+            seed={seed}
+            onGenerate={nextSeed => void generateCourse(nextSeed)}
+            course={course}
+          />
+        )}
+
+        {state.status === 'ready' && (
           <section>
             <h2>Leg between the two controls</h2>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={showLegTool}
+                onChange={e => setShowLegTool(e.target.checked)}
+              />{' '}
+              Show the leg measuring tool
+            </label>
             {engineState === 'loading' && <p className="note">Building the cost map…</p>}
             {engineState === 'error' && (
               <p className="error">The engine could not read this map.</p>

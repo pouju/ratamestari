@@ -12,14 +12,23 @@ import ImageStatic from 'ol/source/ImageStatic'
 import VectorSource from 'ol/source/Vector'
 import Projection from 'ol/proj/Projection'
 import Translate from 'ol/interaction/Translate'
-import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style'
+import { Circle as CircleStyle, Fill, RegularShape, Stroke, Style } from 'ol/style'
 import { localPoint, type LocalPoint, type MapInfo } from '@ratamestari/core'
-import type { ControlSiteCandidate, LegEvaluation, TechnicalDifficulty } from '@ratamestari/engine'
+import type {
+  ControlSiteCandidate,
+  Course,
+  LegEvaluation,
+  TechnicalDifficulty,
+} from '@ratamestari/engine'
+import {
+  COURSE_OVERPRINT_PURPLE,
+  courseOverprintFeatures,
+  courseOverprintStyle,
+} from './course-overprint'
 import type { CostMapImage } from './cost-map-image'
 import type { MapImage } from './rasterize'
 import 'ol/ol.css'
 
-const COURSE_OVERPRINT_PURPLE = 'rgb(190, 30, 180)'
 const ROUTE_BLUE = 'rgba(0, 110, 255, 0.85)'
 const ROUTE_WIDTH_PIXELS = 3
 const ALTERNATIVE_ROUTE_DASH_PIXELS = [8, 6]
@@ -27,6 +36,16 @@ const CONTROL_CIRCLE_DIAMETER_MM = 5
 const COURSE_LINE_WIDTH_MM = 0.35
 const INITIAL_CONTROL_OFFSET_METERS = 300
 const SITE_DOT_RADIUS_PIXELS = 3
+const CENTRE_MARKER_RADIUS_PIXELS = 9
+const centreStyle = new Style({
+  image: new RegularShape({
+    points: 4,
+    radius: CENTRE_MARKER_RADIUS_PIXELS,
+    angle: Math.PI / 4,
+    fill: new Fill({ color: 'rgba(0, 0, 0, 0.85)' }),
+    stroke: new Stroke({ color: 'white', width: 2 }),
+  }),
+})
 export const DIFFICULTY_COLOURS: Readonly<Record<TechnicalDifficulty, string>> = {
   1: '#2e7d32',
   2: '#7cb342',
@@ -57,17 +76,43 @@ interface Props {
   leg: LegEvaluation | null
   costMap: CostMapImage | null
   sites: readonly ControlSiteCandidate[] | null
+  course: Course | null
+  competitionCentre: LocalPoint | null
+  isPickingCentre: boolean
+  showLegTool: boolean
   onControlsMoved: (controls: ControlPair) => void
+  onCentrePicked: (centre: LocalPoint) => void
 }
 
-export function MapView({ info, image, leg, costMap, sites, onControlsMoved }: Props) {
+export function MapView({
+  info,
+  image,
+  leg,
+  costMap,
+  sites,
+  course,
+  competitionCentre,
+  isPickingCentre,
+  showLegTool,
+  onControlsMoved,
+  onCentrePicked,
+}: Props) {
   const target = useRef<HTMLDivElement>(null)
   const [routeSource] = useState(() => new VectorSource())
   const [costLayer] = useState(() => new ImageLayer<ImageStatic>({ visible: false }))
   const localFrameRef = useRef<Projection | null>(null)
   const [siteSource] = useState(() => new VectorSource())
+  const [courseSource] = useState(() => new VectorSource())
+  const [centreSource] = useState(() => new VectorSource())
+  const [legToolLayer] = useState(() => new VectorLayer({ source: new VectorSource() }))
+  const [legToolFeatures] = useState(() => new Collection<Feature>())
+  const [legToolTranslate] = useState(() => new Translate({ features: legToolFeatures }))
   const onControlsMovedRef = useRef(onControlsMoved)
   onControlsMovedRef.current = onControlsMoved
+  const onCentrePickedRef = useRef(onCentrePicked)
+  onCentrePickedRef.current = onCentrePicked
+  const isPickingCentreRef = useRef(isPickingCentre)
+  isPickingCentreRef.current = isPickingCentre
 
   useEffect(() => {
     if (!target.current) return
@@ -108,20 +153,31 @@ export function MapView({ info, image, leg, costMap, sites, onControlsMoved }: P
               }),
             }),
         }),
-        new VectorLayer({
-          source: new VectorSource({ features: [...controls] }),
-          style: (_feature, metersPerPixel) =>
-            new Style({
-              stroke: new Stroke({
-                color: COURSE_OVERPRINT_PURPLE,
-                width: Math.max(1, courseLineWidthMeters / metersPerPixel),
-              }),
-            }),
-        }),
+        new VectorLayer({ source: courseSource, style: courseOverprintStyle }),
+        legToolLayer,
+        new VectorLayer({ source: centreSource, style: centreStyle }),
       ],
       view: new View({ projection: localFrame, extent, constrainOnlyCenter: true }),
     })
     map.getView().fit(extent, { padding: [20, 20, 20, 20] })
+
+    const legToolSource = legToolLayer.getSource()!
+    legToolSource.clear()
+    legToolSource.addFeatures([...controls])
+    legToolLayer.setStyle(
+      (_feature, metersPerPixel) =>
+        new Style({
+          stroke: new Stroke({
+            color: COURSE_OVERPRINT_PURPLE,
+            width: Math.max(1, courseLineWidthMeters / metersPerPixel),
+          }),
+        }),
+    )
+    map.on('singleclick', event => {
+      if (!isPickingCentreRef.current) return
+      const [x = 0, y = 0] = event.coordinate
+      onCentrePickedRef.current(localPoint(x, y))
+    })
 
     const centerOf = (control: Feature<Circle>) => {
       const [x = 0, y = 0] = control.getGeometry()!.getCenter()
@@ -129,13 +185,43 @@ export function MapView({ info, image, leg, costMap, sites, onControlsMoved }: P
     }
     const reportControls = () =>
       onControlsMovedRef.current([centerOf(controls[0]), centerOf(controls[1])])
-    const translate = new Translate({ features: new Collection([...controls]) })
-    translate.on('translateend', reportControls)
-    map.addInteraction(translate)
+    legToolFeatures.clear()
+    legToolFeatures.extend([...controls])
+    legToolTranslate.on('translateend', reportControls)
+    map.addInteraction(legToolTranslate)
     reportControls()
 
-    return () => map.setTarget(undefined)
-  }, [info, image, routeSource, costLayer, siteSource])
+    return () => {
+      legToolTranslate.un('translateend', reportControls)
+      map.setTarget(undefined)
+    }
+  }, [
+    info,
+    image,
+    routeSource,
+    costLayer,
+    siteSource,
+    courseSource,
+    centreSource,
+    legToolLayer,
+    legToolFeatures,
+    legToolTranslate,
+  ])
+
+  useEffect(() => {
+    legToolLayer.setVisible(showLegTool)
+    legToolTranslate.setActive(showLegTool)
+  }, [showLegTool, legToolLayer, legToolTranslate])
+
+  useEffect(() => {
+    courseSource.clear()
+    if (course) courseSource.addFeatures(courseOverprintFeatures(course))
+  }, [course, courseSource])
+
+  useEffect(() => {
+    centreSource.clear()
+    if (competitionCentre) centreSource.addFeature(new Feature(new Point([...competitionCentre])))
+  }, [competitionCentre, centreSource])
 
   useEffect(() => {
     siteSource.clear()
@@ -165,14 +251,14 @@ export function MapView({ info, image, leg, costMap, sites, onControlsMoved }: P
 
   useEffect(() => {
     routeSource.clear()
-    if (!leg) return
+    if (!leg || !showLegTool) return
     const toFeature = (points: LegEvaluation['fastest']['points'], isAlternative: boolean) =>
       new Feature({ geometry: new LineString(points.map(p => [...p])), isAlternative })
     routeSource.addFeatures([
       ...leg.alternatives.map(route => toFeature(route.points, true)),
       toFeature(leg.fastest.points, false),
     ])
-  }, [leg, routeSource])
+  }, [leg, routeSource, showLegTool])
 
-  return <div ref={target} className="map" />
+  return <div ref={target} className={isPickingCentre ? 'map picking' : 'map'} />
 }

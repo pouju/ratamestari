@@ -85,3 +85,17 @@ h2 {
   font-size: 11px;
   text-align: center;
 }
+.map.picking {
+  cursor: crosshair;
+}
+.form,
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+.class-picker {
+  display: flex;
+  gap: 4px;
+}
