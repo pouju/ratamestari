@@ -33,6 +33,7 @@ Full decision log with reasoning and rejected alternatives: [`docs/decisions.md`
 - **No file extensions in imports** (`./geometry`, not `./geometry.ts`).
 - **Tests** live in each package's `test/` folder (`packages/core/test/map.test.ts`), not next to the source.
 - **Formatting:** Prettier, no semicolons, single quotes, 100 columns (`.prettierrc.json`).
+- **Rule digests** (`docs/rules/*.md`): written in English from the PDFs in `docs/sources` (git-ignored; see its README), never from memory. Every statement cites document + section (`ISOM 2017-2 sym. 406`, `Lajisäännöt 2026 §11.25`). Our own readings are marked **Interpretation:**. Read the relevant digest before working on rules, the cost map or control sites.
 - **Course engine**: a browser-independent TypeScript package (so it can later run in Node), behind three interfaces:
   - `MapSource` — OCAD now; OMAP/XMAP if time allows; later PNG + world file
   - `LlmProvider` — user's own Claude API key stored in the browser (MVP); later a server proxy or local model
