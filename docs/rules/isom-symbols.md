@@ -32,6 +32,18 @@ ISOM §2.3 divides runnability into five speed classes, relative to flat, open, 
 - **Interpretation:** the engine treats both as blocking. A route that crosses an impassable feature would be unfair, and one that crosses out-of-bounds is illegal.
 - Passages between impassable features are at least 0.4 mm on the map (6 m at 1:15 000), except next to 201 and 206 (§2.11.3).
 
+## Reading relief
+
+- Contour interval is 5 m as standard, 2.5 m allowed in flat terrain (sym. 101).
+- Slope lines may be drawn on the lower side of a contour (sym. 101). A depression has to have at least one slope line (sym. 101).
+- Form lines are not intermediate contours (sym. 103).
+- **Interpretation:** climb is estimated from contour and index contour crossings (101, 102), not form lines. A crossing goes up or down depending on which side of the contour is uphill:
+  - a slope tick points to the downhill side;
+  - a closed contour without a slope tick is a knoll;
+  - areas touching uncrossable or shallow water (301, 302) are the lowest;
+  - elsewhere the slope continues across the band between two contours, since it only turns on a ridge or in a valley.
+- **Interpretation:** where none of this applies, the direction is unknown and the crossing counts half up, half down.
+
 ## Symbols
 
 Category values: `class N` (runnability class above), `impassable`, `forbidden`, `no effect` (no impact on movement), `crossing slows` (line feature that slows crossing it).
