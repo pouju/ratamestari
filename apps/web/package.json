@@ -1,0 +1,28 @@
+{
+  "name": "@ratamestari/web",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@ratamestari/core": "workspace:*",
+    "@ratamestari/map-ocad": "workspace:*",
+    "buffer": "^6.0.3",
+    "ol": "^10.11.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "string_decoder": "^1.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "vite": "^8.3.4"
+  }
+}
