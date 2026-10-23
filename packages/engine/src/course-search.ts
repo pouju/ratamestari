@@ -95,6 +95,9 @@ const MAX_KEY_LEGS = 4
 const STRAIGHT_ON_ANGLE_DEGREES = 150
 const STRAIGHT_ON_PENALTY: Readonly<Record<Format, number>> = { long: 0, middle: 3 }
 const MIDDLE_CORE_RADIUS_METERS = 750
+const LONG_MIN_AREA_QUALITY = 0.3
+const MAX_DRAFTS = 3
+const GOOD_DRAFT_SHARE_OF_TARGET = 0.85
 const MIDDLE_CORE_REACH_SHARE_OF_TARGET = 0.4
 const BRING_LAST_CONTROL_HOME_CHANCE = 0.5
 const START_ADVANCE_FROM_FINISH_DEGREES: readonly [number, number] = [10, 70]
@@ -139,7 +142,11 @@ export function searchCourse(
           distanceBetween(site.position, core) <= MIDDLE_CORE_RADIUS_METERS ||
           secondsToFinish(site) <= FINAL_LEG_MAX_SHARE_OF_TARGET * targetSeconds,
       )
-    : reachable
+    : reachable.filter(
+        site =>
+          qualityBySiteId[site.id]! >= LONG_MIN_AREA_QUALITY ||
+          secondsToFinish(site) <= FINAL_LEG_MAX_SHARE_OF_TARGET * targetSeconds,
+      )
   if (pool.length === 0) return null
   const poolCells = pool.map(site => cellIndexOf(grid, site.position)!)
   const toFinish = Float32Array.from(poolCells, cell => toFinishGrid[cell]!)
@@ -176,25 +183,36 @@ export function searchCourse(
     quality,
     routeChoiceValue,
   )
-  const loop = planLoop(pool, quality, core, random)
-  const startIndex = pickStart(pool, toFinish, targetSeconds, loop, finish, core, random)
-  if (startIndex === NO_SITE) return null
-
-  let order = buildGreedy(
-    startIndex,
-    pool,
-    toFinish,
-    timesFrom,
-    targetSeconds,
-    spec,
-    loop,
-    finish,
-    staysOnMap,
-    quality,
-    routeChoiceValue,
-    random,
-  )
-  let best = evaluation.score(startIndex, order)
+  let startIndex = NO_SITE
+  let order: number[] = []
+  let best: ScoredCourse | null = null
+  for (let draft = 0; draft < MAX_DRAFTS; draft++) {
+    const loop = planLoop(pool, quality, core, random)
+    const draftStart = pickStart(pool, toFinish, targetSeconds, loop, finish, core, random)
+    if (draftStart === NO_SITE) continue
+    const draftOrder = buildGreedy(
+      draftStart,
+      pool,
+      toFinish,
+      timesFrom,
+      targetSeconds,
+      spec,
+      loop,
+      finish,
+      staysOnMap,
+      quality,
+      routeChoiceValue,
+      random,
+    )
+    const scored = evaluation.score(draftStart, draftOrder)
+    if (!best || scored.score < best.score) {
+      best = scored
+      startIndex = draftStart
+      order = draftOrder
+    }
+    if (scored.estimatedSeconds >= GOOD_DRAFT_SHARE_OF_TARGET * targetSeconds) break
+  }
+  if (!best) return null
   onProgress(toCourse(best))
 
   const steps = spec.improvementSteps ?? DEFAULT_IMPROVEMENT_STEPS[spec.format]
@@ -598,7 +616,16 @@ function proposeChange(
   current: ScoredCourse,
   random: Random,
 ): number[] | null {
-  if (order.length === 0) return null
+  if (order.length === 0) {
+    const fromStart = timesFrom(startIndex)
+    const firstControls = pool.flatMap((_, i) =>
+      i !== startIndex && Number.isFinite(fromStart[i]!) && Number.isFinite(toFinish[i]!)
+        ? [i]
+        : [],
+    )
+    const first = random.pick(firstControls)
+    return first === undefined ? null : [first]
+  }
   const used = new Set([startIndex, ...order])
   const isTooLong = current.estimatedSeconds > current.targetSeconds * (1 + TIME_TOLERANCE_SHARE)
   const isTooShort = current.estimatedSeconds < current.targetSeconds * (1 - TIME_TOLERANCE_SHARE)
