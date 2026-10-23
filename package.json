@@ -11,15 +11,24 @@
     "dev": "pnpm --filter @ratamestari/web dev",
     "build": "pnpm --filter @ratamestari/web build",
     "test": "vitest run",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm -r typecheck && tsc -p scripts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build"
+    "check": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
+    "render-course": "tsx scripts/render-course.ts"
   },
   "devDependencies": {
+    "@ratamestari/core": "workspace:*",
+    "@ratamestari/engine": "workspace:*",
+    "@ratamestari/map-ocad": "workspace:*",
+    "@ratamestari/rules": "workspace:*",
+    "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^26.6.4",
+    "@types/xmldom": "^0.1.34",
     "prettier": "^3.9.9",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "xmldom": "^0.6.0"
   }
 }
