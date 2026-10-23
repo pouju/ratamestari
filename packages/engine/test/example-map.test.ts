@@ -11,6 +11,7 @@ import { buildTerrain, type Terrain } from '../src/terrain'
 import { localMapExists, readLocalMap } from './local-map'
 
 const LEG_LENGTH_METERS = 2000
+const LARGE_MAP_SETUP_TIMEOUT_MS = 60_000
 
 describe.skipIf(!localMapExists)('engine with a local map from git-ignored maps/', () => {
   let terrain: Terrain
@@ -51,7 +52,7 @@ describe.skipIf(!localMapExists)('engine with a local map from git-ignored maps/
       }
     })
     to = cellCenterOf(grid, bestIndex)
-  })
+  }, LARGE_MAP_SETUP_TIMEOUT_MS)
 
   it('finds the mapped area, with open terrain and barriers inside it', () => {
     const mappedCells = [...terrain.mappedArea.keys()].filter(i => terrain.mappedArea[i])
