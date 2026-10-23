@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type DragEvent } from 'react'
 import type { Route } from '@ratamestari/engine'
 import { loadOcadMap, type OcadMap } from '@ratamestari/map-ocad'
 import { REFERENCE_PACE_SECONDS_PER_KM } from '@ratamestari/rules'
+import { renderCostMap, type CostMapImage } from './cost-map-image'
 import { createEngine } from './engine'
 import { formatDuration, formatMeters } from './format'
 import { MapView, type ControlPair } from './MapView'
@@ -30,11 +31,14 @@ export function App() {
   const [controls, setControls] = useState<ControlPair | null>(null)
   const [routeState, setRouteState] = useState<RouteState>({ status: 'none' })
   const latestRouteRequest = useRef(0)
+  const [showCostMap, setShowCostMap] = useState(false)
+  const [costMap, setCostMap] = useState<CostMapImage | null>(null)
 
   async function openFile(file: File) {
     setState({ status: 'loading', fileName: file.name })
     setEngineState('loading')
     setRouteState({ status: 'none' })
+    setCostMap(null)
     const bytes = new Uint8Array(await file.arrayBuffer())
     engine
       .loadMap(bytes)
@@ -64,6 +68,11 @@ export function App() {
     })
   }, [engine, engineState, controls])
 
+  useEffect(() => {
+    if (!showCostMap || costMap || engineState !== 'ready') return
+    void engine.costGrid().then(renderCostMap).then(setCostMap)
+  }, [engine, engineState, showCostMap, costMap])
+
   function onDrop(e: DragEvent) {
     e.preventDefault()
     const file = e.dataTransfer.files[0]
@@ -80,6 +89,7 @@ export function App() {
             info={state.map.info}
             image={state.image}
             route={routeState.status === 'found' ? routeState.route : null}
+            costMap={showCostMap ? costMap : null}
             onControlsMoved={setControls}
           />
         ) : (
@@ -155,6 +165,20 @@ export function App() {
               </dl>
             )}
             <p className="note">Drag the purple circles to change the leg.</p>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={showCostMap}
+                onChange={e => setShowCostMap(e.target.checked)}
+              />{' '}
+              Show cost map
+            </label>
+            {showCostMap && (
+              <p className="note">
+                Blue: fast (paths, open land). Clear: normal forest. Orange: slow, darker is slower.
+                Red: impassable or out of bounds.
+              </p>
+            )}
           </section>
         )}
 

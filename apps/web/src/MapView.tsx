@@ -14,6 +14,7 @@ import Translate from 'ol/interaction/Translate'
 import { Stroke, Style } from 'ol/style'
 import { localPoint, type LocalPoint, type MapInfo } from '@ratamestari/core'
 import type { Route } from '@ratamestari/engine'
+import type { CostMapImage } from './cost-map-image'
 import type { MapImage } from './rasterize'
 import 'ol/ol.css'
 
@@ -32,12 +33,15 @@ interface Props {
   info: MapInfo
   image: MapImage
   route: Route | null
+  costMap: CostMapImage | null
   onControlsMoved: (controls: ControlPair) => void
 }
 
-export function MapView({ info, image, route, onControlsMoved }: Props) {
+export function MapView({ info, image, route, costMap, onControlsMoved }: Props) {
   const target = useRef<HTMLDivElement>(null)
   const [routeSource] = useState(() => new VectorSource())
+  const [costLayer] = useState(() => new ImageLayer<ImageStatic>({ visible: false }))
+  const localFrameRef = useRef<Projection | null>(null)
   const onControlsMovedRef = useRef(onControlsMoved)
   onControlsMovedRef.current = onControlsMoved
 
@@ -45,6 +49,7 @@ export function MapView({ info, image, route, onControlsMoved }: Props) {
     if (!target.current) return
     const extent = [...info.extent]
     const localFrame = new Projection({ code: 'map-local', units: 'm', extent })
+    localFrameRef.current = localFrame
     const [minX, minY, maxX, maxY] = info.extent
     const centerX = (minX + maxX) / 2
     const centerY = (minY + maxY) / 2
@@ -61,6 +66,7 @@ export function MapView({ info, image, route, onControlsMoved }: Props) {
         new ImageLayer({
           source: new ImageStatic({ url: image.url, imageExtent: extent, projection: localFrame }),
         }),
+        costLayer,
         new VectorLayer({
           source: routeSource,
           style: new Style({
@@ -94,7 +100,19 @@ export function MapView({ info, image, route, onControlsMoved }: Props) {
     reportControls()
 
     return () => map.setTarget(undefined)
-  }, [info, image, routeSource])
+  }, [info, image, routeSource, costLayer])
+
+  useEffect(() => {
+    costLayer.setVisible(costMap !== null)
+    if (!costMap || !localFrameRef.current) return
+    costLayer.setSource(
+      new ImageStatic({
+        url: costMap.url,
+        imageExtent: [...costMap.extent],
+        projection: localFrameRef.current,
+      }),
+    )
+  }, [costMap, costLayer])
 
   useEffect(() => {
     routeSource.clear()
