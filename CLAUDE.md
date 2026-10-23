@@ -63,7 +63,7 @@ Out for the weekend: PNG/PDF map input, relay forking, planning a whole event's 
 - [ ] Repo public; "Source code" link in the app (link exists; set `SOURCE_CODE_URL` in `apps/web/src/config.ts`)
 - [x] Credit ocad2geojson and Per Liedman in the README
 - [ ] Tell all team members at kickoff that contributions are AGPL
-- [x] ocad2geojson adapter module → internal map format (scale, extent, georef, SVG render; feature categories still to do)
+- [x] ocad2geojson adapter module → internal map format (scale, extent, georef, SVG render, features with ISOM codes and per-map overrides)
 - [x] Bundler config: `buffer` + `string_decoder` polyfills, `fs` aliased to empty module
 - [x] Rules config file (IOF + SSL values): `packages/rules`; winning times and course lengths still to do
 
