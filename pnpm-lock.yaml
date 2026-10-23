@@ -205,6 +205,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@ratamestari/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@ratamestari/core':
         specifier: workspace:*
         version: link:../../packages/core

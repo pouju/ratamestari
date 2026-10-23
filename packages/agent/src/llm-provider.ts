@@ -27,4 +27,5 @@ export interface ChatSession {
 
 export interface LlmProvider {
   startChat(options: ChatOptions): ChatSession
+  describeError(error: unknown): string
 }

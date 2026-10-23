@@ -1,3 +1,4 @@
+import { courseProblemTexts } from '@ratamestari/agent'
 import type { Course } from '@ratamestari/engine'
 import {
   ageClassSchema,
@@ -136,21 +137,7 @@ export function CoursePanel({
 }
 
 function CourseSummary({ course }: { course: Course }) {
-  const { problems } = course
-  const problemTexts = [
-    problems.spacing > 0 && `${problems.spacing} controls too close together`,
-    problems.acuteAngleWarnings > 0 && `${problems.acuteAngleWarnings} acute angles under 45°`,
-    problems.acuteAngleNotes > 0 && `${problems.acuteAngleNotes} angles under 60°`,
-    problems.difficultyOutsideRange > 0 &&
-      `${problems.difficultyOutsideRange} controls outside the class's difficulty`,
-    problems.courseLineCrossings > 0 && `${problems.courseLineCrossings} course lines cross`,
-    problems.courseLinesThroughControls > 0 &&
-      `${problems.courseLinesThroughControls} course lines pass through another control`,
-    problems.courseLinesOutsideMap > 0 &&
-      `${problems.courseLinesOutsideMap} course lines go outside the map`,
-    problems.overlappingCircles > 0 && `${problems.overlappingCircles} overlapping control circles`,
-    problems.finalLegTooLong && 'long last leg into the finish',
-  ].filter(Boolean)
+  const problemTexts = courseProblemTexts(course)
   return (
     <dl>
       <dt>Controls</dt>

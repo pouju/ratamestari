@@ -2,11 +2,13 @@ import { useEffect, useRef, useState, type DragEvent } from 'react'
 import type { LocalPoint } from '@ratamestari/core'
 import type { ControlSiteCandidate, Course, LegEvaluation } from '@ratamestari/engine'
 import type { CourseRequest } from '@ratamestari/rules'
+import { createCourseTools, type CourseWorkspace, type GenerateOptions } from '@ratamestari/agent'
 import { loadOcadMap, type OcadMap } from '@ratamestari/map-ocad'
 import { renderCostMap, type CostMapImage } from './cost-map-image'
+import { ChatPanel } from './ChatPanel'
 import { CoursePanel } from './CoursePanel'
 import { createEngine, progressCallback } from './engine'
-import { parsePace } from './format'
+import { formatDuration, parsePace } from './format'
 import { LegDetails } from './LegDetails'
 import { DIFFICULTY_COLOURS, MapView, type ControlPair } from './MapView'
 import { rasterizeSvg, type MapImage } from './rasterize'
@@ -101,24 +103,57 @@ export function App() {
     void engine.controlSites().then(setSites)
   }, [engine, engineState, showSites, sites])
 
-  async function generateCourse(nextSeed: number) {
-    if (!competitionCentre || paceSecondsPerKm === null) return
+  async function generateCourse(
+    nextRequest: CourseRequest,
+    nextSeed: number,
+    pace: number | null,
+  ): Promise<Course | null> {
+    if (!competitionCentre || pace === null) return null
+    setRequest(nextRequest)
     setSeed(nextSeed)
     setIsGenerating(true)
     setShowLegTool(false)
     try {
       const result = await engine.generateCourse(
-        request,
+        nextRequest,
         competitionCentre,
         nextSeed,
-        paceSecondsPerKm,
+        pace,
         progressCallback<Course>(setCourse),
       )
       setCourse(result)
+      return result
     } finally {
       setIsGenerating(false)
     }
   }
+
+  function generateFromChat(nextRequest: CourseRequest, options: GenerateOptions) {
+    const pace = options.winnerPaceSecondsPerKm ?? paceSecondsPerKm
+    if (options.winnerPaceSecondsPerKm !== undefined)
+      setPaceText(formatDuration(options.winnerPaceSecondsPerKm))
+    return generateCourse(nextRequest, options.option ?? seed, pace)
+  }
+
+  const latestWorkspace = useRef<CourseWorkspace | null>(null)
+  latestWorkspace.current = {
+    status: () => ({
+      mapLoaded: state.status === 'ready' && engineState === 'ready',
+      mapScale: state.status === 'ready' ? state.map.info.scale : null,
+      hasCompetitionCentre: competitionCentre !== null,
+      request,
+      winnerPaceSecondsPerKm: paceSecondsPerKm,
+      course,
+    }),
+    generateCourse: generateFromChat,
+  }
+  const [chatTools] = useState(() =>
+    createCourseTools({
+      status: () => latestWorkspace.current!.status(),
+      generateCourse: (nextRequest, options) =>
+        latestWorkspace.current!.generateCourse(nextRequest, options),
+    }),
+  )
 
   function onDrop(e: DragEvent) {
     e.preventDefault()
@@ -197,6 +232,8 @@ export function App() {
           </dl>
         )}
 
+        <ChatPanel tools={chatTools} />
+
         {state.status === 'ready' && (
           <CoursePanel
             request={request}
@@ -215,7 +252,7 @@ export function App() {
             isPaceValid={paceSecondsPerKm !== null}
             isGenerating={isGenerating}
             seed={seed}
-            onGenerate={nextSeed => void generateCourse(nextSeed)}
+            onGenerate={nextSeed => void generateCourse(request, nextSeed, paceSecondsPerKm)}
             course={course}
           />
         )}

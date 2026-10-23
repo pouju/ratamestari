@@ -68,5 +68,18 @@ export function createClaudeProvider(apiKey: string): LlmProvider {
         },
       }
     },
+
+    describeError(error) {
+      if (error instanceof Anthropic.APIUserAbortError) return 'Stopped.'
+      if (error instanceof Anthropic.AuthenticationError)
+        return 'Claude did not accept the API key. Check the key and save it again.'
+      if (error instanceof Anthropic.RateLimitError)
+        return 'Too many requests to Claude. Wait a moment and try again.'
+      if (error instanceof Anthropic.APIConnectionError)
+        return 'Could not reach Claude. Check the internet connection.'
+      if (error instanceof Anthropic.APIError)
+        return `Claude API error ${error.status}: ${error.message}`
+      return error instanceof Error ? error.message : String(error)
+    },
   }
 }

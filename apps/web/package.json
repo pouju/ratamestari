@@ -11,6 +11,7 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
+    "@ratamestari/agent": "workspace:*",
     "@ratamestari/core": "workspace:*",
     "@ratamestari/engine": "workspace:*",
     "@ratamestari/map-ocad": "workspace:*",
