@@ -218,6 +218,19 @@ importers:
 
   packages/core: {}
 
+  packages/engine:
+    dependencies:
+      '@ratamestari/core':
+        specifier: workspace:*
+        version: link:../core
+      '@ratamestari/rules':
+        specifier: workspace:*
+        version: link:../rules
+    devDependencies:
+      '@ratamestari/map-ocad':
+        specifier: workspace:*
+        version: link:../map-ocad
+
   packages/map-ocad:
     dependencies:
       '@ratamestari/core':
