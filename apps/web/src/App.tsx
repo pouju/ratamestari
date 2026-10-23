@@ -6,6 +6,7 @@ import { loadOcadMap, type OcadMap } from '@ratamestari/map-ocad'
 import { renderCostMap, type CostMapImage } from './cost-map-image'
 import { CoursePanel } from './CoursePanel'
 import { createEngine, progressCallback } from './engine'
+import { parsePace } from './format'
 import { LegDetails } from './LegDetails'
 import { DIFFICULTY_COLOURS, MapView, type ControlPair } from './MapView'
 import { rasterizeSvg, type MapImage } from './rasterize'
@@ -30,6 +31,8 @@ const DEFAULT_REQUEST: CourseRequest = {
   skillLetter: 'A',
 }
 
+const DEFAULT_WINNER_PACE = '5:00'
+
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 export function App() {
@@ -50,6 +53,8 @@ export function App() {
   const [course, setCourse] = useState<Course | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [showLegTool, setShowLegTool] = useState(true)
+  const [paceText, setPaceText] = useState(DEFAULT_WINNER_PACE)
+  const paceSecondsPerKm = parsePace(paceText)
 
   async function openFile(file: File) {
     setState({ status: 'loading', fileName: file.name })
@@ -78,11 +83,13 @@ export function App() {
     if (engineState !== 'ready' || !controls) return
     const request = ++latestLegRequest.current
     const [from, to] = controls
-    void engine.evaluateLeg(from, to).then(leg => {
-      if (request !== latestLegRequest.current) return
-      setLegState(leg ? { status: 'evaluated', leg } : { status: 'unreachable' })
-    })
-  }, [engine, engineState, controls])
+    void engine
+      .evaluateLeg(from, to, paceSecondsPerKm ?? parsePace(DEFAULT_WINNER_PACE)!)
+      .then(leg => {
+        if (request !== latestLegRequest.current) return
+        setLegState(leg ? { status: 'evaluated', leg } : { status: 'unreachable' })
+      })
+  }, [engine, engineState, controls, paceSecondsPerKm])
 
   useEffect(() => {
     if (!showCostMap || costMap || engineState !== 'ready') return
@@ -95,7 +102,7 @@ export function App() {
   }, [engine, engineState, showSites, sites])
 
   async function generateCourse(nextSeed: number) {
-    if (!competitionCentre) return
+    if (!competitionCentre || paceSecondsPerKm === null) return
     setSeed(nextSeed)
     setIsGenerating(true)
     setShowLegTool(false)
@@ -104,6 +111,7 @@ export function App() {
         request,
         competitionCentre,
         nextSeed,
+        paceSecondsPerKm,
         progressCallback<Course>(setCourse),
       )
       setCourse(result)
@@ -196,7 +204,15 @@ export function App() {
             hasCentre={competitionCentre !== null}
             isPickingCentre={isPickingCentre}
             onPickCentre={() => setIsPickingCentre(true)}
-            canGenerate={engineState === 'ready' && competitionCentre !== null && !isGenerating}
+            canGenerate={
+              engineState === 'ready' &&
+              competitionCentre !== null &&
+              paceSecondsPerKm !== null &&
+              !isGenerating
+            }
+            paceText={paceText}
+            onPaceTextChange={setPaceText}
+            isPaceValid={paceSecondsPerKm !== null}
             isGenerating={isGenerating}
             seed={seed}
             onGenerate={nextSeed => void generateCourse(nextSeed)}

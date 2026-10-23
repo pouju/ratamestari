@@ -26,15 +26,16 @@ const engine = {
     mapScale = map.info.scale
   },
 
-  evaluateLeg(from: LocalPoint, to: LocalPoint): LegEvaluation | null {
+  evaluateLeg(from: LocalPoint, to: LocalPoint, paceSecondsPerKm: number): LegEvaluation | null {
     if (!terrain) throw new Error('No map loaded in the engine')
-    return evaluateLeg(terrain, from, to)
+    return evaluateLeg(terrain, from, to, { paceSecondsPerKm })
   },
 
   generateCourse(
     request: CourseRequest,
     competitionCentre: LocalPoint,
     seed: number,
+    paceSecondsPerKm: number,
     onProgress: (course: Course) => void,
   ): Course | null {
     if (!terrain) throw new Error('No map loaded in the engine')
@@ -44,7 +45,7 @@ const engine = {
     return searchCourse(
       terrain,
       sites,
-      { target, format: validRequest.format, mapScale, competitionCentre, seed },
+      { target, format: validRequest.format, mapScale, competitionCentre, seed, paceSecondsPerKm },
       onProgress,
     )
   },

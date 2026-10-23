@@ -7,7 +7,7 @@ import {
   skillLetterSchema,
   type CourseRequest,
 } from '@ratamestari/rules'
-import { formatDuration } from './format'
+import { formatDuration, formatKilometers } from './format'
 
 const EVENT_LEVEL_LABELS: Record<CourseRequest['eventLevel'], string> = {
   national: 'National event',
@@ -25,6 +25,9 @@ interface Props {
   isPickingCentre: boolean
   onPickCentre: () => void
   canGenerate: boolean
+  paceText: string
+  onPaceTextChange: (text: string) => void
+  isPaceValid: boolean
   isGenerating: boolean
   seed: number
   onGenerate: (seed: number) => void
@@ -38,6 +41,9 @@ export function CoursePanel({
   isPickingCentre,
   onPickCentre,
   canGenerate,
+  paceText,
+  onPaceTextChange,
+  isPaceValid,
   isGenerating,
   seed,
   onGenerate,
@@ -102,6 +108,17 @@ export function CoursePanel({
           </select>
         </span>
       </div>
+      <label className="pace">
+        Winner's pace at full speed{' '}
+        <input
+          value={paceText}
+          onChange={e => onPaceTextChange(e.target.value)}
+          size={5}
+          aria-invalid={!isPaceValid}
+        />{' '}
+        min/km
+      </label>
+      {!isPaceValid && <p className="error">Write the pace as minutes:seconds, e.g. 5:00.</p>}
       <div className="buttons">
         <button type="button" disabled={!canGenerate} onClick={() => onGenerate(seed)}>
           {isGenerating ? 'Setting course…' : 'Generate'}
@@ -142,6 +159,8 @@ function CourseSummary({ course }: { course: Course }) {
       <dd>
         {formatDuration(course.estimatedSeconds)} (target {formatDuration(course.targetSeconds)})
       </dd>
+      <dt>Course length (shortest route, LS 11.22)</dt>
+      <dd>{course.lengthMeters === null ? 'measuring…' : formatKilometers(course.lengthMeters)}</dd>
       <dt>Rule checks</dt>
       <dd>{problemTexts.length === 0 ? 'No problems found' : problemTexts.join(', ')}</dd>
       <dt>Option</dt>
