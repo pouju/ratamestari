@@ -17,7 +17,7 @@ Full decision log with reasoning and rejected alternatives: [`docs/decisions.md`
 
 - **Static web app on GitHub Pages**, no backend (D4).
 - **Stack** (D11): strict TypeScript, pnpm workspace, React + Vite, TanStack Store + Form, Zod, OpenLayers, Comlink, Vitest. Internal packages export TS source directly (no per-package build).
-  - `packages/core` (types, branded units/coordinates, rules config), `packages/map-ocad` (only importer of ocad2geojson), `packages/engine` (no DOM), `packages/iof` (descriptions, IOF XML), `packages/agent` (LlmProvider, tools), `apps/web`.
+  - `packages/core` (types, branded units/coordinates), `packages/rules` (ISOM symbol table, runnability classes, course rule values; every value cites its source and flags `interpretation`; mirrors `docs/rules`), `packages/map-ocad` (only importer of ocad2geojson), `packages/engine` (no DOM), `packages/iof` (descriptions, IOF XML), `packages/agent` (LlmProvider, tools), `apps/web`.
   - Engine works in ground metres only; coordinate systems are branded types — don't mix them. Zod schemas are the source of truth for spec, rules config and LLM tool inputs.
   - Coordinates: engine and view use the map's **local frame** (ground metres, map north up = OCAD paper × scale). Convert to the projected CRS (dev map: EPSG:3067) only via `core` (`localToProjected`); don't use ocad2geojson's `toMapCoord` (buggy).
   - Map display: OCAD rendered in-browser to SVG, rasterised once to PNG, shown in OpenLayers as a static image. No online base map tiles.
@@ -65,7 +65,7 @@ Out for the weekend: PNG/PDF map input, relay forking, planning a whole event's 
 - [ ] Tell all team members at kickoff that contributions are AGPL
 - [x] ocad2geojson adapter module → internal map format (scale, extent, georef, SVG render; feature categories still to do)
 - [x] Bundler config: `buffer` + `string_decoder` polyfills, `fs` aliased to empty module
-- [ ] Rules config file (IOF + SSL values)
+- [x] Rules config file (IOF + SSL values): `packages/rules`; winning times and course lengths still to do
 
 ## Recording new decisions
 

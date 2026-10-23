@@ -237,6 +237,12 @@ importers:
         specifier: ^0.6.0
         version: 0.6.0
 
+  packages/rules:
+    dependencies:
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+
 packages:
 
   '@jridgewell/resolve-uri@3.1.2':
@@ -1020,6 +1026,9 @@ packages:
   zarrita@0.7.5:
     resolution: {integrity: sha512-ZriOSEne+Wf2iuM0yjDZvUKpHNlug3dO7qJ6mAxXoOgsYV18DPOkAkwB9e0rf21bHcKcOffFuwoZwn5g6pvUeA==}
 
+  zod@4.6.5:
+    resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
+
   zstddec@0.2.0:
     resolution: {integrity: sha512-oyPnDa1X5c13+Y7mA/FDMNJrn4S8UNBe0KCqtDmor40Re7ALrPN6npFwyYVRRh+PqozZQdeg23QtbcamZnG5rA==}
 
@@ -1627,5 +1636,7 @@ snapshots:
     dependencies:
       '@zarrita/storage': 0.2.0
       numcodecs: 0.3.2
+
+  zod@4.6.5: {}
 
   zstddec@0.2.0: {}
