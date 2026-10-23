@@ -1,17 +1,13 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import { DOMImplementation } from 'xmldom'
 import readOcad from 'ocad2geojson/src/ocad-reader'
 import { Buffer } from 'buffer'
 import { describe, expect, it } from 'vitest'
 import { localToProjected, paperPoint, paperToLocal } from '@ratamestari/core'
 import { loadOcadMap } from '../src/load'
-
-const localMapPath = fileURLToPath(new URL('../../../maps/example.ocd', import.meta.url))
-const localMapExists = existsSync(localMapPath)
+import { localMapExists, readLocalMap } from './local-map'
 
 describe.skipIf(!localMapExists)('loadOcadMap with git-ignored maps/example.ocd', () => {
-  const bytes = localMapExists ? new Uint8Array(readFileSync(localMapPath)) : new Uint8Array()
+  const bytes = localMapExists ? readLocalMap() : new Uint8Array()
 
   it('reads scale, extent and georeference', async () => {
     const map = await loadOcadMap(bytes)
