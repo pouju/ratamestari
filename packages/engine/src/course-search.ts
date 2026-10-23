@@ -89,6 +89,9 @@ const REVERSE_SECTION_CHANCE = 0.25
 const HEADING_HOME_SHARE_OF_TARGET = 0.25
 const QUALITY_REWARD: Readonly<Record<Format, number>> = { long: 20, middle: 40 }
 const QUALITY_PREFERENCE = 2
+const ROUTE_CHOICE_REWARD_PER_KEY_LEG = 8
+const ROUTE_CHOICE_PREFERENCE = 2
+const MAX_KEY_LEGS = 4
 const STRAIGHT_ON_ANGLE_DEGREES = 150
 const STRAIGHT_ON_PENALTY: Readonly<Record<Format, number>> = { long: 0, middle: 3 }
 const MIDDLE_CORE_RADIUS_METERS = 750
@@ -160,6 +163,8 @@ export function searchCourse(
 
   const staysOnMap = (from: LocalPoint, to: LocalPoint) =>
     courseLineStaysOnMap(grid, terrain.mappedArea, from, to)
+  const routeChoiceValue = (from: LocalPoint, to: LocalPoint, fastestSeconds: number) =>
+    routeChoiceValueOf(straightLineSeconds(grid, from, to, pace), fastestSeconds)
   const evaluation = createEvaluation(
     pool,
     spec,
@@ -169,6 +174,7 @@ export function searchCourse(
     targetSeconds,
     staysOnMap,
     quality,
+    routeChoiceValue,
   )
   const loop = planLoop(pool, quality, core, random)
   const startIndex = pickStart(pool, toFinish, targetSeconds, loop, finish, core, random)
@@ -185,6 +191,7 @@ export function searchCourse(
     finish,
     staysOnMap,
     quality,
+    routeChoiceValue,
     random,
   )
   let best = evaluation.score(startIndex, order)
@@ -238,6 +245,7 @@ function createEvaluation(
   targetSeconds: number,
   staysOnMap: (from: LocalPoint, to: LocalPoint) => boolean,
   quality: Float32Array,
+  routeChoiceValue: (from: LocalPoint, to: LocalPoint, fastestSeconds: number) => number,
 ) {
   const spacing = controlSpacingForScale(spec.mapScale)
   const [minDifficulty, maxDifficulty] = spec.target.siteDifficulty
@@ -275,6 +283,15 @@ function createEvaluation(
       if (angle > STRAIGHT_ON_ANGLE_DEGREES) straightOnTurns++
     }
 
+    const keyLegValues = legSeconds
+      .flatMap((seconds, i) =>
+        seconds >= LEG_PROFILES.long.longLeg[0] * targetSeconds
+          ? [routeChoiceValue(stops[i]!, stops[i + 1]!, seconds)]
+          : [],
+      )
+      .sort((a, b) => b - a)
+      .slice(0, MAX_KEY_LEGS)
+    const routeChoiceTotal = keyLegValues.reduce((sum, value) => sum + value, 0)
     const meanQuality =
       order.length === 0 ? 0 : order.reduce((sum, i) => sum + quality[i]!, 0) / order.length
     const difficultyOutsideRange = order.filter(i => {
@@ -327,7 +344,8 @@ function createEvaluation(
           PENALTY.courseLineOutsideMap * courseLinesOutsideMap +
           PENALTY.overlappingCircles * overlappingCircles -
           QUALITY_REWARD[spec.format] * meanQuality +
-          STRAIGHT_ON_PENALTY[spec.format] * straightOnTurns,
+          STRAIGHT_ON_PENALTY[spec.format] * straightOnTurns -
+          (spec.format === 'long' ? ROUTE_CHOICE_REWARD_PER_KEY_LEG * routeChoiceTotal : 0),
     }
   }
   return { score }
@@ -440,6 +458,7 @@ function buildGreedy(
   finish: LocalPoint,
   staysOnMap: (from: LocalPoint, to: LocalPoint) => boolean,
   quality: Float32Array,
+  routeChoiceValue: (from: LocalPoint, to: LocalPoint, fastestSeconds: number) => number,
   random: Random,
 ): number[] {
   const startAngle = loopAngle(loop, pool[startIndex]!.position)
@@ -553,7 +572,11 @@ function buildGreedy(
         (inRange ? 1 : 0) +
         closerToFinish +
         onPace +
-        QUALITY_PREFERENCE * quality[i]!
+        QUALITY_PREFERENCE * quality[i]! +
+        (isLongLeg
+          ? ROUTE_CHOICE_PREFERENCE *
+            routeChoiceValue(pool[current]!.position, pool[i]!.position, times[i]!)
+          : 0)
       )
     }
     const next = candidates.reduce((a, b) => (preference(b) > preference(a) ? b : a))
@@ -711,4 +734,45 @@ function courseLineStaysOnMap(
     if (index === null || !mappedArea[index]) return false
   }
   return true
+}
+
+function straightLineSeconds(
+  grid: CostGrid,
+  from: LocalPoint,
+  to: LocalPoint,
+  paceSecondsPerKm: number,
+): number {
+  const length = distanceBetween(from, to)
+  const samples = Math.max(1, Math.ceil(length / grid.cellSizeMeters))
+  const stepSeconds = ((length / samples) * paceSecondsPerKm) / 1000
+  let seconds = 0
+  for (let s = 0; s < samples; s++) {
+    const t = (s + 0.5) / samples
+    const index = cellIndexOf(grid, [
+      from[0] + (to[0] - from[0]) * t,
+      from[1] + (to[1] - from[1]) * t,
+    ] as const as LocalPoint)
+    const speed = index === null ? BLOCKED : grid.speed[index]!
+    if (speed === BLOCKED) return Number.POSITIVE_INFINITY
+    seconds += stepSeconds / speed
+  }
+  return seconds
+}
+
+const ROUTE_CHOICE_RATIO_FULL_FROM = 1.05
+const ROUTE_CHOICE_RATIO_FULL_UNTIL = 1.3
+const ROUTE_CHOICE_RATIO_FADED_AT = 2
+const FORCED_DETOUR_VALUE = 0.3
+
+function routeChoiceValueOf(straightSeconds: number, fastestSeconds: number): number {
+  if (fastestSeconds <= 0) return 0
+  if (!Number.isFinite(straightSeconds)) return FORCED_DETOUR_VALUE
+  const ratio = straightSeconds / fastestSeconds
+  if (ratio <= 1) return 0
+  if (ratio < ROUTE_CHOICE_RATIO_FULL_FROM) return (ratio - 1) / (ROUTE_CHOICE_RATIO_FULL_FROM - 1)
+  if (ratio <= ROUTE_CHOICE_RATIO_FULL_UNTIL) return 1
+  const fade =
+    (ratio - ROUTE_CHOICE_RATIO_FULL_UNTIL) /
+    (ROUTE_CHOICE_RATIO_FADED_AT - ROUTE_CHOICE_RATIO_FULL_UNTIL)
+  return Math.max(FORCED_DETOUR_VALUE, 1 - fade * (1 - FORCED_DETOUR_VALUE))
 }
