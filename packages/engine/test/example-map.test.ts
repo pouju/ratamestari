@@ -22,7 +22,7 @@ const nearestOpenPoint = (grid: CostGrid, target: LocalPoint): LocalPoint => {
   return cellCenterOf(grid, best)
 }
 
-describe.skipIf(!localMapExists)('engine with git-ignored maps/example.ocd', () => {
+describe.skipIf(!localMapExists)('engine with a local map from git-ignored maps/', () => {
   let grid: CostGrid
   let centerX: number
   let centerY: number

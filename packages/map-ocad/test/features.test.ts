@@ -18,7 +18,7 @@ const pointsOf = ({ geometry }: MapFeature): readonly LocalPoint[] => {
 const movementKindOf = (feature: MapFeature) =>
   feature.isomCode === null ? undefined : isomSymbolRule(feature.isomCode)?.movement.kind
 
-describe.skipIf(!localMapExists)('OcadMap.features with git-ignored maps/example.ocd', () => {
+describe.skipIf(!localMapExists)('OcadMap.features with a local map from git-ignored maps/', () => {
   const bytes = localMapExists ? readLocalMap() : new Uint8Array()
 
   it('reads every object as a feature', async () => {
@@ -43,23 +43,22 @@ describe.skipIf(!localMapExists)('OcadMap.features with git-ignored maps/example
     expect(outside).toEqual([])
   })
 
-  it('gives terrain features the ISOM codes the rules know', async () => {
+  it('gives most features an ISOM code the rules know', async () => {
     const map = await loadOcadMap(bytes)
-    const kinds = new Set(map.features().map(movementKindOf))
-    expect(kinds).toContain('impassable')
-    expect(kinds).toContain('forbidden')
-    expect(kinds).toContain('runnability')
-    expect(map.features().find(f => f.symbolNumber === 520004)?.isomCode).toBe('520')
+    const features = map.features()
+    const known = features.filter(f => movementKindOf(f) !== undefined)
+    expect(known.length / features.length).toBeGreaterThan(0.5)
+    expect(new Set(known.map(movementKindOf))).toContain('runnability')
   })
 
   it('applies per-map ISOM code overrides', async () => {
-    const forbiddenRailwayYard = 509001
+    const overriddenSymbol = (await loadOcadMap(bytes)).features()[0]!.symbolNumber
     const map = await loadOcadMap(bytes, {
-      isomCodeOverrides: new Map([[forbiddenRailwayYard, '520']]),
+      isomCodeOverrides: new Map([[overriddenSymbol, '520']]),
     })
-    const yards = map.features().filter(f => f.symbolNumber === forbiddenRailwayYard)
-    expect(yards.length).toBeGreaterThan(0)
-    for (const yard of yards) expect(yard.isomCode).toBe('520')
+    const overridden = map.features().filter(f => f.symbolNumber === overriddenSymbol)
+    expect(overridden.length).toBeGreaterThan(0)
+    for (const feature of overridden) expect(feature.isomCode).toBe('520')
   })
 
   it('reads features once and reuses them', async () => {

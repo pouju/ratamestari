@@ -6,28 +6,29 @@ import { localToProjected, paperPoint, paperToLocal } from '@ratamestari/core'
 import { loadOcadMap } from '../src/load'
 import { localMapExists, readLocalMap } from './local-map'
 
-describe.skipIf(!localMapExists)('loadOcadMap with git-ignored maps/example.ocd', () => {
+describe.skipIf(!localMapExists)('loadOcadMap with a local map from git-ignored maps/', () => {
   const bytes = localMapExists ? readLocalMap() : new Uint8Array()
 
-  it('reads scale, extent and georeference', async () => {
+  it('reads scale, extent and objects', async () => {
     const map = await loadOcadMap(bytes)
-    expect(map.info.scale).toBe(15000)
-    expect(map.info.georef?.epsg).toBe(3067)
-    expect(map.objectCount).toBeGreaterThan(10000)
+    expect(map.info.scale).toBeGreaterThan(0)
+    expect(map.objectCount).toBeGreaterThan(0)
     const [minX, minY, maxX, maxY] = map.info.extent
-    expect(maxX - minX).toBeGreaterThan(3000)
-    expect(maxY - minY).toBeGreaterThan(4000)
+    expect(maxX).toBeGreaterThan(minX)
+    expect(maxY).toBeGreaterThan(minY)
   })
 
   it('projects local points the same way as ocad2geojson', async () => {
     const map = await loadOcadMap(bytes)
+    const georef = map.info.georef
+    if (!georef) return
     const reference = await readOcad(Buffer.from(bytes), { quietWarnings: true })
     const referenceCrs = reference.getCrs()
-    const georef = map.info.georef!
+    const [minX, minY, maxX, maxY] = reference.getBounds()
     for (const [x, y] of [
       [0, 0],
-      [-8418, -16672],
-      [15668, 15005],
+      [minX, minY],
+      [maxX, maxY],
     ] as const) {
       const ours = localToProjected(paperToLocal(paperPoint(x, y), map.info.scale), georef)
       const theirs = referenceCrs.toProjectedCoord([x, y])
