@@ -18,7 +18,7 @@ const engine = {
   async loadMap(bytes: Uint8Array): Promise<void> {
     const map = await loadOcadMap(bytes)
     terrain = buildTerrain(map.features(), map.info.extent)
-    sites = findControlSites(map.features(), terrain.grid)
+    sites = findControlSites(map.features(), terrain)
   },
 
   evaluateLeg(from: LocalPoint, to: LocalPoint): LegEvaluation | null {

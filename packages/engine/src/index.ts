@@ -11,6 +11,7 @@ export { evaluateLeg, type LegEvaluation } from './leg'
 export { buildTerrain, type Terrain, type TerrainOptions } from './terrain'
 export {
   findControlSites,
+  type ContourForm,
   type ControlSiteCandidate,
   type LeadingFeatureDistance,
   type SitePlacement,

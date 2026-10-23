@@ -66,7 +66,7 @@ describe.skipIf(!localMapExists)('engine with a local map from git-ignored maps/
   })
 
   it('finds reachable control sites of several difficulties', () => {
-    const sites = findControlSites(features, grid)
+    const sites = findControlSites(features, terrain)
     expect(sites.length).toBeGreaterThan(0)
     expect(new Set(sites.map(s => s.technicalDifficulty)).size).toBeGreaterThan(1)
     expect(sites.every(s => cellIndexOf(grid, s.position) !== null)).toBe(true)
