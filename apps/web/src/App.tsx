@@ -1,7 +1,10 @@
-import { useState, type DragEvent } from 'react'
-import { localToProjected, type LocalPoint } from '@ratamestari/core'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
+import type { Route } from '@ratamestari/engine'
 import { loadOcadMap, type OcadMap } from '@ratamestari/map-ocad'
-import { MapView } from './MapView'
+import { REFERENCE_PACE_SECONDS_PER_KM } from '@ratamestari/rules'
+import { createEngine } from './engine'
+import { formatDuration, formatMeters } from './format'
+import { MapView, type ControlPair } from './MapView'
 import { rasterizeSvg, type MapImage } from './rasterize'
 import { SOURCE_CODE_URL } from './config'
 
@@ -11,21 +14,55 @@ type LoadState =
   | { status: 'error'; message: string }
   | { status: 'ready'; fileName: string; map: OcadMap; image: MapImage; ms: number }
 
+type EngineState = 'idle' | 'loading' | 'ready' | 'error'
+
+type RouteState =
+  | { status: 'none' }
+  | { status: 'found'; route: Route; straightMeters: number }
+  | { status: 'unreachable' }
+
+const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
+
 export function App() {
+  const [engine] = useState(createEngine)
   const [state, setState] = useState<LoadState>({ status: 'empty' })
-  const [control, setControl] = useState<LocalPoint | null>(null)
+  const [engineState, setEngineState] = useState<EngineState>('idle')
+  const [controls, setControls] = useState<ControlPair | null>(null)
+  const [routeState, setRouteState] = useState<RouteState>({ status: 'none' })
+  const latestRouteRequest = useRef(0)
 
   async function openFile(file: File) {
     setState({ status: 'loading', fileName: file.name })
+    setEngineState('loading')
+    setRouteState({ status: 'none' })
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    engine
+      .loadMap(bytes)
+      .then(() => setEngineState('ready'))
+      .catch(() => setEngineState('error'))
     try {
       const t0 = performance.now()
-      const map = await loadOcadMap(new Uint8Array(await file.arrayBuffer()))
+      const map = await loadOcadMap(bytes)
       const image = await rasterizeSvg(map.renderSvg(document), map.info.extent)
       setState({ status: 'ready', fileName: file.name, map, image, ms: performance.now() - t0 })
     } catch (e) {
-      setState({ status: 'error', message: e instanceof Error ? e.message : String(e) })
+      setState({ status: 'error', message: errorMessage(e) })
     }
   }
+
+  useEffect(() => {
+    if (engineState !== 'ready' || !controls) return
+    const request = ++latestRouteRequest.current
+    const [from, to] = controls
+    void engine.route(from, to).then(route => {
+      if (request !== latestRouteRequest.current) return
+      setRouteState(
+        route
+          ? { status: 'found', route, straightMeters: Math.hypot(to[0] - from[0], to[1] - from[1]) }
+          : { status: 'unreachable' },
+      )
+    })
+  }, [engine, engineState, controls])
 
   function onDrop(e: DragEvent) {
     e.preventDefault()
@@ -39,7 +76,12 @@ export function App() {
     <div className="workspace" onDragOver={e => e.preventDefault()} onDrop={onDrop}>
       <main>
         {state.status === 'ready' ? (
-          <MapView info={state.map.info} image={state.image} onControlMoved={setControl} />
+          <MapView
+            info={state.map.info}
+            image={state.image}
+            route={routeState.status === 'found' ? routeState.route : null}
+            onControlsMoved={setControls}
+          />
         ) : (
           <div className="drop">
             {state.status === 'loading'
@@ -86,25 +128,34 @@ export function App() {
                 <dd>{state.map.backgroundMapPaths.join(', ')}</dd>
               </>
             )}
-            {control && (
-              <>
-                <dt>Test control (map frame)</dt>
-                <dd>
-                  {control[0].toFixed(1)}, {control[1].toFixed(1)} m
-                </dd>
-                {georef && (
-                  <>
-                    <dt>Test control (EPSG:{georef.epsg})</dt>
-                    <dd>
-                      {localToProjected(control, georef)
-                        .map(v => v.toFixed(1))
-                        .join(', ')}
-                    </dd>
-                  </>
-                )}
-              </>
-            )}
           </dl>
+        )}
+
+        {state.status === 'ready' && (
+          <section>
+            <h2>Leg between the two controls</h2>
+            {engineState === 'loading' && <p className="note">Building the cost map…</p>}
+            {engineState === 'error' && (
+              <p className="error">The engine could not read this map.</p>
+            )}
+            {engineState === 'ready' && routeState.status === 'unreachable' && (
+              <p className="error">No route: a control is in an impassable or forbidden area.</p>
+            )}
+            {engineState === 'ready' && routeState.status === 'found' && (
+              <dl>
+                <dt>Fastest route</dt>
+                <dd>{formatMeters(routeState.route.lengthMeters)}</dd>
+                <dt>Straight line</dt>
+                <dd>{formatMeters(routeState.straightMeters)}</dd>
+                <dt>Estimated time</dt>
+                <dd>
+                  {formatDuration(routeState.route.timeSeconds)} at{' '}
+                  {formatDuration(REFERENCE_PACE_SECONDS_PER_KM.value)} min/km reference pace
+                </dd>
+              </dl>
+            )}
+            <p className="note">Drag the purple circles to change the leg.</p>
+          </section>
         )}
 
         <footer>

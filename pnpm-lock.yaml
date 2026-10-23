@@ -184,12 +184,21 @@ importers:
       '@ratamestari/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@ratamestari/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
       '@ratamestari/map-ocad':
         specifier: workspace:*
         version: link:../../packages/map-ocad
+      '@ratamestari/rules':
+        specifier: workspace:*
+        version: link:../../packages/rules
       buffer:
         specifier: ^6.0.3
         version: 6.0.3
+      comlink:
+        specifier: ^4.4.2
+        version: 4.4.2
       ol:
         specifier: ^10.11.0
         version: 10.11.0
@@ -603,6 +612,9 @@ packages:
   chai@6.3.0:
     resolution: {integrity: sha512-XWAtwJ6OHO+tj0EKCs0Y2UamnyOxseZWltU4x2U2wh8g4AigdjwvtUjvLP2tqkA/avxHEtzxNaqGq/YGNwckKg==}
     engines: {node: '>=18'}
+
+  comlink@4.4.2:
+    resolution: {integrity: sha512-OxGdvBmJuNKSCMO4NTl1L47VRp6xn2wG4F/2hYzB6tiCb709otOxtEYCSvK80PtjODfXXZu8ds+Nw5kVCjqd2g==}
 
   commander@6.2.1:
     resolution: {integrity: sha512-U7VdrJFnJgo4xjrHpTzu0yrHPGImdsmD95ZlgYSEajAn2JKzDhDTPG9kBTefmObL2w/ngeZnilk+OV9CG3d7UA==}
@@ -1270,6 +1282,8 @@ snapshots:
       ieee754: 1.2.1
 
   chai@6.3.0: {}
+
+  comlink@4.4.2: {}
 
   commander@6.2.1: {}
 

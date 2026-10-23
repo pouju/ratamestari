@@ -9,6 +9,7 @@ const emptyModule = fileURLToPath(new URL('./src/shims/empty.ts', import.meta.ur
 export default defineConfig({
   base: './',
   plugins: [react()],
+  worker: { format: 'es' },
   resolve: {
     alias: {
       fs: emptyModule,

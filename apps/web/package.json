@@ -12,8 +12,11 @@
   },
   "dependencies": {
     "@ratamestari/core": "workspace:*",
+    "@ratamestari/engine": "workspace:*",
     "@ratamestari/map-ocad": "workspace:*",
+    "@ratamestari/rules": "workspace:*",
     "buffer": "^6.0.3",
+    "comlink": "^4.4.2",
     "ol": "^10.11.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
