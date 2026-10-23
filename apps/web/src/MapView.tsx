@@ -13,7 +13,7 @@ import Projection from 'ol/proj/Projection'
 import Translate from 'ol/interaction/Translate'
 import { Stroke, Style } from 'ol/style'
 import { localPoint, type LocalPoint, type MapInfo } from '@ratamestari/core'
-import type { Route } from '@ratamestari/engine'
+import type { LegEvaluation } from '@ratamestari/engine'
 import type { CostMapImage } from './cost-map-image'
 import type { MapImage } from './rasterize'
 import 'ol/ol.css'
@@ -21,6 +21,7 @@ import 'ol/ol.css'
 const COURSE_OVERPRINT_PURPLE = 'rgb(190, 30, 180)'
 const ROUTE_BLUE = 'rgba(0, 110, 255, 0.85)'
 const ROUTE_WIDTH_PIXELS = 3
+const ALTERNATIVE_ROUTE_DASH_PIXELS = [8, 6]
 const CONTROL_CIRCLE_DIAMETER_MM = 5
 const COURSE_LINE_WIDTH_MM = 0.35
 const INITIAL_CONTROL_OFFSET_METERS = 300
@@ -32,12 +33,12 @@ export type ControlPair = readonly [LocalPoint, LocalPoint]
 interface Props {
   info: MapInfo
   image: MapImage
-  route: Route | null
+  leg: LegEvaluation | null
   costMap: CostMapImage | null
   onControlsMoved: (controls: ControlPair) => void
 }
 
-export function MapView({ info, image, route, costMap, onControlsMoved }: Props) {
+export function MapView({ info, image, leg, costMap, onControlsMoved }: Props) {
   const target = useRef<HTMLDivElement>(null)
   const [routeSource] = useState(() => new VectorSource())
   const [costLayer] = useState(() => new ImageLayer<ImageStatic>({ visible: false }))
@@ -69,9 +70,16 @@ export function MapView({ info, image, route, costMap, onControlsMoved }: Props)
         costLayer,
         new VectorLayer({
           source: routeSource,
-          style: new Style({
-            stroke: new Stroke({ color: ROUTE_BLUE, width: ROUTE_WIDTH_PIXELS }),
-          }),
+          style: feature =>
+            new Style({
+              stroke: new Stroke({
+                color: ROUTE_BLUE,
+                width: ROUTE_WIDTH_PIXELS,
+                ...(feature.get('isAlternative')
+                  ? { lineDash: ALTERNATIVE_ROUTE_DASH_PIXELS }
+                  : {}),
+              }),
+            }),
         }),
         new VectorLayer({
           source: new VectorSource({ features: [...controls] }),
@@ -116,8 +124,14 @@ export function MapView({ info, image, route, costMap, onControlsMoved }: Props)
 
   useEffect(() => {
     routeSource.clear()
-    if (route) routeSource.addFeature(new Feature(new LineString(route.points.map(p => [...p]))))
-  }, [route, routeSource])
+    if (!leg) return
+    const toFeature = (points: LegEvaluation['fastest']['points'], isAlternative: boolean) =>
+      new Feature({ geometry: new LineString(points.map(p => [...p])), isAlternative })
+    routeSource.addFeatures([
+      ...leg.alternatives.map(route => toFeature(route.points, true)),
+      toFeature(leg.fastest.points, false),
+    ])
+  }, [leg, routeSource])
 
   return <div ref={target} className="map" />
 }

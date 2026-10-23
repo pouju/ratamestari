@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react'
-import type { Route } from '@ratamestari/engine'
+import type { LegEvaluation } from '@ratamestari/engine'
 import { loadOcadMap, type OcadMap } from '@ratamestari/map-ocad'
-import { REFERENCE_PACE_SECONDS_PER_KM } from '@ratamestari/rules'
 import { renderCostMap, type CostMapImage } from './cost-map-image'
 import { createEngine } from './engine'
-import { formatDuration, formatMeters } from './format'
+import { LegDetails } from './LegDetails'
 import { MapView, type ControlPair } from './MapView'
 import { rasterizeSvg, type MapImage } from './rasterize'
 import { SOURCE_CODE_URL } from './config'
@@ -17,10 +16,8 @@ type LoadState =
 
 type EngineState = 'idle' | 'loading' | 'ready' | 'error'
 
-type RouteState =
-  | { status: 'none' }
-  | { status: 'found'; route: Route; straightMeters: number }
-  | { status: 'unreachable' }
+type LegState =
+  { status: 'none' } | { status: 'evaluated'; leg: LegEvaluation } | { status: 'unreachable' }
 
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -29,15 +26,15 @@ export function App() {
   const [state, setState] = useState<LoadState>({ status: 'empty' })
   const [engineState, setEngineState] = useState<EngineState>('idle')
   const [controls, setControls] = useState<ControlPair | null>(null)
-  const [routeState, setRouteState] = useState<RouteState>({ status: 'none' })
-  const latestRouteRequest = useRef(0)
+  const [legState, setLegState] = useState<LegState>({ status: 'none' })
+  const latestLegRequest = useRef(0)
   const [showCostMap, setShowCostMap] = useState(false)
   const [costMap, setCostMap] = useState<CostMapImage | null>(null)
 
   async function openFile(file: File) {
     setState({ status: 'loading', fileName: file.name })
     setEngineState('loading')
-    setRouteState({ status: 'none' })
+    setLegState({ status: 'none' })
     setCostMap(null)
     const bytes = new Uint8Array(await file.arrayBuffer())
     engine
@@ -56,15 +53,11 @@ export function App() {
 
   useEffect(() => {
     if (engineState !== 'ready' || !controls) return
-    const request = ++latestRouteRequest.current
+    const request = ++latestLegRequest.current
     const [from, to] = controls
-    void engine.route(from, to).then(route => {
-      if (request !== latestRouteRequest.current) return
-      setRouteState(
-        route
-          ? { status: 'found', route, straightMeters: Math.hypot(to[0] - from[0], to[1] - from[1]) }
-          : { status: 'unreachable' },
-      )
+    void engine.evaluateLeg(from, to).then(leg => {
+      if (request !== latestLegRequest.current) return
+      setLegState(leg ? { status: 'evaluated', leg } : { status: 'unreachable' })
     })
   }, [engine, engineState, controls])
 
@@ -88,7 +81,7 @@ export function App() {
           <MapView
             info={state.map.info}
             image={state.image}
-            route={routeState.status === 'found' ? routeState.route : null}
+            leg={legState.status === 'evaluated' ? legState.leg : null}
             costMap={showCostMap ? costMap : null}
             onControlsMoved={setControls}
           />
@@ -148,21 +141,11 @@ export function App() {
             {engineState === 'error' && (
               <p className="error">The engine could not read this map.</p>
             )}
-            {engineState === 'ready' && routeState.status === 'unreachable' && (
+            {engineState === 'ready' && legState.status === 'unreachable' && (
               <p className="error">No route: a control is in an impassable or forbidden area.</p>
             )}
-            {engineState === 'ready' && routeState.status === 'found' && (
-              <dl>
-                <dt>Fastest route</dt>
-                <dd>{formatMeters(routeState.route.lengthMeters)}</dd>
-                <dt>Straight line</dt>
-                <dd>{formatMeters(routeState.straightMeters)}</dd>
-                <dt>Estimated time</dt>
-                <dd>
-                  {formatDuration(routeState.route.timeSeconds)} at{' '}
-                  {formatDuration(REFERENCE_PACE_SECONDS_PER_KM.value)} min/km reference pace
-                </dd>
-              </dl>
+            {engineState === 'ready' && legState.status === 'evaluated' && (
+              <LegDetails leg={legState.leg} />
             )}
             <p className="note">Drag the purple circles to change the leg.</p>
             <label className="toggle">
