@@ -29,7 +29,7 @@ Full decision log with reasoning and rejected alternatives: [`docs/decisions.md`
 - **Ask before introducing a new convention** (pattern, tool, naming scheme, folder layout).
 - **Small, tested commits.** Each commit passes `pnpm check`.
 - **Commit messages:** Conventional Commits, scope = package name (`feat(map-ocad): …`, `docs: …`, `chore: …`). The body says **why**, not only what.
-- **No unnecessary comments.** Use descriptive names instead. Comment only a non-obvious *why* that a name can't carry.
+- **No unnecessary comments.** Use descriptive names instead. Comment only a non-obvious _why_ that a name can't carry.
 - **No file extensions in imports** (`./geometry`, not `./geometry.ts`).
 - **Tests** live in each package's `test/` folder (`packages/core/test/map.test.ts`), not next to the source.
 - **Formatting:** Prettier, no semicolons, single quotes, 100 columns (`.prettierrc.json`).

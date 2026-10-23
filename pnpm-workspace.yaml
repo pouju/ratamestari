@@ -1,0 +1,6 @@
+packages:
+  - packages/*
+  - apps/*
+
+# Only install package versions that have been public for two weeks (minutes).
+minimumReleaseAge: 20160

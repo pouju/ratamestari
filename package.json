@@ -1,0 +1,25 @@
+{
+  "name": "ratamestari",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "packageManager": "pnpm@12.10.1",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @ratamestari/web dev",
+    "build": "pnpm --filter @ratamestari/web build",
+    "test": "vitest run",
+    "typecheck": "pnpm -r typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "prettier": "^3.9.9",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}
