@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type DragEvent } from 'react'
-import type { LegEvaluation } from '@ratamestari/engine'
+import type { ControlSiteCandidate, LegEvaluation } from '@ratamestari/engine'
 import { loadOcadMap, type OcadMap } from '@ratamestari/map-ocad'
 import { renderCostMap, type CostMapImage } from './cost-map-image'
 import { createEngine } from './engine'
 import { LegDetails } from './LegDetails'
-import { MapView, type ControlPair } from './MapView'
+import { DIFFICULTY_COLOURS, MapView, type ControlPair } from './MapView'
 import { rasterizeSvg, type MapImage } from './rasterize'
 import { SOURCE_CODE_URL } from './config'
 
@@ -30,12 +30,15 @@ export function App() {
   const latestLegRequest = useRef(0)
   const [showCostMap, setShowCostMap] = useState(false)
   const [costMap, setCostMap] = useState<CostMapImage | null>(null)
+  const [showSites, setShowSites] = useState(false)
+  const [sites, setSites] = useState<readonly ControlSiteCandidate[] | null>(null)
 
   async function openFile(file: File) {
     setState({ status: 'loading', fileName: file.name })
     setEngineState('loading')
     setLegState({ status: 'none' })
     setCostMap(null)
+    setSites(null)
     const bytes = new Uint8Array(await file.arrayBuffer())
     engine
       .loadMap(bytes)
@@ -66,6 +69,11 @@ export function App() {
     void engine.costGrid().then(renderCostMap).then(setCostMap)
   }, [engine, engineState, showCostMap, costMap])
 
+  useEffect(() => {
+    if (!showSites || sites || engineState !== 'ready') return
+    void engine.controlSites().then(setSites)
+  }, [engine, engineState, showSites, sites])
+
   function onDrop(e: DragEvent) {
     e.preventDefault()
     const file = e.dataTransfer.files[0]
@@ -83,6 +91,7 @@ export function App() {
             image={state.image}
             leg={legState.status === 'evaluated' ? legState.leg : null}
             costMap={showCostMap ? costMap : null}
+            sites={showSites ? sites : null}
             onControlsMoved={setControls}
           />
         ) : (
@@ -160,6 +169,31 @@ export function App() {
               <p className="note">
                 Blue: fast (paths, open land). Clear: normal forest. Orange: slow, darker is slower.
                 Red: impassable or out of bounds.
+              </p>
+            )}
+          </section>
+        )}
+
+        {state.status === 'ready' && (
+          <section>
+            <h2>Candidate control sites</h2>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={showSites}
+                onChange={e => setShowSites(e.target.checked)}
+              />{' '}
+              Show candidate control sites
+            </label>
+            {showSites && sites && (
+              <p className="note">
+                {sites.length} sites. Difficulty:{' '}
+                {Object.entries(DIFFICULTY_COLOURS).map(([difficulty, colour]) => (
+                  <span key={difficulty} className="legend-dot" style={{ background: colour }}>
+                    {difficulty}
+                  </span>
+                ))}{' '}
+                (1 easy, 5 hard)
               </p>
             )}
           </section>

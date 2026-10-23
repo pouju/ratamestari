@@ -5,15 +5,16 @@ import Feature from 'ol/Feature'
 import Collection from 'ol/Collection'
 import Circle from 'ol/geom/Circle'
 import LineString from 'ol/geom/LineString'
+import Point from 'ol/geom/Point'
 import ImageLayer from 'ol/layer/Image'
 import VectorLayer from 'ol/layer/Vector'
 import ImageStatic from 'ol/source/ImageStatic'
 import VectorSource from 'ol/source/Vector'
 import Projection from 'ol/proj/Projection'
 import Translate from 'ol/interaction/Translate'
-import { Stroke, Style } from 'ol/style'
+import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style'
 import { localPoint, type LocalPoint, type MapInfo } from '@ratamestari/core'
-import type { LegEvaluation } from '@ratamestari/engine'
+import type { ControlSiteCandidate, LegEvaluation, TechnicalDifficulty } from '@ratamestari/engine'
 import type { CostMapImage } from './cost-map-image'
 import type { MapImage } from './rasterize'
 import 'ol/ol.css'
@@ -25,6 +26,26 @@ const ALTERNATIVE_ROUTE_DASH_PIXELS = [8, 6]
 const CONTROL_CIRCLE_DIAMETER_MM = 5
 const COURSE_LINE_WIDTH_MM = 0.35
 const INITIAL_CONTROL_OFFSET_METERS = 300
+const SITE_DOT_RADIUS_PIXELS = 3
+export const DIFFICULTY_COLOURS: Readonly<Record<TechnicalDifficulty, string>> = {
+  1: '#2e7d32',
+  2: '#7cb342',
+  3: '#fbc02d',
+  4: '#f57c00',
+  5: '#c62828',
+}
+const siteStyles = Object.fromEntries(
+  Object.entries(DIFFICULTY_COLOURS).map(([difficulty, colour]) => [
+    difficulty,
+    new Style({
+      image: new CircleStyle({
+        radius: SITE_DOT_RADIUS_PIXELS,
+        fill: new Fill({ color: colour }),
+        stroke: new Stroke({ color: 'white', width: 1 }),
+      }),
+    }),
+  ]),
+)
 
 const paperMmToGroundMeters = (mm: number, scale: number) => (mm * scale) / 1000
 
@@ -35,14 +56,16 @@ interface Props {
   image: MapImage
   leg: LegEvaluation | null
   costMap: CostMapImage | null
+  sites: readonly ControlSiteCandidate[] | null
   onControlsMoved: (controls: ControlPair) => void
 }
 
-export function MapView({ info, image, leg, costMap, onControlsMoved }: Props) {
+export function MapView({ info, image, leg, costMap, sites, onControlsMoved }: Props) {
   const target = useRef<HTMLDivElement>(null)
   const [routeSource] = useState(() => new VectorSource())
   const [costLayer] = useState(() => new ImageLayer<ImageStatic>({ visible: false }))
   const localFrameRef = useRef<Projection | null>(null)
+  const [siteSource] = useState(() => new VectorSource())
   const onControlsMovedRef = useRef(onControlsMoved)
   onControlsMovedRef.current = onControlsMoved
 
@@ -68,6 +91,10 @@ export function MapView({ info, image, leg, costMap, onControlsMoved }: Props) {
           source: new ImageStatic({ url: image.url, imageExtent: extent, projection: localFrame }),
         }),
         costLayer,
+        new VectorLayer({
+          source: siteSource,
+          style: feature => siteStyles[feature.get('technicalDifficulty')],
+        }),
         new VectorLayer({
           source: routeSource,
           style: feature =>
@@ -108,7 +135,21 @@ export function MapView({ info, image, leg, costMap, onControlsMoved }: Props) {
     reportControls()
 
     return () => map.setTarget(undefined)
-  }, [info, image, routeSource, costLayer])
+  }, [info, image, routeSource, costLayer, siteSource])
+
+  useEffect(() => {
+    siteSource.clear()
+    if (!sites) return
+    siteSource.addFeatures(
+      sites.map(
+        site =>
+          new Feature({
+            geometry: new Point([...site.position]),
+            technicalDifficulty: site.technicalDifficulty,
+          }),
+      ),
+    )
+  }, [sites, siteSource])
 
   useEffect(() => {
     costLayer.setVisible(costMap !== null)
