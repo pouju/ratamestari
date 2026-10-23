@@ -51,3 +51,21 @@ export function segmentsCross(a: LocalPoint, b: LocalPoint, c: LocalPoint, d: Lo
     orientation(c, d, a) * orientation(c, d, b) < 0
   )
 }
+
+export function segmentIntersection(
+  a: LocalPoint,
+  b: LocalPoint,
+  c: LocalPoint,
+  d: LocalPoint,
+): LocalPoint | null {
+  const rx = b[0] - a[0]
+  const ry = b[1] - a[1]
+  const sx = d[0] - c[0]
+  const sy = d[1] - c[1]
+  const denominator = rx * sy - ry * sx
+  if (denominator === 0) return null
+  const t = ((c[0] - a[0]) * sy - (c[1] - a[1]) * sx) / denominator
+  const u = ((c[0] - a[0]) * ry - (c[1] - a[1]) * rx) / denominator
+  if (t < 0 || t > 1 || u < 0 || u > 1) return null
+  return [a[0] + t * rx, a[1] + t * ry] as const as LocalPoint
+}

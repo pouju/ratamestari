@@ -59,6 +59,15 @@ describe('ISOM symbol rules', () => {
     expect(isomSymbolRule('709')?.movement.kind).toBe('forbidden')
   })
 
+  it('forbid railways except at level crossings, with no controls on them', () => {
+    expect(isomSymbolRule('509')?.movement.kind).toBe('forbiddenExceptLevelCrossings')
+    expect(isomSymbolRule('509')?.controlSite).toBe('no')
+    expect(isomSymbolRule('509')?.sources).toContainEqual({
+      document: 'Lajisäännöt 2026',
+      section: '3.61 f',
+    })
+  })
+
   it('keep controls off dangerous pits and out of cultivated land', () => {
     expect(isomSymbolRule('203.2')?.controlSite).toBe('no')
     expect(isomSymbolRule('412')?.controlSite).toBe('avoid')

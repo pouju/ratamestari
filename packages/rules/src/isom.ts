@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { runnabilityClassSchema, type RunnabilityClass } from './runnability'
-import { citedSchema, isom, type Source } from './source'
+import { citedSchema, isom, lajisaannot, type Source } from './source'
 
 export const runnabilityLayerSchema = z.enum(['cover', 'ground', 'path'])
 
@@ -16,6 +16,7 @@ export const movementSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('impassable') }),
   z.object({ kind: z.literal('forbidden') }),
   z.object({ kind: z.literal('forbiddenAlong') }),
+  z.object({ kind: z.literal('forbiddenExceptLevelCrossings') }),
   z.object({ kind: z.literal('mandatoryRoute') }),
   z.object({ kind: z.literal('combinedWithOtherSymbols') }),
   z.object({ kind: z.literal('runnabilityFromBackground') }),
@@ -64,6 +65,7 @@ const CROSSING_POINT: Movement = { kind: 'crossingPoint' }
 const IMPASSABLE: Movement = { kind: 'impassable' }
 const FORBIDDEN: Movement = { kind: 'forbidden' }
 const FORBIDDEN_ALONG: Movement = { kind: 'forbiddenAlong' }
+const FORBIDDEN_EXCEPT_LEVEL_CROSSINGS: Movement = { kind: 'forbiddenExceptLevelCrossings' }
 const MANDATORY_ROUTE: Movement = { kind: 'mandatoryRoute' }
 const COMBINED: Movement = { kind: 'combinedWithOtherSymbols' }
 const FROM_BACKGROUND: Movement = { kind: 'runnabilityFromBackground' }
@@ -173,7 +175,9 @@ export const ISOM_SYMBOL_RULES: readonly IsomSymbolRule[] = [
   symbol('506', 'Small footpath', path(1), 'yes', ours),
   symbol('507', 'Less distinct small footpath', path(2), 'yes', ours),
   symbol('508', 'Narrow ride or linear trace through the terrain', FROM_BACKGROUND, 'yes'),
-  symbol('509', 'Railway', CROSSING_SLOWS, 'yes'),
+  symbol('509', 'Railway', FORBIDDEN_EXCEPT_LEVEL_CROSSINGS, 'no', {
+    extraSources: [lajisaannot('3.61 f')],
+  }),
   symbol('510', 'Power line, cableway or skilift', NO_EFFECT, 'yes'),
   symbol('511', 'Major power line', NO_EFFECT, 'yes'),
   symbol('512', 'Bridge / tunnel', CROSSING_POINT, 'yes'),

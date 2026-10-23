@@ -7,6 +7,7 @@ import {
   UNMAPPED_TERRAIN,
   type Movement,
 } from '@ratamestari/rules'
+import { segmentIntersection } from './polyline'
 import { cellIndexOf, fillPolygon, traceLine, type GridFrame } from './raster'
 
 export const BLOCKED = 0
@@ -78,16 +79,23 @@ export function buildCostGrid(
   }
 
   const speedBeforeBarriers = speed.slice()
-  for (const { geometry } of [...ofKind('impassable'), ...ofKind('forbidden')]) {
+  const railways = ofKind('forbiddenExceptLevelCrossings')
+  for (const { geometry } of [...ofKind('impassable'), ...ofKind('forbidden'), ...railways]) {
     const block = (i: number) => (speed[i] = BLOCKED)
     if (geometry.type === 'Polygon') fillPolygon(frame, geometry.coordinates, block)
     visitLinework(frame, geometry, block)
   }
 
+  const reopen = (i: number) => (speed[i] = Math.max(speedBeforeBarriers[i]!, forestSpeed))
   for (const { geometry } of ofKind('crossingPoint')) {
-    const reopen = (i: number) => (speed[i] = Math.max(speedBeforeBarriers[i]!, forestSpeed))
     if (geometry.type === 'Point') visitNeighbourhood(frame, geometry.coordinates, reopen)
     else visitLinework(frame, geometry, reopen)
+  }
+  const paths = ofKind('runnability').filter(
+    f => f.movement.kind === 'runnability' && f.movement.layer === 'path',
+  )
+  for (const crossing of levelCrossings(railways, paths)) {
+    visitNeighbourhood(frame, crossing, reopen)
   }
 
   return { ...frame, speed, maxSpeed: maxOf(speed) }
@@ -135,4 +143,25 @@ function visitNeighbourhood(frame: GridFrame, center: LocalPoint, visit: (i: num
       if (r >= 0 && c >= 0 && r < frame.rows && c < frame.columns) visit(r * frame.columns + c)
     }
   }
+}
+
+function levelCrossings(
+  railways: readonly ClassifiedFeature[],
+  paths: readonly ClassifiedFeature[],
+): LocalPoint[] {
+  const linesOf = ({ geometry }: ClassifiedFeature): (readonly LocalPoint[])[] =>
+    geometry.type === 'LineString' ? [geometry.coordinates] : []
+  const railwayLines = railways.flatMap(linesOf)
+  const crossings: LocalPoint[] = []
+  for (const path of paths.flatMap(linesOf)) {
+    for (let i = 1; i < path.length; i++) {
+      for (const railway of railwayLines) {
+        for (let j = 1; j < railway.length; j++) {
+          const crossing = segmentIntersection(path[i - 1]!, path[i]!, railway[j - 1]!, railway[j]!)
+          if (crossing) crossings.push(crossing)
+        }
+      }
+    }
+  }
+  return crossings
 }

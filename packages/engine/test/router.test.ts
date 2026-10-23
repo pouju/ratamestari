@@ -75,4 +75,21 @@ describe('findRoute', () => {
     })!
     expect(slower.timeSeconds).toBeCloseTo(reference.timeSeconds * 2)
   })
+
+  it('crosses a railway only at a level crossing (Lajisäännöt 3.61 f)', () => {
+    const railway = feature('509', line([0, 500], [1000, 500]))
+    const grid = buildCostGrid(
+      [railway, feature('505', line([700, 300], [900, 700]))],
+      SQUARE_KILOMETRE,
+    )
+    const route = findRoute(grid, localPoint(200, 300), localPoint(200, 700))!
+    const crossing = route.points.find(([, y]) => Math.abs(y - 500) < 5)!
+    expect(crossing[0]).toBeGreaterThan(750)
+    expect(crossing[0]).toBeLessThan(850)
+  })
+
+  it('cannot cross a railway without a level crossing', () => {
+    const grid = buildCostGrid([feature('509', line([0, 500], [1000, 500]))], SQUARE_KILOMETRE)
+    expect(findRoute(grid, localPoint(200, 300), localPoint(200, 700))).toBeNull()
+  })
 })
