@@ -8,6 +8,7 @@ ARG CLAUDE_CODE_VERSION=latest
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git less procps sudo fzf nano vim man-db unzip gnupg2 gh \
       iptables ipset iproute2 dnsutils aggregate jq curl ca-certificates \
+      poppler-utils \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Persistent shell history and Claude config (backed by Docker volumes)
