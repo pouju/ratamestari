@@ -1,0 +1,20 @@
+{
+  "name": "@ratamestari/map-ocad",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@ratamestari/core": "workspace:*",
+    "buffer": "^6.0.3",
+    "ocad2geojson": "^2.1.23"
+  },
+  "devDependencies": {
+    "@types/xmldom": "^0.1.34",
+    "xmldom": "^0.6.0"
+  }
+}
