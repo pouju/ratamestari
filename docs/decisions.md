@@ -250,3 +250,47 @@ IOF XML 3.0 has no standard fields for control description symbols. Course contr
 - Browser canvas size limits (Safari's is the lowest) may require tiling the rendered map or a lower display resolution. Check with the spike.
 - The PDF export renders at exact scale on its own; it does not screenshot the map view.
 - First spike: load the real `.ocd` in `map-ocad`, render it, show it in OpenLayers with one draggable test control.
+
+---
+
+## D12: One engine package with a seeded, spec-driven course search
+
+**Date:** 2026-10-23
+**Status:** Decided
+
+### Decision
+
+`packages/engine` holds the whole pipeline as separate modules:
+
+- **Cost map:** a grid of speed factors from the ISOM runnability classes; impassable and forbidden features block.
+- **Router:** A\* on the cost map, giving the fastest route and its time between two points.
+- **Leg evaluation:** length, best time, deviation from the straight line, route choice (distinct routes with nearly equal times), direction, climb.
+- **Candidate sites:** features that can carry a control, with a difficulty score.
+- **Course search:** builds the course.
+- **Rule checks** and **paper fit.**
+
+The course search is a stochastic optimisation driven by the spec:
+
+- The LLM turns the request into a Zod-validated spec (format, class, level, centre, wishes). The engine turns the spec into targets and weights using values from `packages/rules` (course length from winning times, leg-length mix, control difficulty, amount of route choice). The LLM never supplies numbers.
+- The search follows the Ratamestarikirja planning order: strong route-choice legs first, then map-reading links. It then improves the course by moving, adding and removing controls.
+- A random seed drives the search. The same map, spec and seed give the same course; a new seed gives a different good course.
+- Locked controls, feedback tools (e.g. `make_leg_harder`) and courses already set for the same event become constraints or weights, and the search continues from the current course.
+- Climb is estimated from contour crossings along the route (contour interval × crossings), as the map has no elevation grid.
+
+### Why
+
+- Routing answers "how fast from A to B"; the course search asks it thousands of times. Keeping them as layers in one package lets the search reuse the cost map and route cache.
+- Different requests must produce different courses on the same map, and the user must be able to ask for alternatives, but results must stay reproducible for rule checks and debugging (D2).
+- Spec-to-targets through the rules package keeps rule numbers out of the LLM (hard rule 3).
+
+### Alternatives considered
+
+- **Fixed greedy recipe:** always produces the same course for the same input, with no alternatives.
+- **LLM chooses controls from a candidate list:** breaks D2; the LLM cannot judge legs it cannot measure.
+- **Separate packages per pipeline stage:** more ceremony for a solo hackathon; the module boundaries inside `engine` are enough for now.
+
+### Consequences
+
+- The worker streams the best course found so far, which gives the live drawing in D5.
+- Every generated course records its seed and spec, so it can be regenerated.
+- Climb estimates are approximate; the 4% climb check is a warning, not an error.
