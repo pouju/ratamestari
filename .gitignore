@@ -1,5 +1,7 @@
 # Club maps never go into the public repo (D3)
 maps/
+docs/sources/*
+!docs/sources/README.md
 
 node_modules/
 .pnpm-store/
