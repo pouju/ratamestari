@@ -90,3 +90,35 @@ export function fillPolygon(
     }
   }
 }
+
+export function chamferDistance(distance: Float32Array, frame: GridFrame) {
+  const straight = frame.cellSizeMeters
+  const diagonal = frame.cellSizeMeters * Math.SQRT2
+  const { columns, rows } = frame
+  const relax = (i: number, neighbour: number, step: number) => {
+    const candidate = distance[neighbour]! + step
+    if (candidate < distance[i]!) distance[i] = candidate
+  }
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < columns; c++) {
+      const i = r * columns + c
+      if (c > 0) relax(i, i - 1, straight)
+      if (r > 0) {
+        relax(i, i - columns, straight)
+        if (c > 0) relax(i, i - columns - 1, diagonal)
+        if (c < columns - 1) relax(i, i - columns + 1, diagonal)
+      }
+    }
+  }
+  for (let r = rows - 1; r >= 0; r--) {
+    for (let c = columns - 1; c >= 0; c--) {
+      const i = r * columns + c
+      if (c < columns - 1) relax(i, i + 1, straight)
+      if (r < rows - 1) {
+        relax(i, i + columns, straight)
+        if (c < columns - 1) relax(i, i + columns + 1, diagonal)
+        if (c > 0) relax(i, i + columns - 1, diagonal)
+      }
+    }
+  }
+}

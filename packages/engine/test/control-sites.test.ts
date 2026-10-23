@@ -5,7 +5,10 @@ import { buildTerrain } from '../src/terrain'
 import { feature, line, point, polygon, rectangle, SQUARE_KILOMETRE } from './fixtures'
 
 const sitesOf = (features: MapFeature[]) =>
-  findControlSites(features, buildTerrain(features, SQUARE_KILOMETRE))
+  findControlSites(
+    features,
+    buildTerrain(features, SQUARE_KILOMETRE, { restrictToMappedArea: false }),
+  )
 
 const squareRing = (cx: number, cy: number, halfWidth: number, isomCode = '101') =>
   feature(

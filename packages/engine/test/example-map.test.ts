@@ -6,51 +6,65 @@ import { findControlSites } from '../src/control-sites'
 import { evaluateLeg } from '../src/leg'
 import { cellCenterOf, cellIndexOf } from '../src/raster'
 import { findRoute } from '../src/router'
+import { secondsFrom } from '../src/time-tree'
 import { buildTerrain, type Terrain } from '../src/terrain'
 import { localMapExists, readLocalMap } from './local-map'
 
-const nearestOpenPoint = (grid: CostGrid, target: LocalPoint): LocalPoint => {
-  const targetIndex = cellIndexOf(grid, target)!
-  let best = targetIndex
-  let bestDistance = Number.POSITIVE_INFINITY
-  grid.speed.forEach((speed, index) => {
-    if (speed === BLOCKED) return
-    const [x, y] = cellCenterOf(grid, index)
-    const distance = Math.hypot(x - target[0], y - target[1])
-    if (distance < bestDistance) {
-      bestDistance = distance
-      best = index
-    }
-  })
-  return cellCenterOf(grid, best)
-}
+const LEG_LENGTH_METERS = 2000
 
 describe.skipIf(!localMapExists)('engine with a local map from git-ignored maps/', () => {
   let terrain: Terrain
   let features: Parameters<typeof findControlSites>[0]
   let grid: CostGrid
-  let centerX: number
-  let centerY: number
+  let from: LocalPoint
+  let to: LocalPoint
 
   beforeAll(async () => {
     const map = await loadOcadMap(readLocalMap())
     features = map.features()
     terrain = buildTerrain(features, map.info.extent)
     grid = terrain.grid
-    const [minX, minY, maxX, maxY] = map.info.extent
-    centerX = (minX + maxX) / 2
-    centerY = (minY + maxY) / 2
+    const mapped = [...terrain.mappedArea.keys()].filter(i => terrain.mappedArea[i])
+    const middle = mapped
+      .map(i => cellCenterOf(grid, i))
+      .reduce(
+        ([x, y], p) => localPoint(x + p[0] / mapped.length, y + p[1] / mapped.length),
+        localPoint(0, 0),
+      )
+    const sites = findControlSites(features, terrain)
+    from = sites.reduce((best, site) =>
+      Math.hypot(site.position[0] - middle[0], site.position[1] - middle[1]) <
+      Math.hypot(best.position[0] - middle[0], best.position[1] - middle[1])
+        ? site
+        : best,
+    ).position
+    const seconds = secondsFrom(grid, from, 240, Number.POSITIVE_INFINITY)
+    let bestIndex = 0
+    let bestError = Number.POSITIVE_INFINITY
+    seconds.forEach((s, i) => {
+      if (s === Number.POSITIVE_INFINITY) return
+      const [x, y] = cellCenterOf(grid, i)
+      const error = Math.abs(Math.hypot(x - from[0], y - from[1]) - LEG_LENGTH_METERS)
+      if (error < bestError) {
+        bestError = error
+        bestIndex = i
+      }
+    })
+    to = cellCenterOf(grid, bestIndex)
   })
 
-  it('builds a cost grid with open terrain and barriers', () => {
-    const blockedShare = grid.speed.filter(s => s === BLOCKED).length / grid.speed.length
+  it('finds the mapped area, with open terrain and barriers inside it', () => {
+    const mappedCells = [...terrain.mappedArea.keys()].filter(i => terrain.mappedArea[i])
+    const mappedShare = mappedCells.length / terrain.mappedArea.length
+    const blockedShare =
+      mappedCells.filter(i => grid.speed[i] === BLOCKED).length / mappedCells.length
+    expect(mappedShare).toBeGreaterThan(0.1)
+    expect(mappedShare).toBeLessThan(1)
     expect(blockedShare).toBeGreaterThan(0)
     expect(blockedShare).toBeLessThan(0.5)
   })
 
   it('finds a route across the map', () => {
-    const from = nearestOpenPoint(grid, localPoint(centerX - 700, centerY - 1000))
-    const to = nearestOpenPoint(grid, localPoint(centerX + 700, centerY + 1000))
     const route = findRoute(grid, from, to)!
     const straight = Math.hypot(to[0] - from[0], to[1] - from[1])
     expect(route.lengthMeters).toBeGreaterThanOrEqual(straight)
@@ -58,8 +72,6 @@ describe.skipIf(!localMapExists)('engine with a local map from git-ignored maps/
   })
 
   it('evaluates a leg across the map, including contour crossings', () => {
-    const from = nearestOpenPoint(grid, localPoint(centerX - 700, centerY - 1000))
-    const to = nearestOpenPoint(grid, localPoint(centerX + 700, centerY + 1000))
     const leg = evaluateLeg(terrain, from, to)!
     expect(leg.lengthRatio).toBeGreaterThanOrEqual(1)
     expect(leg.contourCrossings).toBeGreaterThan(0)
@@ -69,6 +81,6 @@ describe.skipIf(!localMapExists)('engine with a local map from git-ignored maps/
     const sites = findControlSites(features, terrain)
     expect(sites.length).toBeGreaterThan(0)
     expect(new Set(sites.map(s => s.technicalDifficulty)).size).toBeGreaterThan(1)
-    expect(sites.every(s => cellIndexOf(grid, s.position) !== null)).toBe(true)
+    expect(sites.every(s => terrain.mappedArea[cellIndexOf(grid, s.position)!] === 1)).toBe(true)
   })
 })

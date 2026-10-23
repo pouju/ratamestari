@@ -6,6 +6,7 @@ import { buildTerrain } from '../src/terrain'
 import { feature, line, rectangle, SQUARE_KILOMETRE } from './fixtures'
 
 const south = localPoint(500, 100)
+const synthetic = { restrictToMappedArea: false }
 const north = localPoint(500, 900)
 
 describe('evaluateLeg', () => {
@@ -52,7 +53,11 @@ describe('evaluateLeg', () => {
   it('estimates climb from contours rising away from water', () => {
     const water = feature('301', rectangle(0, 0, 1000, 50))
     const contours = [300, 500, 700].map(y => feature('101', line([0, y], [1000, y])))
-    const leg = evaluateLeg(buildTerrain([water, ...contours], SQUARE_KILOMETRE), south, north)!
+    const leg = evaluateLeg(
+      buildTerrain([water, ...contours], SQUARE_KILOMETRE, synthetic),
+      south,
+      north,
+    )!
     expect(leg.contourCrossings).toBe(3)
     expect(leg.climbMeters).toBe(15)
     expect(leg.descentMeters).toBe(0)
@@ -61,7 +66,10 @@ describe('evaluateLeg', () => {
 
   it('uses the given contour interval', () => {
     const contours = [feature('101', line([0, 500], [1000, 500]))]
-    const terrain = buildTerrain(contours, SQUARE_KILOMETRE, { contourIntervalMeters: 2.5 })
+    const terrain = buildTerrain(contours, SQUARE_KILOMETRE, {
+      ...synthetic,
+      contourIntervalMeters: 2.5,
+    })
     expect(evaluateLeg(terrain, south, north)!.unknownHeightChangeMeters).toBe(2.5)
   })
 
