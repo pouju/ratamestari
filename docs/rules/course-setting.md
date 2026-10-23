@@ -194,6 +194,15 @@ SSL's colour scale for forest orienteering (RMK 11, also the separate SSL diffic
 - Fields with crops, motorways and railways are not forbidden by the map specification and must be forbidden separately with overprint (RMK 6.5).
 - Railways are mostly forbidden to follow or cross at grade (LS 3.61 f, cited in RMK 6.5). Symbol 711 only forbids following, so crossing needs an out-of-bounds area; mark allowed crossings with 710 (RMK 6.5).
 
+## Course search
+
+**Interpretation:** how the search builds a course (D12).
+
+- The finish is at the competition centre; the start is a clear site (control site difficulty at most 2, RMK 5.2.ST) 5–20% of the winning time away from it.
+- Leg times are drawn from a profile per format. Long distance: about one leg in three is a long route-choice leg of 6–12% of the winning time, the rest are links of 1.5–4% (RMK 1.2.6.S, RMK 2.S.1). Middle distance: legs of 2–7% (RMK 2.S.2).
+- While building, controls that break the spacing rule or make an angle under 60° are skipped.
+- The course is improved by swapping, removing and inserting controls. The score is the distance from the target winning time (1 point per percent) plus penalties: 50 per spacing problem, 10 per angle under 45°, 3 per angle under 60°, 4 per control outside the class's difficulty range.
+
 ## Engine checks
 
 **Interpretation:** how the principles above become rule checks and search goals.
