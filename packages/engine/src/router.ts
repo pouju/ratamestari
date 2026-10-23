@@ -97,3 +97,24 @@ export function findRoute(
   const points = [from, ...cells.slice(1, -1).map(cell => cellCenterOf(grid, cell)), to]
   return { points, lengthMeters: polylineLength(points), timeSeconds: bestSeconds[goal]! }
 }
+
+export function routeTimeSeconds(
+  grid: CostGrid,
+  points: readonly LocalPoint[],
+  { paceSecondsPerKm = REFERENCE_PACE_SECONDS_PER_KM.value }: RouteOptions = {},
+): number {
+  const secondsPerMeterAtFullSpeed = paceSecondsPerKm / 1000
+  let seconds = 0
+  for (let i = 1; i < points.length; i++) {
+    const a = cellIndexOf(grid, points[i - 1]!)
+    const b = cellIndexOf(grid, points[i]!)
+    if (a === null || b === null) return Number.POSITIVE_INFINITY
+    const stepMeters = Math.hypot(
+      points[i]![0] - points[i - 1]![0],
+      points[i]![1] - points[i - 1]![1],
+    )
+    const averagePace = 0.5 * (1 / grid.speed[a]! + 1 / grid.speed[b]!)
+    seconds += stepMeters * secondsPerMeterAtFullSpeed * averagePace
+  }
+  return seconds
+}
