@@ -19,10 +19,37 @@ describe('ISOM symbol rules', () => {
   })
 
   it('classify vegetation by the ISOM runnability classes', () => {
-    expect(isomSymbolRule('405')?.movement).toEqual({ kind: 'runnability', runnabilityClass: 2 })
-    expect(isomSymbolRule('406')?.movement).toEqual({ kind: 'runnability', runnabilityClass: 3 })
-    expect(isomSymbolRule('408')?.movement).toEqual({ kind: 'runnability', runnabilityClass: 4 })
-    expect(isomSymbolRule('410')?.movement).toEqual({ kind: 'runnability', runnabilityClass: 5 })
+    expect(isomSymbolRule('405')?.movement).toEqual({
+      kind: 'runnability',
+      runnabilityClass: 2,
+      layer: 'cover',
+    })
+    expect(isomSymbolRule('406')?.movement).toEqual({
+      kind: 'runnability',
+      runnabilityClass: 3,
+      layer: 'cover',
+    })
+    expect(isomSymbolRule('408')?.movement).toEqual({
+      kind: 'runnability',
+      runnabilityClass: 4,
+      layer: 'cover',
+    })
+    expect(isomSymbolRule('410')?.movement).toEqual({
+      kind: 'runnability',
+      runnabilityClass: 5,
+      layer: 'cover',
+    })
+  })
+
+  it('combine vegetation cover with ground modifiers and paths', () => {
+    const layerOf = (code: string) => {
+      const movement = isomSymbolRule(code)?.movement
+      return movement?.kind === 'runnability' ? movement.layer : undefined
+    }
+    expect(layerOf('406')).toBe('cover')
+    expect(layerOf('210')).toBe('ground')
+    expect(layerOf('308')).toBe('ground')
+    expect(layerOf('505')).toBe('path')
   })
 
   it('treat barriers and out-of-bounds areas as blocking', () => {

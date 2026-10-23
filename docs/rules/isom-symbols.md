@@ -16,7 +16,14 @@ ISOM §2.3 divides runnability into five speed classes, relative to flat, open, 
 
 - A green screen combined with stony ground is slower than either alone (§2.3).
 - Steeper terrain is less runnable (§2.3).
-- **Interpretation:** combine overlapping area symbols by multiplying their speed factors. Climb is handled separately from runnability.
+- White represents typical open forest (§3.4), so unmapped terrain is class 2.
+- **Interpretation:** each runnability symbol belongs to a layer.
+  - `cover`: vegetation, open land, paved area, bare rock, canopy. Where cover areas overlap, the slowest wins.
+  - `ground`: very broken ground, dense boulder field, stony and sandy ground, shallow water, marsh. These are combined with cover (§2.3, §3.3), so the ground factor is applied relative to typical forest: speed = cover × ground ÷ forest.
+  - `path`: roads, tracks, paths and stairways (lines). A path is never slower than the terrain it crosses.
+- **Interpretation:** one speed factor per class for routing: 1.1, 0.9, 0.7, 0.4 and 0.1 (the middle of each range, 1.1 for class 1). The reference pace is the §2.3 example of 4 min/km.
+- **Interpretation:** crossing a line marked "crossing slows" halves the speed on it. Following an out-of-bounds route (711) is at 0.1 of the speed, so crossing it directly stays cheap but following it doesn't.
+- Climb is handled separately from runnability.
 
 ## Barriers
 
