@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@ratamestari/core": "workspace:*",
+    "@ratamestari/rules": "workspace:*",
     "buffer": "^6.0.3",
     "ocad2geojson": "^2.1.23"
   },

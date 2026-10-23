@@ -223,6 +223,9 @@ importers:
       '@ratamestari/core':
         specifier: workspace:*
         version: link:../core
+      '@ratamestari/rules':
+        specifier: workspace:*
+        version: link:../rules
       buffer:
         specifier: ^6.0.3
         version: 6.0.3
