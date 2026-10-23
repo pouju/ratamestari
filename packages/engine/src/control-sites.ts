@@ -89,6 +89,7 @@ export function findControlSites(
   const { grid } = terrain
   const leadingDistance = distanceToLeadingFeatures(features, grid)
   const avoided = avoidedAreaMask(features, grid)
+  const nearForbidden = nearForbiddenMask(features, grid)
   const visibleArea = visibleAreaCodes(features, grid)
   const accepted: ControlSiteCandidate[] = []
   const occupied = new Map<string, LocalPoint[]>()
@@ -96,6 +97,7 @@ export function findControlSites(
   for (const raw of rawSites(features, terrain, visibleArea)) {
     const index = cellIndexOf(grid, raw.position)
     if (index === null || !terrain.mappedArea[index] || avoided[index]) continue
+    if (nearForbidden[index]) continue
     if (!isReachable(grid, index)) continue
     if (isNearAccepted(occupied, raw.position)) continue
     occupy(occupied, raw.position)
@@ -119,7 +121,7 @@ export function findControlSites(
       inSlowTerrain: fastestNearby(grid, index) < RUNNABILITY[2].minSpeedFraction,
       technicalDifficulty: Math.min(
         5,
-        BASE_DIFFICULTY[raw.placement] + DISTANCE_DIFFICULTY[band],
+        isLeadingLineEnd(raw) ? 1 : BASE_DIFFICULTY[raw.placement] + DISTANCE_DIFFICULTY[band],
       ) as TechnicalDifficulty,
     })
   }
@@ -641,4 +643,32 @@ function centroid(points: readonly LocalPoint[]): LocalPoint {
     y += (y1 + y2) * cross
   }
   return [x / (6 * area), y / (6 * area)] as const as LocalPoint
+}
+
+const LEADING_LINE_CODES = new Set(LEADING_FEATURES.lineIsomCodes)
+const FORBIDDEN_MOVEMENTS = new Set([
+  'forbidden',
+  'forbiddenExceptLevelCrossings',
+  'forbiddenAlong',
+])
+const SAFETY_DISTANCE_FROM_FORBIDDEN_METERS = 40
+
+const isLeadingLineEnd = (raw: RawSite) =>
+  raw.placement === 'lineEnd' && LEADING_LINE_CODES.has(raw.feature.isomCode!)
+
+function nearForbiddenMask(features: readonly MapFeature[], frame: GridFrame): Uint8Array {
+  const distance = new Float32Array(frame.columns * frame.rows).fill(Number.POSITIVE_INFINITY)
+  const mark = (i: number) => (distance[i] = 0)
+  for (const { isomCode, geometry } of features) {
+    const movement = isomCode === null ? undefined : isomSymbolRule(isomCode)?.movement
+    if (!movement || !FORBIDDEN_MOVEMENTS.has(movement.kind)) continue
+    if (geometry.type === 'Polygon') {
+      fillPolygon(frame, geometry.coordinates, mark)
+      geometry.coordinates.forEach(ring => traceLine(frame, ring, mark))
+    } else if (geometry.type === 'LineString') {
+      traceLine(frame, geometry.coordinates, mark)
+    }
+  }
+  chamferDistance(distance, frame)
+  return Uint8Array.from(distance, d => (d < SAFETY_DISTANCE_FROM_FORBIDDEN_METERS ? 1 : 0))
 }
