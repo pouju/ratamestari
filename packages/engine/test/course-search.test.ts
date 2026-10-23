@@ -4,7 +4,7 @@ import { courseTargetFor, FOREST_CONTROL_SPACING, type CourseRequest } from '@ra
 import { findControlSites } from '../src/control-sites'
 import { searchCourse, type Course, type CourseSpec } from '../src/course-search'
 import { buildTerrain } from '../src/terrain'
-import { feature, point } from './fixtures'
+import { feature, line, point } from './fixtures'
 
 const extent = localExtent(0, 0, 2000, 2000)
 const boulders: MapFeature[] = []
@@ -60,6 +60,27 @@ describe('searchCourse', () => {
     expect(course.problems.acuteAngleWarnings).toBe(0)
   })
 
+  it('keeps control circles on the course from overlapping', () => {
+    const points = allPoints(course)
+    for (let a = 0; a < points.length; a++) {
+      for (let b = a + 1; b < points.length; b++) {
+        const distance = Math.hypot(points[a]![0] - points[b]![0], points[a]![1] - points[b]![1])
+        expect(distance).toBeGreaterThanOrEqual(75)
+      }
+    }
+    expect(course.problems.overlappingCircles).toBe(0)
+  })
+
+  it('checks the angle at the last control too', () => {
+    const [beforeLast, last] = allPoints(course).slice(-2)
+    const toBefore = [beforeLast![0] - last![0], beforeLast![1] - last![1]]
+    const toFinish = [course.finish[0] - last![0], course.finish[1] - last![1]]
+    const cosine =
+      (toBefore[0]! * toFinish[0]! + toBefore[1]! * toFinish[1]!) /
+      (Math.hypot(toBefore[0]!, toBefore[1]!) * Math.hypot(toFinish[0]!, toFinish[1]!))
+    expect((Math.acos(cosine) * 180) / Math.PI).toBeGreaterThanOrEqual(45)
+  })
+
   it('does not cross its own course lines or run them through other controls', () => {
     expect(course.problems.courseLineCrossings).toBe(0)
     expect(course.problems.courseLinesThroughControls).toBe(0)
@@ -112,5 +133,32 @@ describe('searchCourse', () => {
       extent,
     )
     expect(searchCourse(lake, sites, spec())).toBeNull()
+  })
+
+  it('keeps course lines inside the mapped area', () => {
+    const uShapedMap: MapFeature[] = []
+    for (let y = 50; y < 2000; y += 100) {
+      uShapedMap.push(feature('101', line([50, y], [700, y])))
+      uShapedMap.push(feature('101', line([1300, y], [1950, y])))
+    }
+    for (let y = 50; y < 700; y += 100) uShapedMap.push(feature('101', line([700, y], [1300, y])))
+    const features = [...uShapedMap, ...boulders]
+    const uTerrain = buildTerrain(features, extent)
+    const uSites = findControlSites(features, uTerrain)
+    const uCourse = searchCourse(
+      uTerrain,
+      uSites,
+      spec({ competitionCentre: localPoint(1000, 300) }),
+    )!
+    expect(uCourse.problems.courseLinesOutsideMap).toBe(0)
+    const stops = [...allPoints(uCourse), uCourse.finish]
+    for (let i = 1; i < stops.length; i++) {
+      for (let t = 0; t <= 1; t += 0.02) {
+        const x = stops[i - 1]![0] + (stops[i]![0] - stops[i - 1]![0]) * t
+        const y = stops[i - 1]![1] + (stops[i]![1] - stops[i - 1]![1]) * t
+        const inGap = x > 800 && x < 1200 && y > 900
+        expect(inGap).toBe(false)
+      }
+    }
   })
 })

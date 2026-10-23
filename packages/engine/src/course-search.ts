@@ -31,6 +31,8 @@ export interface CourseProblems {
   readonly difficultyOutsideRange: number
   readonly courseLineCrossings: number
   readonly courseLinesThroughControls: number
+  readonly courseLinesOutsideMap: number
+  readonly overlappingCircles: number
   readonly finalLegTooLong: boolean
 }
 
@@ -69,13 +71,16 @@ const PENALTY = {
   timeErrorPerPercent: 2,
   spacing: 50,
   acuteAngleWarning: 20,
-  acuteAngleNote: 3,
+  acuteAngleNote: 5,
   difficultyOutsideRange: 4,
   courseLineCrossing: 15,
   courseLineThroughControl: 10,
   finalLegPerPercentOverLimit: 5,
+  courseLineOutsideMap: 30,
+  overlappingCircles: 15,
 } as const
 const CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS = 37.5
+const FINISH_OUTER_CIRCLE_FOOTPRINT_RADIUS_METERS = 45
 const FINAL_LEG_MAX_SHARE_OF_TARGET = 0.04
 const REVERSE_SECTION_CHANCE = 0.25
 const HEADING_HOME_SHARE_OF_TARGET = 0.25
@@ -85,8 +90,6 @@ const MIN_ADVANCE_PER_CONTROL_DEGREES = 2
 const MAX_ADVANCE_PER_EXPECTED = 2.5
 const ADVANCE_SLACK_DEGREES = 15
 const NO_SITE = -1
-
-type Point = { readonly position: LocalPoint }
 
 export function searchCourse(
   terrain: Terrain,
@@ -127,7 +130,17 @@ export function searchCourse(
     return timesFrom(from)[to]!
   }
 
-  const evaluation = createEvaluation(pool, spec, finish, toFinish, legSeconds, targetSeconds)
+  const staysOnMap = (from: LocalPoint, to: LocalPoint) =>
+    courseLineStaysOnMap(grid, terrain.mappedArea, from, to)
+  const evaluation = createEvaluation(
+    pool,
+    spec,
+    finish,
+    toFinish,
+    legSeconds,
+    targetSeconds,
+    staysOnMap,
+  )
   const loop = planLoop(pool, toFinish, targetSeconds, random)
   const startIndex = pickStart(pool, toFinish, targetSeconds, loop, finish, random)
   if (startIndex === NO_SITE) return null
@@ -141,6 +154,7 @@ export function searchCourse(
     spec,
     loop,
     finish,
+    staysOnMap,
     random,
   )
   let best = evaluation.score(startIndex, order)
@@ -190,6 +204,7 @@ function createEvaluation(
   toFinish: Float32Array,
   legSecondsBetween: (from: number, to: number) => number,
   targetSeconds: number,
+  staysOnMap: (from: LocalPoint, to: LocalPoint) => boolean,
 ) {
   const spacing = controlSpacingForScale(spec.mapScale)
   const [minDifficulty, maxDifficulty] = spec.target.siteDifficulty
@@ -218,11 +233,9 @@ function createEvaluation(
 
     let acuteAngleWarnings = 0
     let acuteAngleNotes = 0
-    const points: Point[] = sequence.map(i => pool[i]!)
-    for (let i = 1; i < points.length; i++) {
-      const next = points[i + 1]
-      if (!next) break
-      const angle = angleAt(points[i - 1]!.position, points[i]!.position, next.position)
+    const stops = [...sequence.map(i => pool[i]!.position), finish]
+    for (let i = 1; i + 1 < stops.length; i++) {
+      const angle = angleAt(stops[i - 1]!, stops[i]!, stops[i + 1]!)
       if (angle < ACUTE_ANGLE.warningBelowDegrees) acuteAngleWarnings++
       else if (angle < ACUTE_ANGLE.noteBelowDegrees) acuteAngleNotes++
     }
@@ -232,8 +245,12 @@ function createEvaluation(
       return difficulty < minDifficulty || difficulty > maxDifficulty
     }).length
 
-    const stops = [...sequence.map(i => pool[i]!.position), finish]
     const courseLineCrossings = countCourseLineCrossings(stops)
+    const overlappingCircles = countOverlappingCircles(stops)
+    let courseLinesOutsideMap = 0
+    for (let i = 0; i + 1 < stops.length; i++) {
+      if (!staysOnMap(stops[i]!, stops[i + 1]!)) courseLinesOutsideMap++
+    }
     const courseLinesThroughControls = countCourseLinesThroughControls(stops)
     const finalLegShare = legSeconds[legSeconds.length - 1]! / targetSeconds
     const finalLegPercentOverLimit = Math.max(
@@ -248,6 +265,8 @@ function createEvaluation(
       difficultyOutsideRange,
       courseLineCrossings,
       courseLinesThroughControls,
+      courseLinesOutsideMap,
+      overlappingCircles,
       finalLegTooLong: finalLegPercentOverLimit > 0,
     }
     const timeErrorPercent = (100 * Math.abs(estimatedSeconds - targetSeconds)) / targetSeconds
@@ -267,7 +286,9 @@ function createEvaluation(
           PENALTY.difficultyOutsideRange * difficultyOutsideRange +
           PENALTY.courseLineCrossing * courseLineCrossings +
           PENALTY.courseLineThroughControl * courseLinesThroughControls +
-          PENALTY.finalLegPerPercentOverLimit * finalLegPercentOverLimit,
+          PENALTY.finalLegPerPercentOverLimit * finalLegPercentOverLimit +
+          PENALTY.courseLineOutsideMap * courseLinesOutsideMap +
+          PENALTY.overlappingCircles * overlappingCircles,
     }
   }
   return { score }
@@ -344,6 +365,7 @@ function buildGreedy(
   spec: CourseSpec,
   loop: Loop,
   finish: LocalPoint,
+  staysOnMap: (from: LocalPoint, to: LocalPoint) => boolean,
   random: Random,
 ): number[] {
   const startAngle = loopAngle(loop, pool[startIndex]!.position)
@@ -376,24 +398,37 @@ function buildGreedy(
       const t = times[i]!
       if (used.has(i) || t < low / widen || t > high * widen) return false
       if (t + toFinish[i]! > remaining) return false
+      const site = pool[i]!
       const wouldBeLastControl = remaining - t - toFinish[i]! < shortestLeg
       if (wouldBeLastControl && toFinish[i]! > finalLegMax) return false
+      if (wouldBeLastControl) {
+        if (
+          angleAt(pool[current]!.position, site.position, finish) < ACUTE_ANGLE.noteBelowDegrees
+        ) {
+          return false
+        }
+        if (!staysOnMap(site.position, finish)) return false
+        const finishClearance =
+          CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS + FINISH_OUTER_CIRCLE_FOOTPRINT_RADIUS_METERS
+        if (distanceBetween(site.position, finish) < finishClearance) return false
+      }
       const advance = advanceTo(i)
       const expected = (2 * Math.PI * t) / targetSeconds
       if (advance < radians(MIN_ADVANCE_PER_CONTROL_DEGREES)) return false
       if (advance > expected * MAX_ADVANCE_PER_EXPECTED + radians(ADVANCE_SLACK_DEGREES))
         return false
       if (travelledArc + advance > arcToFinish) return false
-      const site = pool[i]!
       const tooClose = [...used].some(u => {
         const other = pool[u]!
         const minimum =
           other.isomCode === site.isomCode
             ? spacing.minStraightMetersForSimilarSites
             : spacing.minStraightMeters
-        return distanceBetween(other.position, site.position) < minimum
+        const circlesApart = 2 * CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS
+        return distanceBetween(other.position, site.position) < Math.max(minimum, circlesApart)
       })
       if (tooClose) return false
+      if (!staysOnMap(pool[current]!.position, site.position)) return false
       if (previous !== NO_SITE) {
         const angle = angleAt(pool[previous]!.position, pool[current]!.position, site.position)
         if (angle < ACUTE_ANGLE.noteBelowDegrees) return false
@@ -554,4 +589,36 @@ function countCourseLinesThroughControls(stops: readonly LocalPoint[]): number {
     }
   }
   return count
+}
+
+function countOverlappingCircles(stops: readonly LocalPoint[]): number {
+  const radiusOf = (i: number) =>
+    i === stops.length - 1
+      ? FINISH_OUTER_CIRCLE_FOOTPRINT_RADIUS_METERS
+      : CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS
+  let count = 0
+  for (let a = 0; a < stops.length; a++) {
+    for (let b = a + 1; b < stops.length; b++) {
+      if (distanceBetween(stops[a]!, stops[b]!) < radiusOf(a) + radiusOf(b)) count++
+    }
+  }
+  return count
+}
+
+function courseLineStaysOnMap(
+  grid: CostGrid,
+  mappedArea: Uint8Array,
+  from: LocalPoint,
+  to: LocalPoint,
+): boolean {
+  const samples = Math.max(1, Math.ceil(distanceBetween(from, to) / grid.cellSizeMeters))
+  for (let s = 0; s <= samples; s++) {
+    const t = s / samples
+    const index = cellIndexOf(grid, [
+      from[0] + (to[0] - from[0]) * t,
+      from[1] + (to[1] - from[1]) * t,
+    ] as const as LocalPoint)
+    if (index === null || !mappedArea[index]) return false
+  }
+  return true
 }

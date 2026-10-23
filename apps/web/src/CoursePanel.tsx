@@ -129,6 +129,9 @@ function CourseSummary({ course }: { course: Course }) {
     problems.courseLineCrossings > 0 && `${problems.courseLineCrossings} course lines cross`,
     problems.courseLinesThroughControls > 0 &&
       `${problems.courseLinesThroughControls} course lines pass through another control`,
+    problems.courseLinesOutsideMap > 0 &&
+      `${problems.courseLinesOutsideMap} course lines go outside the map`,
+    problems.overlappingCircles > 0 && `${problems.overlappingCircles} overlapping control circles`,
     problems.finalLegTooLong && 'long last leg into the finish',
   ].filter(Boolean)
   return (
