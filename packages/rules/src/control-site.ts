@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { citedSchema, ratamestarikirja } from './source'
+import { citedSchema, isom, ratamestarikirja } from './source'
 
 export const leadingFeatureRuleSchema = citedSchema.extend({
   lineIsomCodes: z.array(z.string()),
@@ -40,5 +40,45 @@ export const CONTROL_SITE_DIFFICULTY: ControlSiteDifficultyRule = {
   onLeadingFeatureMaxMeters: 15,
   nearLeadingFeatureMaxMeters: 75,
   sources: [ratamestarikirja('1.2.5'), ratamestarikirja('11')],
+  interpretation: true,
+}
+
+export const lineFeatureSiteRuleSchema = citedSchema.extend({
+  controlledAlongLengthIsomCodes: z.array(z.string()),
+  maxLengthForCentreSiteMeters: z.number().positive(),
+})
+
+export const contourFeatureSiteRuleSchema = citedSchema.extend({
+  maxClosedContourAreaSquareMeters: z.number().positive(),
+  bendMeasuringDistanceMeters: z.number().positive(),
+  bendMinTurnDegrees: z.number().positive(),
+})
+
+export type LineFeatureSiteRule = z.infer<typeof lineFeatureSiteRuleSchema>
+export type ContourFeatureSiteRule = z.infer<typeof contourFeatureSiteRuleSchema>
+
+export const LINE_FEATURE_SITES: LineFeatureSiteRule = {
+  controlledAlongLengthIsomCodes: [
+    '104',
+    '105.1',
+    '105.2',
+    '106',
+    '107',
+    '108',
+    '201',
+    '202',
+    '215',
+    '523',
+  ],
+  maxLengthForCentreSiteMeters: 60,
+  sources: [isom('sym. 703')],
+  interpretation: true,
+}
+
+export const CONTOUR_FEATURE_SITES: ContourFeatureSiteRule = {
+  maxClosedContourAreaSquareMeters: 10000,
+  bendMeasuringDistanceMeters: 15,
+  bendMinTurnDegrees: 60,
+  sources: [isom('sym. 101'), isom('sym. 103')],
   interpretation: true,
 }

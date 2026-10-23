@@ -126,7 +126,7 @@ export const ISOM_SYMBOL_RULES: readonly IsomSymbolRule[] = [
   symbol('211', 'Stony ground, walk', ground(4), 'no'),
   symbol('212', 'Stony ground, fight', ground(5), 'no'),
   symbol('213', 'Sandy ground', ground(3), 'no', ours),
-  symbol('214', 'Bare rock', cover(2), 'edge', ours),
+  symbol('214', 'Bare rock', cover(2), 'weak', ours),
   symbol('215', 'Trench', CROSSING_SLOWS, 'yes'),
 
   symbol('301', 'Uncrossable body of water', IMPASSABLE, 'edge'),

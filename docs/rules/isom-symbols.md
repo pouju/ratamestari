@@ -65,24 +65,24 @@ Category values: `class N` (runnability class above), `impassable`, `forbidden`,
 
 ### Rock and boulders (black, grey)
 
-| ISOM  | Name                          | Movement       | Control site | Source / notes                                                                                                  |
-| ----- | ----------------------------- | -------------- | ------------ | --------------------------------------------------------------------------------------------------------------- |
-| 201   | Impassable cliff              | impassable     | yes          | sym. 201. Also used for impassable earth banks and trenches.                                                    |
-| 202   | Cliff                         | crossing slows | yes          | sym. 202 "Crossing a cliff will normally slow progress".                                                        |
-| 203.1 | Rocky pit or cave             | no effect      | yes          | sym. 203.1. May be a danger.                                                                                    |
-| 203.2 | Dangerous pit                 | impassable     | **no**       | sym. 203.2 "strongly recommended not to use such a feature as a control point". **Interpretation:** impassable. |
-| 204   | Boulder                       | no effect      | yes          | sym. 204. Higher than 1 m.                                                                                      |
-| 205   | Large boulder                 | no effect      | yes          | sym. 205. Higher than 2 m.                                                                                      |
-| 206   | Gigantic boulder, rock pillar | impassable     | yes          | sym. 206. Area in plan shape. **Interpretation:** impassable, from the 0.15 mm gap rule.                        |
-| 207   | Boulder cluster               | no effect      | yes          | sym. 207.                                                                                                       |
-| 208   | Boulder field                 | no effect      | weak         | sym. 208 "will generally not impact runnability".                                                               |
-| 209   | Dense boulder field           | class 3        | weak         | sym. 209 "runnability is affected". **Interpretation:** class 3.                                                |
-| 210   | Stony ground, slow running    | class 3        | no           | sym. 210, 60–80%.                                                                                               |
-| 211   | Stony ground, walk            | class 4        | no           | sym. 211, 20–60%.                                                                                               |
-| 212   | Stony ground, fight           | class 5        | no           | sym. 212, < 20%.                                                                                                |
-| 213   | Sandy ground                  | class 3        | no           | sym. 213 "less than 80%". **Interpretation:** class 3.                                                          |
-| 214   | Bare rock                     | class 2        | yes (edge)   | sym. 214 "runnable area of rock". **Interpretation:** class 2.                                                  |
-| 215   | Trench                        | crossing slows | yes          | sym. 215. Impassable trenches use 201.                                                                          |
+| ISOM  | Name                          | Movement       | Control site | Source / notes                                                                                                                  |
+| ----- | ----------------------------- | -------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| 201   | Impassable cliff              | impassable     | yes          | sym. 201. Also used for impassable earth banks and trenches.                                                                    |
+| 202   | Cliff                         | crossing slows | yes          | sym. 202 "Crossing a cliff will normally slow progress".                                                                        |
+| 203.1 | Rocky pit or cave             | no effect      | yes          | sym. 203.1. May be a danger.                                                                                                    |
+| 203.2 | Dangerous pit                 | impassable     | **no**       | sym. 203.2 "strongly recommended not to use such a feature as a control point". **Interpretation:** impassable.                 |
+| 204   | Boulder                       | no effect      | yes          | sym. 204. Higher than 1 m.                                                                                                      |
+| 205   | Large boulder                 | no effect      | yes          | sym. 205. Higher than 2 m.                                                                                                      |
+| 206   | Gigantic boulder, rock pillar | impassable     | yes          | sym. 206. Area in plan shape. **Interpretation:** impassable, from the 0.15 mm gap rule.                                        |
+| 207   | Boulder cluster               | no effect      | yes          | sym. 207.                                                                                                                       |
+| 208   | Boulder field                 | no effect      | weak         | sym. 208 "will generally not impact runnability".                                                                               |
+| 209   | Dense boulder field           | class 3        | weak         | sym. 209 "runnability is affected". **Interpretation:** class 3.                                                                |
+| 210   | Stony ground, slow running    | class 3        | no           | sym. 210, 60–80%.                                                                                                               |
+| 211   | Stony ground, walk            | class 4        | no           | sym. 211, 20–60%.                                                                                                               |
+| 212   | Stony ground, fight           | class 5        | no           | sym. 212, < 20%.                                                                                                                |
+| 213   | Sandy ground                  | class 3        | no           | sym. 213 "less than 80%". **Interpretation:** class 3.                                                                          |
+| 214   | Bare rock                     | class 2        | weak         | sym. 214 "runnable area of rock". **Interpretation:** class 2; outlines are irregular, so corners are not clear control points. |
+| 215   | Trench                        | crossing slows | yes          | sym. 215. Impassable trenches use 201.                                                                                          |
 
 ### Water and marsh (blue)
 
@@ -183,6 +183,11 @@ A stripe pattern in 406, 408 and 410 shows a direction of better running (sym. 4
 - Controls shall only be placed on points that are clearly identifiable on the map (sym. 703).
 - For point features, the circle centre is the symbol centre. For line and area features, it is the exact marker position (sym. 703).
 - **Interpretation:** "yes" above means a usable control site in itself. "edge" means the boundary or corner of the area can carry a control, not its interior. "weak" means usable only at a distinct point such as a corner. Suitability for a given difficulty level is decided with the control-description rules, not here.
+
+- **Interpretation:** an area corner counts only where the map visibly changes there: the area is the top-most one just inside the corner and something else is visible just outside. Corners hidden under other areas and seams between pieces of the same area are not control points.
+- **Interpretation:** cliffs, earth banks and walls, erosion gullies, trenches and ruins are controlled along their length: a site at the centre of short ones (up to 60 m) as well as at the ends. Other line features (paths, ditches, fences) only at their ends.
+- **Interpretation:** a closed contour or form line is a knoll or depression (sym. 101, 103). The innermost closed contour of one, up to 10 000 m², is a site at its centre. Point symbols for very small contour knolls and depressions are sites too.
+- **Interpretation:** a sharp bend in a contour or form line is a spur (nose) or re-entrant: a turn of at least 60° measured over 15 m each way (ISOM requires the mouth to be wider than 0.5 mm, sym. 101). Where the contour's uphill side is known, a bend whose inside is uphill points downhill and is a spur; one whose inside is downhill is a re-entrant.
 
 ## OCAD symbol numbers
 
