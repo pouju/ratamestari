@@ -18,6 +18,7 @@ import { isomCodeForOcadSymbol, type IsomCodeOverrides } from './isom-code'
 
 const BACKGROUND_MAP_RECORD_TYPE = '8'
 const SCALE_PARAMETERS_RECORD_TYPE = '1039'
+const OCAD_ANGLE_UNITS_PER_DEGREE = 10
 
 export interface OcadMap {
   readonly info: MapInfo
@@ -74,6 +75,9 @@ function readFeatures(
           {
             symbolNumber: properties.sym,
             isomCode: isomCodeForOcadSymbol(properties.sym, isomCodeOverrides),
+            symbolRotationDegreesCounterClockwise: normalizeDegrees(
+              (properties.ang ?? 0) / OCAD_ANGLE_UNITS_PER_DEGREE,
+            ),
             geometry: toLocalGeometry(geometry, toLocal),
           },
         ]
@@ -105,3 +109,5 @@ function readGeoref(file: OcadFile): Georef | null {
     grivationRadians: crs.grivation,
   }
 }
+
+const normalizeDegrees = (degrees: number) => ((degrees % 360) + 360) % 360

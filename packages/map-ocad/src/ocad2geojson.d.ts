@@ -68,7 +68,7 @@ declare module 'ocad2geojson/src/ocad-to-geojson' {
     | { type: 'Polygon'; coordinates: Position[][] }
 
   export interface OcadFeature {
-    properties: { sym: number }
+    properties: { sym: number; ang?: number }
     geometry: OcadGeometry | null
   }
 

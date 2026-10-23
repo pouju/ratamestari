@@ -61,6 +61,13 @@ describe.skipIf(!localMapExists)('OcadMap.features with a local map from git-ign
     for (const feature of overridden) expect(feature.isomCode).toBe('520')
   })
 
+  it('reads point symbol rotation in degrees', async () => {
+    const map = await loadOcadMap(bytes)
+    const rotations = map.features().map(f => f.symbolRotationDegreesCounterClockwise)
+    expect(rotations.every(r => r >= 0 && r < 360)).toBe(true)
+    expect(rotations.some(r => r !== 0)).toBe(true)
+  })
+
   it('reads features once and reuses them', async () => {
     const map = await loadOcadMap(bytes)
     expect(map.features()).toBe(map.features())

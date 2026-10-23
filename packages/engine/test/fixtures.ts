@@ -9,9 +9,14 @@ import {
 
 export const SQUARE_KILOMETRE: LocalExtent = localExtent(0, 0, 1000, 1000)
 
-export const feature = (isomCode: string | null, geometry: LocalGeometry): MapFeature => ({
+export const feature = (
+  isomCode: string | null,
+  geometry: LocalGeometry,
+  symbolRotationDegreesCounterClockwise = 0,
+): MapFeature => ({
   symbolNumber: 0,
   isomCode,
+  symbolRotationDegreesCounterClockwise,
   geometry,
 })
 

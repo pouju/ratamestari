@@ -8,5 +8,6 @@ export type LocalGeometry =
 export interface MapFeature {
   readonly symbolNumber: number
   readonly isomCode: string | null
+  readonly symbolRotationDegreesCounterClockwise: number
   readonly geometry: LocalGeometry
 }
