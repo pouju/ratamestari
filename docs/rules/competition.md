@@ -66,6 +66,13 @@ The winning time is the ideal time of the class winner (LS 11.25). A course is s
 - Qualification races have their own, shorter winning times (LS 19.41, 19.44). Not used yet.
 - SM night: 80% of long distance (LS 19.42). SM ultralong: 180% of long distance (LS 19.43).
 
+## Skill level of a course
+
+- SSL colour levels by class (RMK 11): 10 white, 12–13 yellow, 14 orange, 15 red, 16 purple, 18 blue, 20–21 black.
+- **Interpretation:** veteran A classes are technically at the blue level and physically easier, following RMK 1.3.3 ("H80A is A level, but not the same as H21A").
+- **Interpretation:** a B class is two colour steps easier than its A class and a C class is yellow, since C "should be manageable for a beginner who needs leading features" (RMK 1.3.3). B and C winning times are 75% of the A class, the middle of LS 11.251.
+- **Interpretation:** control site difficulty (1–5, see the ISOM digest) by colour: white 1, yellow 1–2, orange and red 2–3, purple 3–4, blue and black 3–5.
+
 ## Course length and time
 
 - Course length is measured on the map along the shortest route a competitor can take, without regard to climb (LS 11.22). Compulsory marked routes and crossings are included (LS 11.23, 11.24).
