@@ -7,6 +7,7 @@ import {
   type Format,
 } from '@ratamestari/rules'
 import type { ControlSiteCandidate } from './control-sites'
+import { courseLengthMeters } from './course-length'
 import { distanceToSegment, segmentsCross } from './polyline'
 import { BLOCKED, type CostGrid } from './cost-grid'
 import { seededRandom, type Random } from './random'
@@ -44,6 +45,7 @@ export interface Course {
   readonly legSeconds: readonly number[]
   readonly estimatedSeconds: number
   readonly targetSeconds: number
+  readonly lengthMeters: number | null
   readonly problems: CourseProblems
   readonly score: number
 }
@@ -171,9 +173,10 @@ export function searchCourse(
       onProgress(toCourse(best))
     }
   }
-  return toCourse(best)
+  return toCourse(best, true)
 
-  function toCourse(scored: ScoredCourse): Course {
+  function toCourse(scored: ScoredCourse, withLength = false): Course {
+    const stops = [startIndex, ...scored.order].map(i => pool[i]!.position)
     return {
       seed: spec.seed,
       start: pool[startIndex]!,
@@ -182,6 +185,7 @@ export function searchCourse(
       legSeconds: scored.legSeconds,
       estimatedSeconds: scored.estimatedSeconds,
       targetSeconds,
+      lengthMeters: withLength ? courseLengthMeters(grid, [...stops, finish]) : null,
       problems: scored.problems,
       score: scored.score,
     }
