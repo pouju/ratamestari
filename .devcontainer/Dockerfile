@@ -28,6 +28,11 @@ WORKDIR /workspace
 USER node
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
+# pnpm via npm (corepack is no longer bundled from Node 25). Keep in sync with
+# "packageManager" in package.json.
+ARG PNPM_VERSION=12.10.1
+RUN npm install -g pnpm@${PNPM_VERSION}
+
 # Firewall script: root-owned, and the only thing node may run with sudo
 #USER root
 #COPY init-firewall.sh /usr/local/bin/init-firewall.sh
