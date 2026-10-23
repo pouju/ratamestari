@@ -19,3 +19,4 @@ export {
 } from './control-sites'
 export { seededRandom, type Random } from './random'
 export { secondsFrom } from './time-tree'
+export { searchCourse, type Course, type CourseProblems, type CourseSpec } from './course-search'
