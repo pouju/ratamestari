@@ -11,12 +11,13 @@ import {
   moveControl,
   papersFor,
   peripheralLayout,
-  setCourseOnPaper,
+  setCourseOnPaperSteps,
   type CourseSpec,
   type PaperChoice,
   type ReplacementPreference,
   type ControlSiteCandidate,
   type Course,
+  type Search,
   type LegEvaluation,
   type PeripheralInformation,
   type Terrain,
@@ -45,6 +46,23 @@ let sites: readonly ControlSiteCandidate[] = []
 let peripheral: PeripheralInformation | null = null
 let lastSetting: { spec: CourseSpec; paper: PaperChoice } | null = null
 let imported: ImportedCourseData | null = null
+let stopRequested = false
+
+// The search pauses regularly; giving the event loop a turn there lets a stop message through.
+const SLICE_MILLISECONDS = 50
+
+async function runSliced(search: Search, onProgress: (course: Course) => void) {
+  stopRequested = false
+  let sliceStarted = performance.now()
+  for (let step = search.next(); ; step = search.next(stopRequested)) {
+    if (step.done) return step.value
+    if (step.value) onProgress(step.value)
+    if (performance.now() - sliceStarted > SLICE_MILLISECONDS) {
+      await new Promise(resolve => setTimeout(resolve, 0))
+      sliceStarted = performance.now()
+    }
+  }
+}
 
 export interface ImportedCourseSummary {
   readonly name: string
@@ -123,12 +141,17 @@ const engine = {
     paper: PaperChoice,
     printScaleChoice: PrintScaleChoice,
     onProgress: (course: Course) => void,
-  ): Course | null {
+  ): Promise<Course | null> {
     if (!terrain) throw new Error('No map loaded in the engine')
     const spec = specFor(request, competitionCentre, seed, paceSecondsPerKm, printScaleChoice)
-    if (!spec) return null
+    if (!spec) return Promise.resolve(null)
     lastSetting = { spec, paper }
-    return setCourseOnPaper(terrain, sites, spec, paper, onProgress)
+    return runSliced(setCourseOnPaperSteps(terrain, sites, spec, paper), onProgress)
+  },
+
+  // generateCourse then resolves with the best course found so far.
+  stopSearch(): void {
+    stopRequested = true
   },
 
   importCourses(xml: string): readonly ImportedCourseSummary[] {
