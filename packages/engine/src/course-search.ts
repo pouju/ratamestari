@@ -119,7 +119,7 @@ export function expectedControlCount(format: Format): number {
 }
 
 const START_DISTANCE_FROM_FINISH: readonly [number, number] = [0.05, 0.2]
-const MAX_START_DIFFICULTY = 2
+export const MAX_START_DIFFICULTY = 2
 const MAX_SITE_DIFFICULTY = 5
 const DEFAULT_IMPROVEMENT_STEPS: Readonly<Record<Format, number>> = { long: 800, middle: 400 }
 const TREE_LIMIT_SHARE_OF_TARGET = 0.25

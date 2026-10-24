@@ -2,7 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { localExtent, localPoint, type MapFeature } from '@ratamestari/core'
 import { courseTargetFor, type CourseRequest } from '@ratamestari/rules'
 import { findControlSites } from '../src/control-sites'
-import { fixControl, moveControl, recheckCourse } from '../src/course-editing'
+import {
+  compassDirection,
+  fixControl,
+  insertControl,
+  moveControl,
+  moveStart,
+  recheckCourse,
+  removeControl,
+  suggestChanges,
+} from '../src/course-editing'
 import { searchCourse, type CourseSpec } from '../src/course-search'
 import { buildTerrain } from '../src/terrain'
 import { feature, line, point } from './fixtures'
@@ -91,5 +100,63 @@ describe('course editing', { timeout: EDITING_TIMEOUT_MS }, () => {
     })
     const harder = fixControl(pathTerrain, pathSites, spec, easy, 1, 'harder')
     expect(harder.controlDifficulties[0]).toBeGreaterThan(easy.controlDifficulties[0]!)
+  })
+  it('names compass directions with map north up', () => {
+    expect(compassDirection(localPoint(0, 0), localPoint(0, 100))).toBe('N')
+    expect(compassDirection(localPoint(0, 0), localPoint(100, 100))).toBe('NE')
+    expect(compassDirection(localPoint(0, 0), localPoint(-100, 0))).toBe('W')
+    expect(compassDirection(localPoint(0, 0), localPoint(-10, -100))).toBe('S')
+  })
+
+  it('moves a control in the asked direction', () => {
+    const moved = fixControl(terrain, sites, spec, course, 2, 'best', 'E')
+    const before = course.controls[1]!.position
+    const after = moved.controls[1]!.position
+    expect(compassDirection(before, after)).toBe('E')
+    expect(moved.controls.filter((_, i) => i !== 1)).toEqual(
+      course.controls.filter((_, i) => i !== 1),
+    )
+  })
+
+  it('removes a control and re-checks the course', () => {
+    const removed = removeControl(terrain, sites, spec, course, 2)!
+    expect(removed.controls.map(site => site.id)).toEqual(
+      course.controls.filter((_, i) => i !== 1).map(site => site.id),
+    )
+    expect(removed.legSeconds).toHaveLength(course.controls.length)
+    expect(removeControl(terrain, sites, spec, course, course.controls.length + 1)).toBeNull()
+  })
+
+  it('inserts a control on the asked leg', () => {
+    const inserted = insertControl(terrain, sites, spec, course, 2)!
+    expect(inserted.controls).toHaveLength(course.controls.length + 1)
+    expect(inserted.controls.slice(0, 2)).toEqual(course.controls.slice(0, 2))
+    expect(inserted.controls.slice(3)).toEqual(course.controls.slice(2))
+    const ids = new Set(course.controls.map(site => site.id))
+    expect(ids.has(inserted.controls[2]!.id)).toBe(false)
+  })
+
+  it('moves the start within the wished distance of the finish', () => {
+    const moved = moveStart(terrain, sites, spec, course, { distanceFromFinishMeters: [0, 120] })!
+    const [x, y] = moved.start.position
+    expect(Math.hypot(x - moved.finish[0], y - moved.finish[1])).toBeLessThanOrEqual(120)
+    expect(moved.controls).toEqual(course.controls)
+  })
+
+  it('suggests changes that make the course score better', () => {
+    const second = course.controls[1]!
+    const crowded = recheckCourse(terrain, sites, spec, {
+      ...course,
+      controls: course.controls.map((site, i) => (i === 2 ? second : site)),
+    })
+    const suggestions = suggestChanges(terrain, sites, spec, crowded)
+    expect(suggestions.length).toBeGreaterThan(0)
+    expect(suggestions.length).toBeLessThanOrEqual(5)
+    for (const suggestion of suggestions) {
+      expect(suggestion.course.score).toBeCloseTo(crowded.score - suggestion.scoreGain, 6)
+    }
+    const gains = suggestions.map(suggestion => suggestion.scoreGain)
+    expect(gains).toEqual([...gains].sort((a, b) => b - a))
+    expect(suggestions[0]!.course.problems.spacing).toBe(0)
   })
 })

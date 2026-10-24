@@ -52,11 +52,21 @@ export {
 } from './course-on-paper'
 export { checkSetCourse, CONTROL_FEATURE_MATCH_METRES, type SetCourseStops } from './course-check'
 export {
+  COMPASS_DIRECTIONS,
+  compassDirection,
   fixControl,
+  insertControl,
   moveControl,
+  moveStart,
   nearestSite,
   recheckCourse,
+  removeControl,
+  suggestChanges,
+  type CompassDirection,
+  type CourseSuggestion,
   type ReplacementPreference,
+  type StartWish,
+  type SuggestionKind,
 } from './course-editing'
 export {
   findPeripheralInformation,
