@@ -182,6 +182,7 @@ export function App() {
     setIsGenerating(true)
     setPlannedLeg(null)
     setSelectedLeg(null)
+    setEditMessage(null)
     try {
       const result = await engine.generateCourse(
         nextRequest,
@@ -193,7 +194,11 @@ export function App() {
         progressCallback<Course>(setCourse),
       )
       setCourse(result)
+      if (!result) setEditMessage(messages.course.noCourse)
       return result
+    } catch (e) {
+      setEditMessage(messages.course.generationFailed(errorMessage(e)))
+      return null
     } finally {
       setIsGenerating(false)
     }

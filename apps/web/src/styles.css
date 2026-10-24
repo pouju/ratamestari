@@ -898,3 +898,9 @@ button.link {
   line-height: 1.5;
   color: var(--colour-ink-soft);
 }
+.request-note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-small);
+  line-height: 1.45;
+  color: var(--colour-ink-soft);
+}

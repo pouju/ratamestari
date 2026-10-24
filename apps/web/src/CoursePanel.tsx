@@ -8,6 +8,8 @@ import {
   skillLetterSchema,
   type CourseRequest,
 } from '@ratamestari/rules'
+import { useState } from 'react'
+import { offeredAgeClasses, withOfferedClass } from './class-choice'
 import { useFormat, useMessages } from './i18n'
 import { ScoreBreakdown } from './ScoreBreakdown'
 import { PanelLine } from './WorkspaceStart'
@@ -70,8 +72,22 @@ const classValue = (sex: CourseRequest['sex'], age: CourseRequest['ageClass']) =
 
 function RequestSentence({ request, onRequestChange }: Pick<Props, 'request' | 'onRequestChange'>) {
   const m = useMessages().course
-  const change = (fields: Partial<CourseRequest>) => onRequestChange({ ...request, ...fields })
-  const ages = [...ageClassSchema.values]
+  const [replacedClass, setReplacedClass] = useState<string | null>(null)
+  const change = (fields: Partial<CourseRequest>) => {
+    const choice = withOfferedClass({ ...request, ...fields })
+    setReplacedClass(
+      choice.replacedAgeClass === null
+        ? null
+        : m.classReplaced(
+            m.eventLevels[choice.request.eventLevel],
+            m.formats[choice.request.format],
+            classValue(choice.request.sex, choice.replacedAgeClass),
+            classValue(choice.request.sex, choice.request.ageClass),
+          ),
+    )
+    onRequestChange(choice.request)
+  }
+  const ages = offeredAgeClasses(request)
 
   return (
     <section className="request" aria-labelledby="request-title">
@@ -136,6 +152,11 @@ function RequestSentence({ request, onRequestChange }: Pick<Props, 'request' | '
           ))}
         </select>
       </p>
+      {replacedClass && (
+        <p className="request-note" role="status">
+          {replacedClass}
+        </p>
+      )}
     </section>
   )
 }

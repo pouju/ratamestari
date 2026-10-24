@@ -120,6 +120,11 @@ export const en = {
     tryAnother: 'Try another course',
     exportNote:
       'The PDF is the print page with the course and descriptions. IOF XML 3.0 opens in OCAD, Condes and Purple Pen.',
+    classReplaced: (level: string, distance: string, from: string, to: string) =>
+      `${level} ${distance} has no ${from} class in the rules, so the class is now ${to}.`,
+    noCourse:
+      'No course could be set from here. Try another competition centre, or another class or distance.',
+    generationFailed: (reason: string) => `The course could not be set: ${reason}`,
     moveRefused: 'No control site within 60 m of that spot, so the control stayed where it was.',
     fixRefused: 'The control could not be fixed.',
     pdfFailed: (reason: string) => `The PDF could not be made: ${reason}`,
