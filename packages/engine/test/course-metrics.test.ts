@@ -4,6 +4,7 @@ import { FORMAT_QUALITY } from '@ratamestari/rules'
 import {
   alternation,
   closeness,
+  legCount,
   parallelLegs,
   convexHullArea,
   crossingSeverity,
@@ -140,5 +141,14 @@ describe('course metrics', () => {
     expect(result.value).toBeGreaterThan(0.5)
     expect(result.note).toMatch(/control 1/)
     expect(closeness(square).value).toBe(0)
+  })
+
+  it('compares the number of legs with what the leg mix suggests', () => {
+    const target = FORMAT_QUALITY.long.legLengths
+    const fewLongLegs = course([0, 0], [3000, 0], [3000, 3000], [0, 3000], [0, 100])
+    expect(legCount(fewLongLegs, target).value).toBeGreaterThan(0.7)
+    expect(legCount(fewLongLegs, target).note).toMatch(
+      /^4 legs where the leg mix suggests about \d+$/,
+    )
   })
 })

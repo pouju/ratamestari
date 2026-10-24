@@ -20,6 +20,7 @@ import {
   alternation,
   closeness,
   crossingSeverity,
+  legCount,
   parallelLegs,
   routeDoglegOverlaps,
   directionChanges,
@@ -32,7 +33,7 @@ import {
   type Metric,
 } from './course-metrics'
 import { isUsableInPrintArea, lineCrossesExtent, type PrintArea } from './print-area'
-import { siteAreaQuality } from './site-quality'
+import { siteAreaQualityOf, type SiteQualityOf } from './site-quality'
 import { distanceToSegment, segmentsCross } from './polyline'
 import { BLOCKED, type CostGrid } from './cost-grid'
 import { seededRandom, type Random } from './random'
@@ -156,7 +157,7 @@ export function searchCourse(
   const finish: LocalPoint = openCentre
 
   const toFinishGrid = secondsFrom(grid, finish, pace, Number.POSITIVE_INFINITY)
-  const qualityBySiteId = siteAreaQuality(sites)
+  const qualityOf = siteAreaQualityOf(sites)
   const secondsToFinish = (site: ControlSiteCandidate) => {
     const index = cellIndexOf(grid, site.position)
     return index === null ? Number.POSITIVE_INFINITY : toFinishGrid[index]!
@@ -173,7 +174,7 @@ export function searchCourse(
           reachable.filter(
             site => secondsToFinish(site) <= MIDDLE_CORE_REACH_SHARE_OF_TARGET * targetSeconds,
           ),
-          qualityBySiteId,
+          qualityOf,
         )
       : null
   const pool = core
@@ -184,13 +185,13 @@ export function searchCourse(
       )
     : reachable.filter(
         site =>
-          qualityBySiteId[site.id]! >= LONG_MIN_AREA_QUALITY ||
+          qualityOf(site) >= LONG_MIN_AREA_QUALITY ||
           secondsToFinish(site) <= FINAL_LEG_MAX_SHARE_OF_TARGET * targetSeconds,
       )
   if (pool.length === 0) return null
   const poolCells = pool.map(site => cellIndexOf(grid, site.position)!)
   const toFinish = Float32Array.from(poolCells, cell => toFinishGrid[cell]!)
-  const quality = Float32Array.from(pool, site => qualityBySiteId[site.id]!)
+  const quality = Float32Array.from(pool, qualityOf)
 
   const treeLimit = targetSeconds * TREE_LIMIT_SHARE_OF_TARGET
   const timesCache = new Map<number, Float32Array>()
@@ -603,9 +604,9 @@ function createEvaluation(
       ),
       ...shapeTerms(stops),
     }
-    const score = isUnreachable
-      ? Number.POSITIVE_INFINITY
-      : Object.values(terms).reduce((sum, t) => sum + t.contribution, 0)
+    const total = Object.values(terms).reduce((sum, t) => sum + t.contribution, 0)
+    // NaN would lose every comparison silently and freeze the search.
+    const score = isUnreachable || Number.isNaN(total) ? Number.POSITIVE_INFINITY : total
     return {
       order,
       legSeconds,
@@ -626,6 +627,7 @@ function createEvaluation(
       note: metric.note,
     })
     return {
+      legCount: asTerm('legCount', legCount(stops, profile.legLengths)),
       parallelLegs: asTerm('parallelLegs', parallelLegs(stops)),
       closeness: asTerm('closeness', closeness(stops)),
       reversals: asTerm('reversals', reversals(stops)),
@@ -646,7 +648,7 @@ function createEvaluation(
 
 function densestCore(
   candidates: readonly ControlSiteCandidate[],
-  qualityBySiteId: Float32Array,
+  qualityOf: SiteQualityOf,
 ): LocalPoint | null {
   let best: LocalPoint | null = null
   let bestTotal = -1
@@ -654,7 +656,7 @@ function densestCore(
     let total = 0
     for (const other of candidates) {
       if (distanceBetween(centre.position, other.position) <= MIDDLE_CORE_RADIUS_METERS) {
-        total += qualityBySiteId[other.id]!
+        total += qualityOf(other)
       }
     }
     if (total > bestTotal) {

@@ -145,6 +145,7 @@ export const scoreWeightsSchema = citedSchema.extend({
   spread: z.number().nonnegative(),
   parallelLegs: z.number().nonnegative(),
   closeness: z.number().nonnegative(),
+  legCount: z.number().nonnegative(),
 })
 
 export type ScoreWeights = z.infer<typeof scoreWeightsSchema>
@@ -188,6 +189,7 @@ export const SCORE_WEIGHTS: Readonly<Record<Format, ScoreWeights>> = {
     spread: 20,
     parallelLegs: 30,
     closeness: 20,
+    legCount: 40,
     sources: WEIGHT_SOURCES,
     interpretation: true,
   },
@@ -204,6 +206,7 @@ export const SCORE_WEIGHTS: Readonly<Record<Format, ScoreWeights>> = {
     spread: 10,
     parallelLegs: 20,
     closeness: 20,
+    legCount: 30,
     sources: WEIGHT_SOURCES,
     interpretation: true,
   },

@@ -331,6 +331,7 @@ const SCORE_TERM_LABELS: Readonly<Record<keyof Course['breakdown']['terms'], str
   spread: 'Use of terrain',
   parallelLegs: 'Legs side by side',
   closeness: 'Passing close again',
+  legCount: 'Number of legs',
 }
 
 function ScoreBreakdownView({ course }: { course: Course }) {

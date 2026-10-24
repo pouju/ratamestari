@@ -218,6 +218,7 @@ export function spread(
 }
 
 export type ShapeMetricName =
+  | 'legCount'
   | 'parallelLegs'
   | 'closeness'
   | 'reversals'
@@ -250,6 +251,7 @@ export function measureCourseShape(
 ): Record<ShapeMetricName, Metric> {
   const profile = FORMAT_QUALITY[format]
   return {
+    legCount: legCount(stops, profile.legLengths),
     parallelLegs: parallelLegs(stops),
     closeness: closeness(stops),
     reversals: reversals(stops),
@@ -426,5 +428,23 @@ export function closeness(stops: readonly LocalPoint[]): Metric {
             .sort((a, b) => a - b)
             .map(controlName)
             .join(', ')}`,
+  }
+}
+
+// Nearly every other term adds up per control, so without this a course with a few very long
+// legs would score best. The target leg mix says how many legs a course of this length needs.
+export function legCount(stops: readonly LocalPoint[], target: LegLengthTarget): Metric {
+  const edges = target.binEdgesMetres
+  const totalShare = target.shares.reduce((sum, share) => sum + share, 0) || 1
+  const meanLeg = target.shares.reduce(
+    (sum, share, bin) => sum + (share / totalShare) * ((edges[bin]! + edges[bin + 1]!) / 2),
+    0,
+  )
+  const legs = legLengths(stops)
+  const expected = legs.reduce((sum, leg) => sum + leg, 0) / Math.max(meanLeg, 1)
+  if (expected < 1) return { value: 0, note: 'too short to judge' }
+  return {
+    value: Math.abs(legs.length - expected) / expected,
+    note: `${legs.length} legs where the leg mix suggests about ${Math.round(expected)}`,
   }
 }

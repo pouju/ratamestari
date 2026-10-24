@@ -37,7 +37,7 @@ export {
   shortestPassableMeters,
   type CourseMeasurements,
 } from './course-length'
-export { siteAreaQuality } from './site-quality'
+export { siteAreaQuality, siteAreaQualityOf, type SiteQualityOf } from './site-quality'
 export { difficultyInCourse, flagSideFor, type FlagSide } from './flag-side'
 export { fitCourseToPaper, papersFor, setCourseOnPaper, type PaperChoice } from './course-on-paper'
 export {
@@ -67,6 +67,7 @@ export {
   crossingSeverity,
   directionChanges,
   firstLegTowardsFinish,
+  legCount,
   legLengthDistribution,
   legLengths,
   mappedAreaWithin,

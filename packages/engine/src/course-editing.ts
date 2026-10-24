@@ -12,7 +12,7 @@ import { difficultyInCourse } from './flag-side'
 import { isUsableInPrintArea } from './print-area'
 import { cellIndexOf } from './raster'
 import { findRoute } from './router'
-import { siteAreaQuality } from './site-quality'
+import { siteAreaQualityOf } from './site-quality'
 import type { Terrain } from './terrain'
 import { secondsFrom } from './time-tree'
 
@@ -35,8 +35,7 @@ function editingContext(
     const cell = cellIndexOf(grid, site.position)
     return cell === null ? Number.POSITIVE_INFINITY : toFinishGrid[cell]!
   })
-  const qualityBySiteId = siteAreaQuality(sites)
-  const quality = Float32Array.from(pool, site => qualityBySiteId[site.id] ?? 0)
+  const quality = Float32Array.from(pool, siteAreaQualityOf(sites))
   const legCache = new Map<string, number>()
   const legSeconds = (from: number, to: number) => {
     const key = from < to ? `${from},${to}` : `${to},${from}`

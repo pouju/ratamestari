@@ -53,3 +53,12 @@ export function siteAreaQuality(sites: readonly ControlSiteCandidate[]): Float32
   const reference = sorted[Math.floor(NORMALISING_PERCENTILE * (sorted.length - 1))] || 1
   return Float32Array.from(raw, value => Math.min(1, value / reference))
 }
+
+export type SiteQualityOf = (site: ControlSiteCandidate) => number
+
+// Site ids are positions in the unfiltered candidate list, not in `sites`, so look up by site.
+export function siteAreaQualityOf(sites: readonly ControlSiteCandidate[]): SiteQualityOf {
+  const quality = siteAreaQuality(sites)
+  const bySite = new Map(sites.map((site, i) => [site, quality[i]!]))
+  return site => bySite.get(site) ?? 0
+}

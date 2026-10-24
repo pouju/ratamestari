@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { localPoint } from '@ratamestari/core'
 import type { ControlSiteCandidate } from '../src/control-sites'
-import { siteAreaQuality } from '../src/site-quality'
+import { siteAreaQuality, siteAreaQualityOf } from '../src/site-quality'
 
 const site = (
   x: number,
@@ -60,5 +60,17 @@ describe('siteAreaQuality', () => {
     const quality = siteAreaQuality([...cluster(100, 100, 20), ...cluster(900, 900, 8)])
     expect(Math.max(...quality)).toBeLessThanOrEqual(1)
     expect(Math.min(...quality)).toBeGreaterThan(0)
+  })
+
+  it('looks quality up by site even when ids are not positions in the list', () => {
+    const filtered = [...cluster(100, 100, 20), site(1000, 1000)].map((s, i) => ({
+      ...s,
+      id: 500 + i * 7,
+    }))
+    const qualityOf = siteAreaQualityOf(filtered)
+    const byPosition = siteAreaQuality(filtered)
+    expect(qualityOf(filtered[0]!)).toBe(byPosition[0])
+    expect(qualityOf(filtered[20]!)).toBe(byPosition[20])
+    expect(Number.isNaN(qualityOf(filtered[20]!))).toBe(false)
   })
 })
