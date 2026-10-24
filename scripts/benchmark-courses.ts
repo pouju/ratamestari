@@ -11,6 +11,7 @@ import {
 import {
   buildTerrain,
   convexHullArea,
+  crowdingCounts,
   findControlSites,
   fitPrintAreaToCourse,
   legLengths,
@@ -26,6 +27,7 @@ import { describeControl, readCourseData, type ImportedCourseData } from '@ratam
 import { loadOcadMap, type OcadMap } from '@ratamestari/map-ocad'
 import {
   COURSE_SHAPE,
+  CROWDING,
   courseTargetFor,
   FORMAT_QUALITY,
   printScaleFor,
@@ -39,6 +41,7 @@ const PACE_SECONDS_PER_KM = 300
 const MATCH_TOLERANCE_DEGREES = 0.001
 const METRES_PER_DEGREE = 111_000
 const MIN_STOPS = 3
+const END_SHARE = 0.25
 
 const { values } = parseArgs({
   options: {
@@ -208,6 +211,8 @@ function table(rows: readonly Row[], terrain: Terrain): string {
     'monotonous',
     'spread',
     'doglegs',
+    'crowd L/M',
+    'end tangle',
     'long fit',
     'middle fit',
     'time err',
@@ -234,6 +239,10 @@ function table(rows: readonly Row[], terrain: Terrain): string {
       percent(long.alternation.value),
       percent(usable > 0 ? convexHullArea(row.stops) / usable : 0),
       doglegs(row.stops, terrain),
+      (['long', 'middle'] as const)
+        .map(format => Math.max(0, ...crowdingCounts(row.stops, CROWDING[format].radiusMetres)))
+        .join('/'),
+      endTangle(row.stops).toFixed(2),
       long.legLengths.value.toFixed(2),
       metricsFor('middle').legLengths.value.toFixed(2),
       row.timeErrorPercent === null ? '' : `${row.timeErrorPercent.toFixed(1)}%`,
@@ -255,6 +264,32 @@ function doglegs(stops: readonly LocalPoint[], terrain: Terrain): string {
   return `${hard} (max ${percent(Math.max(0, ...overlaps))})`
 }
 
+// Mean nearest-neighbour distance of the controls in the last quarter of the course (by
+// straight-line length, which references also have) over that of all controls. Below 1 the end
+// is denser than the rest.
+function endTangle(stops: readonly LocalPoint[]): number {
+  const controls = stops.slice(1, -1)
+  if (controls.length < 2) return 1
+  const nearest = controls.map((control, i) =>
+    Math.min(
+      ...controls.flatMap((other, j) =>
+        i === j ? [] : [Math.hypot(other[0] - control[0], other[1] - control[1])],
+      ),
+    ),
+  )
+  const legs = legLengths(stops)
+  const total = legs.reduce((sum, leg) => sum + leg, 0)
+  let travelled = 0
+  const inEnd = controls.map((_, i) => {
+    travelled += legs[i]!
+    return travelled >= (1 - END_SHARE) * total
+  })
+  const mean = (values: readonly number[]) =>
+    values.reduce((sum, v) => sum + v, 0) / Math.max(1, values.length)
+  const endNearest = nearest.filter((_, i) => inEnd[i])
+  return endNearest.length === 0 ? 1 : mean(endNearest) / mean(nearest)
+}
+
 function legend(): string {
   const edges = FORMAT_QUALITY.long.legLengths.binEdgesMetres
   return [
@@ -263,6 +298,8 @@ function legend(): string {
     `Reversals: turns over ${COURSE_SHAPE.reversalDegrees}°, weighted by the shorter leg.`,
     'Monotonous: share of legs in runs of similar length. Spread: course hull / mapped area on the paper.',
     `Doglegs: controls where the next route runs back along the incoming one by more than ${COURSE_SHAPE.doglegHardOverlap * 100}% (worst overlap in brackets).`,
+    `Crowd L/M: most controls within ${CROWDING.long.radiusMetres} m / ${CROWDING.middle.radiusMetres} m of one control (limit ${CROWDING.long.maxControls}).`,
+    `End tangle: mean nearest-neighbour distance of the controls in the last ${END_SHARE * 100}% of the length over that of all controls (below 1: the end is denser).`,
     'Long/middle fit: distance from the leg-length target of that format (0 is a perfect match).',
   ].join('\n')
 }
