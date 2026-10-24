@@ -62,6 +62,7 @@ export {
 } from './print-area'
 export {
   alternation,
+  closeness,
   convexHullArea,
   crossingSeverity,
   directionChanges,
@@ -70,6 +71,7 @@ export {
   legLengths,
   mappedAreaWithin,
   measureCourseShape,
+  parallelLegs,
   reversals,
   ring,
   routeDoglegOverlaps,

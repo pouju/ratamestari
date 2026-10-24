@@ -149,6 +149,12 @@ function printSummary(c: Course, seconds: number) {
   console.log(`legs (min): ${c.legSeconds.map(minutes).join(' ')}`)
   console.log(`difficulty: ${c.controlDifficulties.join('')}`)
   console.log(`problems: ${JSON.stringify(c.problems)}`)
+  const terms = Object.entries(c.breakdown.terms)
+    .filter(([, term]) => Math.abs(term.contribution) >= 0.5)
+    .sort(([, a], [, b]) => b.contribution - a.contribution)
+  for (const [name, term] of terms) {
+    console.log(`  ${term.contribution.toFixed(1).padStart(7)}  ${name}: ${term.note}`)
+  }
 }
 
 function printDescriptions() {

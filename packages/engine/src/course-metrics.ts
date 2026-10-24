@@ -7,7 +7,7 @@ import {
   type Format,
   type LegLengthTarget,
 } from '@ratamestari/rules'
-import { segmentIntersection } from './polyline'
+import { distanceToSegment, segmentIntersection } from './polyline'
 import { cellCenterOf } from './raster'
 import type { Terrain } from './terrain'
 
@@ -218,7 +218,15 @@ export function spread(
 }
 
 export type ShapeMetricName =
-  'reversals' | 'ring' | 'legLengths' | 'alternation' | 'directionChanges' | 'firstLeg' | 'spread'
+  | 'parallelLegs'
+  | 'closeness'
+  | 'reversals'
+  | 'ring'
+  | 'legLengths'
+  | 'alternation'
+  | 'directionChanges'
+  | 'firstLeg'
+  | 'spread'
 
 export function mappedAreaWithin(terrain: Terrain, extent: LocalExtent | null): number {
   const { grid, mappedArea } = terrain
@@ -242,6 +250,8 @@ export function measureCourseShape(
 ): Record<ShapeMetricName, Metric> {
   const profile = FORMAT_QUALITY[format]
   return {
+    parallelLegs: parallelLegs(stops),
+    closeness: closeness(stops),
     reversals: reversals(stops),
     ring: ring(stops),
     legLengths: legLengthDistribution(stops, profile.legLengths),
@@ -325,5 +335,96 @@ export function routeDoglegs(legRoutes: readonly (readonly LocalPoint[])[]): Met
       doglegs.length === 0
         ? 'no doglegs'
         : `routes double back at ${doglegs.map(d => `${controlName(d.control)} (${Math.round(d.overlap * 100)}%)`).join(', ')}`,
+  }
+}
+
+const PARALLEL_SAMPLES = 6
+const PARALLEL_REFERENCE_METRES = 1000
+
+// Two legs that are not next to each other running side by side: out and back on almost the
+// same line, or the same direction twice. Runners on one see those on the other.
+export function parallelLegs(stops: readonly LocalPoint[]): Metric {
+  const { parallelMaxDegrees, parallelMaxSeparationMetres, parallelMinLegMetres } = COURSE_SHAPE
+  const legs = stops
+    .slice(1)
+    .map((to, i) => ({ from: stops[i]!, to, length: distance(stops[i]!, to) }))
+  let value = 0
+  const pairs: string[] = []
+  legs.forEach((first, i) => {
+    for (let j = i + 2; j < legs.length; j++) {
+      const second = legs[j]!
+      if (first.length < parallelMinLegMetres || second.length < parallelMinLegMetres) continue
+      const [ux, uy] = [first.to[0] - first.from[0], first.to[1] - first.from[1]]
+      const [vx, vy] = [second.to[0] - second.from[0], second.to[1] - second.from[1]]
+      const cosine = Math.abs(ux * vx + uy * vy) / (first.length * second.length)
+      const angle = degrees(Math.acos(Math.min(1, cosine)))
+      if (angle >= parallelMaxDegrees) continue
+      const [shorter, longer] = first.length <= second.length ? [first, second] : [second, first]
+      const lx = longer.to[0] - longer.from[0]
+      const ly = longer.to[1] - longer.from[1]
+      const separations: number[] = []
+      for (let k = 0; k < PARALLEL_SAMPLES; k++) {
+        const t = (k + 0.5) / PARALLEL_SAMPLES
+        const point = [
+          shorter.from[0] + (shorter.to[0] - shorter.from[0]) * t,
+          shorter.from[1] + (shorter.to[1] - shorter.from[1]) * t,
+        ] as const as LocalPoint
+        const along =
+          ((point[0] - longer.from[0]) * lx + (point[1] - longer.from[1]) * ly) /
+          (longer.length * longer.length)
+        if (along < 0 || along > 1) continue
+        separations.push(distanceToSegment(point, longer.from, longer.to))
+      }
+      if (separations.length === 0) continue
+      const separation = separations.reduce((sum, d) => sum + d, 0) / separations.length
+      if (separation >= parallelMaxSeparationMetres) continue
+      const overlap = (separations.length / PARALLEL_SAMPLES) * shorter.length
+      value +=
+        (overlap / PARALLEL_REFERENCE_METRES) *
+        (1 - separation / parallelMaxSeparationMetres) *
+        (1 - angle / parallelMaxDegrees)
+      pairs.push(`legs ${i + 1} and ${j + 1}`)
+    }
+  })
+  return {
+    value,
+    note: pairs.length === 0 ? 'no legs side by side' : `side by side: ${pairs.join(', ')}`,
+  }
+}
+
+// Controls passed close by again later: near another, non-adjacent leg or near a control
+// several steps away in the course order.
+export function closeness(stops: readonly LocalPoint[]): Metric {
+  const { nearPassMetres, revisitMetres, revisitMinOrderGap } = COURSE_SHAPE
+  const lastControl = stops.length - 2
+  let value = 0
+  const close = new Set<number>()
+  for (let control = 1; control <= lastControl; control++) {
+    for (let leg = 0; leg + 1 < stops.length; leg++) {
+      if (leg === control || leg + 1 === control) continue
+      const d = distanceToSegment(stops[control]!, stops[leg]!, stops[leg + 1]!)
+      if (d < nearPassMetres) {
+        value += 1 - d / nearPassMetres
+        close.add(control)
+      }
+    }
+    for (let other = control + revisitMinOrderGap; other <= lastControl; other++) {
+      const d = distance(stops[control]!, stops[other]!)
+      if (d < revisitMetres) {
+        value += 1 - d / revisitMetres
+        close.add(control)
+        close.add(other)
+      }
+    }
+  }
+  return {
+    value,
+    note:
+      close.size === 0
+        ? 'controls and legs keep apart'
+        : `passed close by again: ${[...close]
+            .sort((a, b) => a - b)
+            .map(controlName)
+            .join(', ')}`,
   }
 }

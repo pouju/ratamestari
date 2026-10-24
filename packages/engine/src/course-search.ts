@@ -18,7 +18,9 @@ import { findRoute } from './router'
 import { planWaypoints } from './waypoints'
 import {
   alternation,
+  closeness,
   crossingSeverity,
+  parallelLegs,
   routeDoglegOverlaps,
   directionChanges,
   firstLegTowardsFinish,
@@ -624,6 +626,8 @@ function createEvaluation(
       note: metric.note,
     })
     return {
+      parallelLegs: asTerm('parallelLegs', parallelLegs(stops)),
+      closeness: asTerm('closeness', closeness(stops)),
       reversals: asTerm('reversals', reversals(stops)),
       ring: asTerm('ring', ring(stops)),
       legLengths: asTerm('legLengths', legLengthDistribution(stops, profile.legLengths)),
@@ -791,7 +795,13 @@ function buildGreedy(
       if (isNearHome || wouldBeLastControl) {
         const earlierStops = [startIndex, ...order].map(u => pool[u]!.position)
         for (let k = 0; k + 1 < earlierStops.length; k++) {
-          if (segmentsCross(earlierStops[k]!, earlierStops[k + 1]!, site.position, finish)) {
+          if (
+            crossingSeverity(earlierStops[k]!, earlierStops[k + 1]!, site.position, finish, [
+              ...earlierStops,
+              site.position,
+              finish,
+            ]) > COURSE_LINE_CROSSING.acceptableSeverity
+          ) {
             return false
           }
         }
@@ -824,7 +834,11 @@ function buildGreedy(
       }
       const stops = [startIndex, ...order].map(u => pool[u]!.position)
       for (let k = 0; k + 1 < stops.length - 1; k++) {
-        if (segmentsCross(stops[k]!, stops[k + 1]!, from, site.position)) return false
+        const severity = crossingSeverity(stops[k]!, stops[k + 1]!, from, site.position, [
+          ...stops,
+          site.position,
+        ])
+        if (severity > COURSE_LINE_CROSSING.acceptableSeverity) return false
       }
       for (let k = 0; k < stops.length - 1; k++) {
         if (
@@ -1052,7 +1066,13 @@ function proposeChange(
       if (k >= skipFrom && k <= skipTo) continue
       const a = stops[k]!
       const b = stops[k + 1]!
-      if (segmentsCross(a, b, before, candidate) || segmentsCross(a, b, candidate, after)) {
+      const near = [...stops, candidate, finish]
+      if (
+        Math.max(
+          crossingSeverity(a, b, before, candidate, near),
+          crossingSeverity(a, b, candidate, after, near),
+        ) > COURSE_LINE_CROSSING.acceptableSeverity
+      ) {
         return false
       }
     }

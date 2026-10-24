@@ -3,6 +3,8 @@ import { localPoint, type LocalPoint } from '@ratamestari/core'
 import { FORMAT_QUALITY } from '@ratamestari/rules'
 import {
   alternation,
+  closeness,
+  parallelLegs,
   convexHullArea,
   crossingSeverity,
   directionChanges,
@@ -114,5 +116,29 @@ describe('course metrics', () => {
     expect(routeDoglegs([along, back]).value).toBeGreaterThan(0.5)
     expect(routeDoglegs([along, back]).note).toMatch(/^routes double back at control 1/)
     expect(routeDoglegs([along, away]).value).toBe(0)
+  })
+
+  it('finds legs that run side by side, there and back', () => {
+    const outAndBack = course([0, 0], [0, 2000], [150, 2000], [150, 0])
+    const apart = course([0, 0], [0, 2000], [1500, 2000], [1500, 0])
+    expect(parallelLegs(outAndBack).value).toBeGreaterThan(0.5)
+    expect(parallelLegs(outAndBack).note).toBe('side by side: legs 1 and 3')
+    expect(parallelLegs(apart).value).toBe(0)
+  })
+
+  it('finds controls passed close by again', () => {
+    const revisit = course(
+      [0, 0],
+      [500, 0],
+      [1000, 0],
+      [1000, 500],
+      [500, 500],
+      [520, 60],
+      [0, 500],
+    )
+    const result = closeness(revisit)
+    expect(result.value).toBeGreaterThan(0.5)
+    expect(result.note).toMatch(/control 1/)
+    expect(closeness(square).value).toBe(0)
   })
 })

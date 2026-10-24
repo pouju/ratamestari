@@ -14,6 +14,12 @@ export const courseShapeRuleSchema = citedSchema.extend({
   doglegHardOverlap: z.number().min(0).max(1),
   ringMinTurns: z.int().min(1),
   ringFreeConsistency: z.number().min(0).max(1),
+  parallelMaxDegrees: z.number().positive(),
+  parallelMaxSeparationMetres: z.number().positive(),
+  parallelMinLegMetres: z.number().positive(),
+  nearPassMetres: z.number().positive(),
+  revisitMetres: z.number().positive(),
+  revisitMinOrderGap: z.int().min(2),
 })
 
 export type CourseShapeRule = z.infer<typeof courseShapeRuleSchema>
@@ -30,10 +36,17 @@ export const COURSE_SHAPE: CourseShapeRule = {
   doglegHardOverlap: 0.6,
   ringMinTurns: 8,
   ringFreeConsistency: 0.6,
+  parallelMaxDegrees: 30,
+  parallelMaxSeparationMetres: 300,
+  parallelMinLegMetres: 300,
+  nearPassMetres: 100,
+  revisitMetres: 200,
+  revisitMinOrderGap: 3,
   sources: [
     iofRules('App. 2 §3.4.1'),
     iofRules('App. 2 §3.5.4'),
     ratamestarikirja('1.3.1'),
+    ratamestarikirja('1.4.3'),
     ratamestarikirja('4.5.S'),
   ],
   interpretation: true,
@@ -83,7 +96,7 @@ export const FORMAT_QUALITY: Readonly<Record<Format, FormatQualityProfile>> = {
   long: {
     legLengths: {
       binEdgesMetres: LEG_BIN_EDGES_METRES,
-      shares: [0.05, 0.15, 0.2, 0.2, 0.15, 0.15, 0.1],
+      shares: [0.05, 0.2, 0.25, 0.2, 0.13, 0.12, 0.05],
       sources: [iofRules('App. 2 §3.4.1'), ratamestarikirja('2.S.1')],
       interpretation: true,
     },
@@ -130,6 +143,8 @@ export const scoreWeightsSchema = citedSchema.extend({
   directionChanges: z.number().nonnegative(),
   firstLeg: z.number().nonnegative(),
   spread: z.number().nonnegative(),
+  parallelLegs: z.number().nonnegative(),
+  closeness: z.number().nonnegative(),
 })
 
 export type ScoreWeights = z.infer<typeof scoreWeightsSchema>
@@ -146,7 +161,7 @@ const RULE_PENALTIES = {
   difficultyOutsideRange: 4,
   courseLineCrossing: 30,
   courseLineThroughControl: 40,
-  finalLegPerPercentOverLimit: 5,
+  finalLegPerPercentOverLimit: 20,
   courseLineOutsideMap: 1000,
   courseLineOverDescriptions: 1000,
   overlappingCircles: 1000,
@@ -171,6 +186,8 @@ export const SCORE_WEIGHTS: Readonly<Record<Format, ScoreWeights>> = {
     directionChanges: 20,
     firstLeg: 5,
     spread: 20,
+    parallelLegs: 30,
+    closeness: 20,
     sources: WEIGHT_SOURCES,
     interpretation: true,
   },
@@ -185,6 +202,8 @@ export const SCORE_WEIGHTS: Readonly<Record<Format, ScoreWeights>> = {
     directionChanges: 40,
     firstLeg: 5,
     spread: 10,
+    parallelLegs: 20,
+    closeness: 20,
     sources: WEIGHT_SOURCES,
     interpretation: true,
   },
