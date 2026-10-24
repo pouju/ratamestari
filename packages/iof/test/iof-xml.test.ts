@@ -31,6 +31,7 @@ const course: Course = {
   },
   printArea: null,
   findings: [],
+  breakdown: { total: 0, terms: {} } as unknown as Course['breakdown'],
   score: 0,
 }
 

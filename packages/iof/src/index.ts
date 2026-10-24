@@ -22,3 +22,9 @@ export {
   START_TRIANGLE,
 } from './pictograms'
 export { courseDataXml, type CourseDataOptions } from './iof-xml'
+export {
+  readCourseData,
+  type ImportedControl,
+  type ImportedCourse,
+  type ImportedCourseData,
+} from './read-course-data'

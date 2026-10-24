@@ -1,5 +1,7 @@
-import type { LocalPoint } from '@ratamestari/core'
-import { COURSE_SHAPE, type LegLengthTarget } from '@ratamestari/rules'
+import type { LocalExtent, LocalPoint } from '@ratamestari/core'
+import { COURSE_SHAPE, FORMAT_QUALITY, type Format, type LegLengthTarget } from '@ratamestari/rules'
+import { cellCenterOf } from './raster'
+import type { Terrain } from './terrain'
 
 export interface Metric {
   readonly value: number
@@ -174,5 +176,40 @@ export function spread(
   return {
     value: Math.max(0, target - share) / Math.max(target, Number.EPSILON),
     note: `the course reaches ${Math.round(share * 100)}% of the usable terrain`,
+  }
+}
+
+export type ShapeMetricName =
+  'reversals' | 'ring' | 'legLengths' | 'alternation' | 'directionChanges' | 'firstLeg' | 'spread'
+
+export function mappedAreaWithin(terrain: Terrain, extent: LocalExtent | null): number {
+  const { grid, mappedArea } = terrain
+  let cells = 0
+  mappedArea.forEach((isMapped, index) => {
+    if (!isMapped) return
+    if (extent) {
+      const [x, y] = cellCenterOf(grid, index)
+      if (x < extent[0] || x > extent[2] || y < extent[1] || y > extent[3]) return
+    }
+    cells++
+  })
+  return cells * grid.cellSizeMeters ** 2
+}
+
+export function measureCourseShape(
+  terrain: Terrain,
+  stops: readonly LocalPoint[],
+  format: Format,
+  printExtent: LocalExtent | null,
+): Record<ShapeMetricName, Metric> {
+  const profile = FORMAT_QUALITY[format]
+  return {
+    reversals: reversals(stops),
+    ring: ring(stops),
+    legLengths: legLengthDistribution(stops, profile.legLengths),
+    alternation: alternation(stops),
+    directionChanges: directionChanges(stops, profile.directionChangeRateTarget),
+    firstLeg: firstLegTowardsFinish(stops),
+    spread: spread(stops, mappedAreaWithin(terrain, printExtent), profile.spreadTarget),
   }
 }
