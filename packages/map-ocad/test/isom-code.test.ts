@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isomCodeForOcadSymbol } from '../src/isom-code'
+import { formatOcadSymbolNumber, isomCodeForOcadSymbol } from '../src/isom-code'
 
 describe('isomCodeForOcadSymbol', () => {
   it('uses the base number for plain symbols and mapper variants', () => {
@@ -39,5 +39,13 @@ describe('isomCodeForOcadSymbol', () => {
     const overrides = new Map([[forbiddenRailwayYard, '520']])
     expect(isomCodeForOcadSymbol(forbiddenRailwayYard, overrides)).toBe('520')
     expect(isomCodeForOcadSymbol(509000, overrides)).toBe('509')
+  })
+})
+
+describe('formatOcadSymbolNumber', () => {
+  it('writes symbol numbers as OCAD shows them', () => {
+    expect(formatOcadSymbolNumber(502000)).toBe('502.0')
+    expect(formatOcadSymbolNumber(105100)).toBe('105.1')
+    expect(formatOcadSymbolNumber(509001)).toBe('509.001')
   })
 })

@@ -1,2 +1,2 @@
-export { loadOcadMap, type LoadOcadMapOptions, type OcadMap } from './load'
-export { isomCodeForOcadSymbol, type IsomCodeOverrides } from './isom-code'
+export { loadOcadMap, type MapSymbol, type OcadMap } from './load'
+export { formatOcadSymbolNumber, isomCodeForOcadSymbol, type IsomCodeOverrides } from './isom-code'

@@ -52,14 +52,30 @@ describe.skipIf(!localMapExists)('OcadMap.features with a local map from git-ign
     expect(new Set(known.map(movementKindOf))).toContain('runnability')
   })
 
-  it('applies per-map ISOM code overrides', async () => {
-    const overriddenSymbol = (await loadOcadMap(bytes)).features()[0]!.symbolNumber
-    const map = await loadOcadMap(bytes, {
-      isomCodeOverrides: new Map([[overriddenSymbol, '520']]),
-    })
-    const overridden = map.features().filter(f => f.symbolNumber === overriddenSymbol)
+  it('applies per-map ISOM code corrections without reading the map again', async () => {
+    const map = await loadOcadMap(bytes)
+    const corrected = map.features()[0]!.symbolNumber
+    const features = map.features(new Map([[corrected, '520']]))
+    const overridden = features.filter(f => f.symbolNumber === corrected)
     expect(overridden.length).toBeGreaterThan(0)
     for (const feature of overridden) expect(feature.isomCode).toBe('520')
+    expect(map.features().find(f => f.symbolNumber === corrected)!.isomCode).not.toBe('520')
+  })
+
+  it('can take a symbol out of use', async () => {
+    const map = await loadOcadMap(bytes)
+    const ignored = map.features()[0]!.symbolNumber
+    const features = map.features(new Map([[ignored, null]]))
+    expect(features.filter(f => f.symbolNumber === ignored).every(f => f.isomCode === null)).toBe(
+      true,
+    )
+  })
+
+  it('lists the symbols in use with their names and object counts', async () => {
+    const map = await loadOcadMap(bytes)
+    const symbols = map.symbols()
+    expect(symbols.reduce((sum, s) => sum + s.objectCount, 0)).toBe(map.objectCount)
+    expect(symbols.some(s => s.name.length > 0)).toBe(true)
   })
 
   it('reads point symbol rotation in degrees', async () => {

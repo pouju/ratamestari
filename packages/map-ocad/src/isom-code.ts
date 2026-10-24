@@ -9,7 +9,7 @@ const SPLIT_SYMBOL_DEFAULTS: ReadonlyMap<string, IsomCode> = new Map([
   ['513', '513.1'],
 ])
 
-export type IsomCodeOverrides = ReadonlyMap<number, IsomCode>
+export type IsomCodeOverrides = ReadonlyMap<number, IsomCode | null>
 
 export function isomCodeForOcadSymbol(
   ocadSymbolNumber: number,
@@ -28,4 +28,12 @@ export function isomCodeForOcadSymbol(
 
   if (isomSymbolRule(base)) return base
   return SPLIT_SYMBOL_DEFAULTS.get(base) ?? null
+}
+
+export function formatOcadSymbolNumber(ocadSymbolNumber: number): string {
+  const base = Math.floor(ocadSymbolNumber / OCAD_SUBNUMBERS_PER_SYMBOL)
+  const decimals = String(ocadSymbolNumber % OCAD_SUBNUMBERS_PER_SYMBOL)
+    .padStart(3, '0')
+    .replace(/0+$/, '')
+  return `${base}.${decimals || '0'}`
 }

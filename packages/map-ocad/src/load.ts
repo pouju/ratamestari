@@ -20,22 +20,22 @@ const BACKGROUND_MAP_RECORD_TYPE = '8'
 const SCALE_PARAMETERS_RECORD_TYPE = '1039'
 const OCAD_ANGLE_UNITS_PER_DEGREE = 10
 
+export interface MapSymbol {
+  readonly number: number
+  readonly name: string
+  readonly objectCount: number
+}
+
 export interface OcadMap {
   readonly info: MapInfo
   readonly backgroundMapPaths: readonly string[]
   readonly objectCount: number
   renderSvg(document: Document): SVGSVGElement
-  features(): readonly MapFeature[]
+  features(isomCodeOverrides?: IsomCodeOverrides): readonly MapFeature[]
+  symbols(): readonly MapSymbol[]
 }
 
-export interface LoadOcadMapOptions {
-  readonly isomCodeOverrides?: IsomCodeOverrides
-}
-
-export async function loadOcadMap(
-  bytes: Uint8Array,
-  { isomCodeOverrides }: LoadOcadMapOptions = {},
-): Promise<OcadMap> {
+export async function loadOcadMap(bytes: Uint8Array): Promise<OcadMap> {
   const file = await readOcad(Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength), {
     quietWarnings: true,
   })
@@ -46,6 +46,7 @@ export async function loadOcadMap(
   const min = paperToLocal(paperPoint(minX, minY), scale)
   const max = paperToLocal(paperPoint(maxX, maxY), scale)
   let cachedFeatures: readonly MapFeature[] | undefined
+  const defaultFeatures = () => (cachedFeatures ??= readFeatures(file, scale))
 
   return {
     info: {
@@ -58,15 +59,18 @@ export async function loadOcadMap(
     ),
     objectCount: file.objects.length,
     renderSvg: document => ocadToSvg(file, { document }),
-    features: () => (cachedFeatures ??= readFeatures(file, scale, isomCodeOverrides)),
+    features: overrides =>
+      overrides && overrides.size > 0
+        ? defaultFeatures().map(feature => ({
+            ...feature,
+            isomCode: isomCodeForOcadSymbol(feature.symbolNumber, overrides),
+          }))
+        : defaultFeatures(),
+    symbols: () => usedSymbols(file),
   }
 }
 
-function readFeatures(
-  file: OcadFile,
-  scale: number,
-  isomCodeOverrides: IsomCodeOverrides | undefined,
-): MapFeature[] {
+function readFeatures(file: OcadFile, scale: number): MapFeature[] {
   const toLocal = ([x, y]: Position) => paperToLocal(paperPoint(x, y), scale)
   const { features } = ocadToGeoJson(file, { applyCrs: false, generateSymbolElements: false })
   return features.flatMap(({ properties, geometry }) =>
@@ -74,7 +78,7 @@ function readFeatures(
       ? [
           {
             symbolNumber: properties.sym,
-            isomCode: isomCodeForOcadSymbol(properties.sym, isomCodeOverrides),
+            isomCode: isomCodeForOcadSymbol(properties.sym),
             symbolRotationDegreesCounterClockwise: normalizeDegrees(
               (properties.ang ?? 0) / OCAD_ANGLE_UNITS_PER_DEGREE,
             ),
@@ -83,6 +87,19 @@ function readFeatures(
         ]
       : [],
   )
+}
+
+function usedSymbols(file: OcadFile): MapSymbol[] {
+  const counts = new Map<number, number>()
+  for (const { sym } of file.objects) counts.set(sym, (counts.get(sym) ?? 0) + 1)
+  const names = new Map(file.symbols.map(symbol => [symbol.symNum, symbol.description]))
+  return [...counts]
+    .sort(([a], [b]) => a - b)
+    .map(([number, objectCount]) => ({
+      number,
+      name: names.get(number)?.trim() ?? '',
+      objectCount,
+    }))
 }
 
 function toLocalGeometry(
