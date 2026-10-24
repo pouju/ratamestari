@@ -1,5 +1,6 @@
 import type { LocalExtent, LocalGeometry, LocalPoint, MapFeature } from '@ratamestari/core'
 import {
+  CLIMB_EQUIVALENT_FLAT_METERS,
   CROSSING_SLOWS_SPEED_FACTOR,
   FORBIDDEN_ALONG_SPEED_FACTOR,
   isomSymbolRule,
@@ -15,6 +16,82 @@ export const BLOCKED = 0
 export interface CostGrid extends GridFrame {
   readonly speed: Float32Array
   readonly maxSpeed: number
+  readonly contours?: ContourCells
+}
+
+export interface ContourCells {
+  // CONTOUR_SLOTS_PER_CELL contour line ids per cell, NO_CONTOUR in empty slots.
+  readonly lineIds: Int32Array
+  readonly intervalMeters: number
+}
+
+export const CONTOUR_SLOTS_PER_CELL = 3
+const NO_CONTOUR = -1
+
+// Costs stay symmetric, so a time tree grown from the finish gives times to it. Charging half the
+// climb cost for each metre up or down picks the same routes as charging all of it for climbing
+// only: between two given points, metres up minus metres down is the same on every route. So the
+// direction of a contour does not matter, and neither does whether it is known.
+export const FLAT_METERS_PER_METER_OF_HEIGHT_CHANGE = CLIMB_EQUIVALENT_FLAT_METERS.value / 2
+
+export function contourCellsOf(
+  frame: GridFrame,
+  lines: readonly (readonly LocalPoint[])[],
+  intervalMeters: number,
+): ContourCells {
+  const lineIds = new Int32Array(frame.columns * frame.rows * CONTOUR_SLOTS_PER_CELL).fill(
+    NO_CONTOUR,
+  )
+  const mark = (cell: number, id: number) => {
+    for (
+      let slot = cell * CONTOUR_SLOTS_PER_CELL;
+      slot < (cell + 1) * CONTOUR_SLOTS_PER_CELL;
+      slot++
+    ) {
+      if (lineIds[slot] === id) return
+      if (lineIds[slot] === NO_CONTOUR) {
+        lineIds[slot] = id
+        return
+      }
+    }
+  }
+  lines.forEach((points, id) => {
+    let previous: number | null = null
+    traceLine(frame, points, cell => {
+      // A diagonal step in the line would leave a gap that a diagonal route step slips through.
+      if (previous !== null && previous % frame.columns !== cell % frame.columns) {
+        const previousRow = Math.floor(previous / frame.columns)
+        if (previousRow !== Math.floor(cell / frame.columns)) {
+          mark(previousRow * frame.columns + (cell % frame.columns), id)
+        }
+      }
+      mark(cell, id)
+      previous = cell
+    })
+  })
+  return { lineIds, intervalMeters }
+}
+
+// A step onto a contour line and the step off it on the other side each count half a crossing,
+// so does a step from one line straight onto the next. Running along a line costs nothing.
+export function heightChangeMeters(grid: CostGrid, from: number, to: number): number {
+  if (!grid.contours) return 0
+  const { lineIds, intervalMeters } = grid.contours
+  const fromSlot = from * CONTOUR_SLOTS_PER_CELL
+  const toSlot = to * CONTOUR_SLOTS_PER_CELL
+  if (lineIds[fromSlot] === NO_CONTOUR && lineIds[toSlot] === NO_CONTOUR) return 0
+  const linesOnlyIn = (cellSlot: number, otherSlot: number) => {
+    let count = 0
+    for (let i = 0; i < CONTOUR_SLOTS_PER_CELL; i++) {
+      const id = lineIds[cellSlot + i]!
+      if (id === NO_CONTOUR) break
+      let isShared = false
+      for (let j = 0; j < CONTOUR_SLOTS_PER_CELL; j++) isShared ||= lineIds[otherSlot + j] === id
+      if (!isShared) count++
+    }
+    return count
+  }
+  return ((linesOnlyIn(fromSlot, toSlot) + linesOnlyIn(toSlot, fromSlot)) / 2) * intervalMeters
 }
 
 export interface CostGridOptions {

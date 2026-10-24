@@ -76,6 +76,24 @@ describe('evaluateLeg', () => {
     expect(leg.unknownHeightChangeMeters).toBe(0)
   })
 
+  it('goes around a hill rather than over it when the detour is short', () => {
+    const ring = (halfSide: number) =>
+      feature(
+        '101',
+        line(
+          [500 - halfSide, 500 - halfSide],
+          [500 + halfSide, 500 - halfSide],
+          [500 + halfSide, 500 + halfSide],
+          [500 - halfSide, 500 + halfSide],
+          [500 - halfSide, 500 - halfSide],
+        ),
+      )
+    const hill = [40, 60, 80].map(ring)
+    const leg = evaluateLeg(buildTerrain(hill, SQUARE_KILOMETRE, synthetic), south, north)!
+    expect(leg.contourCrossings).toBe(0)
+    expect(leg.maxDeviationMeters).toBeGreaterThan(80)
+  })
+
   it('uses the given contour interval', () => {
     const contours = [feature('101', line([0, 500], [1000, 500]))]
     const terrain = buildTerrain(contours, SQUARE_KILOMETRE, {

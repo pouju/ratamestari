@@ -1,5 +1,11 @@
 import type { LocalPoint } from '@ratamestari/core'
-import { BLOCKED, routableCellOf, type CostGrid } from './cost-grid'
+import {
+  BLOCKED,
+  FLAT_METERS_PER_METER_OF_HEIGHT_CHANGE,
+  heightChangeMeters,
+  routableCellOf,
+  type CostGrid,
+} from './cost-grid'
 import { MinHeap } from './min-heap'
 import { cellIndexOf } from './raster'
 
@@ -54,9 +60,10 @@ export function secondsFrom(
       }
       const stepMeters = grid.cellSizeMeters * (isDiagonal ? Math.SQRT2 : 1)
       const averagePace = 0.5 * (1 / grid.speed[current]! + 1 / nextSpeed)
-      const candidate = Math.fround(
-        currentSeconds + stepMeters * secondsPerMeterAtFullSpeed * averagePace,
-      )
+      const flatMeters =
+        stepMeters * averagePace +
+        FLAT_METERS_PER_METER_OF_HEIGHT_CHANGE * heightChangeMeters(grid, current, next)
+      const candidate = Math.fround(currentSeconds + flatMeters * secondsPerMeterAtFullSpeed)
       if (candidate < seconds[next]!) {
         seconds[next] = candidate
         open.push(next, candidate)

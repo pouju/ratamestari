@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { localPoint } from '@ratamestari/core'
 import { REFERENCE_PACE_SECONDS_PER_KM } from '@ratamestari/rules'
-import { buildCostGrid } from '../src/cost-grid'
+import { buildCostGrid, FLAT_METERS_PER_METER_OF_HEIGHT_CHANGE } from '../src/cost-grid'
 import { cellIndexOf } from '../src/raster'
 import { findRoute } from '../src/router'
+import { buildTerrain } from '../src/terrain'
 import { secondsFrom } from '../src/time-tree'
 import { feature, line, rectangle, SQUARE_KILOMETRE } from './fixtures'
 
@@ -30,6 +31,24 @@ describe('secondsFrom', () => {
     const fromA = secondsFrom(grid, a, pace, Number.POSITIVE_INFINITY)
     const fromB = secondsFrom(grid, b, pace, Number.POSITIVE_INFINITY)
     expect(fromA[cellIndexOf(grid, b)!]).toBeCloseTo(fromB[cellIndexOf(grid, a)!]!, 3)
+  })
+
+  it('stays symmetric on slopes', () => {
+    const water = feature('301', rectangle(0, 0, 1000, 50))
+    const contours = [300, 500, 700].map(y => feature('101', line([0, y], [1000, y])))
+    const options = { restrictToMappedArea: false }
+    const { grid: hilly } = buildTerrain([water, ...contours], SQUARE_KILOMETRE, options)
+    const { grid: flat } = buildTerrain([water], SQUARE_KILOMETRE, options)
+    const low = localPoint(150, 120)
+    const high = localPoint(880, 760)
+    const fromLow = secondsFrom(hilly, low, pace, Number.POSITIVE_INFINITY)
+    const fromHigh = secondsFrom(hilly, high, pace, Number.POSITIVE_INFINITY)
+    expect(fromLow[cellIndexOf(hilly, high)!]).toBeCloseTo(fromHigh[cellIndexOf(hilly, low)!]!, 3)
+    const flatSeconds = secondsFrom(flat, low, pace, Number.POSITIVE_INFINITY)
+    const threeContours = 3 * 5 * FLAT_METERS_PER_METER_OF_HEIGHT_CHANGE * (pace / 1000)
+    expect(
+      fromLow[cellIndexOf(hilly, high)!]! - flatSeconds[cellIndexOf(flat, high)!]!,
+    ).toBeCloseTo(threeContours, 0)
   })
 
   it('stops expanding past the time limit', () => {

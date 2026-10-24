@@ -1,6 +1,12 @@
 import type { LocalPoint } from '@ratamestari/core'
 import { REFERENCE_PACE_SECONDS_PER_KM } from '@ratamestari/rules'
-import { BLOCKED, routableCellOf, type CostGrid } from './cost-grid'
+import {
+  BLOCKED,
+  FLAT_METERS_PER_METER_OF_HEIGHT_CHANGE,
+  heightChangeMeters,
+  routableCellOf,
+  type CostGrid,
+} from './cost-grid'
 import { MinHeap } from './min-heap'
 import { polylineLength } from './polyline'
 import { cellCenterOf, cellIndexOf } from './raster'
@@ -79,7 +85,10 @@ export function findRoute(
 
       const stepMeters = grid.cellSizeMeters * (isDiagonal ? Math.SQRT2 : 1)
       const averagePace = 0.5 * (1 / grid.speed[current]! + 1 / nextSpeed)
-      const seconds = bestSeconds[current]! + stepMeters * secondsPerMeterAtFullSpeed * averagePace
+      const flatMeters =
+        stepMeters * averagePace +
+        FLAT_METERS_PER_METER_OF_HEIGHT_CHANGE * heightChangeMeters(grid, current, next)
+      const seconds = bestSeconds[current]! + flatMeters * secondsPerMeterAtFullSpeed
       if (seconds < bestSeconds[next]!) {
         bestSeconds[next] = seconds
         cameFrom[next] = current
@@ -113,7 +122,10 @@ export function routeTimeSeconds(
       points[i]![1] - points[i - 1]![1],
     )
     const averagePace = 0.5 * (1 / grid.speed[a]! + 1 / grid.speed[b]!)
-    seconds += stepMeters * secondsPerMeterAtFullSpeed * averagePace
+    const flatMeters =
+      stepMeters * averagePace +
+      FLAT_METERS_PER_METER_OF_HEIGHT_CHANGE * heightChangeMeters(grid, a, b)
+    seconds += flatMeters * secondsPerMeterAtFullSpeed
   }
   return seconds
 }

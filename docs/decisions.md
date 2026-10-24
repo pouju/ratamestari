@@ -262,7 +262,7 @@ IOF XML 3.0 has no standard fields for control description symbols. Course contr
 
 `packages/engine` holds the whole pipeline as separate modules:
 
-- **Cost map:** a grid of speed factors from the ISOM runnability classes; impassable and forbidden features block.
+- **Cost map:** a grid of speed factors from the ISOM runnability classes; impassable and forbidden features block. Each contour crossed adds a cost for climb (since 2026-10-24), so routes can go around a hill instead of over it.
 - **Router:** A\* on the cost map, giving the fastest route and its time between two points.
 - **Leg evaluation:** length, best time, deviation from the straight line, route choice (distinct routes with nearly equal times), direction, climb.
 - **Candidate sites:** features that can carry a control, with a difficulty score.
@@ -275,7 +275,7 @@ The course search is a stochastic optimisation driven by the spec:
 - The search follows the Ratamestarikirja planning order: strong route-choice legs first, then map-reading links. It then improves the course by moving, adding and removing controls.
 - A random seed drives the search. The same map, spec and seed give the same course; a new seed gives a different good course.
 - Locked controls, feedback tools (e.g. `make_leg_harder`) and courses already set for the same event become constraints or weights, and the search continues from the current course.
-- Climb is estimated from contour crossings along the route (contour interval × crossings), as the map has no elevation grid.
+- Climb is estimated from contour crossings along the route (contour interval × crossings), as the map has no elevation grid. Routing charges each contour it crosses.
 
 ### Why
 

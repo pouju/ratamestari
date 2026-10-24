@@ -1,7 +1,13 @@
 import type { LocalExtent, MapFeature } from '@ratamestari/core'
 import { DEFAULT_CONTOUR_INTERVAL_METERS } from '@ratamestari/rules'
 import { buildContourIndex, type ContourIndex } from './contours'
-import { BLOCKED, buildCostGrid, type CostGrid, type CostGridOptions } from './cost-grid'
+import {
+  BLOCKED,
+  buildCostGrid,
+  contourCellsOf,
+  type CostGrid,
+  type CostGridOptions,
+} from './cost-grid'
 import { mappedAreaMask } from './mapped-area'
 
 export interface Terrain {
@@ -25,7 +31,16 @@ export function buildTerrain(
     ...gridOptions
   }: TerrainOptions = {},
 ): Terrain {
-  const grid = buildCostGrid(features, extent, gridOptions)
+  const contours = buildContourIndex(features, extent)
+  const flatGrid = buildCostGrid(features, extent, gridOptions)
+  const grid: CostGrid = {
+    ...flatGrid,
+    contours: contourCellsOf(
+      flatGrid,
+      contours.lines.map(line => line.points),
+      contourIntervalMeters,
+    ),
+  }
   const mappedArea = restrictToMappedArea
     ? mappedAreaMask(features, grid)
     : new Uint8Array(grid.speed.length).fill(1)
@@ -34,7 +49,7 @@ export function buildTerrain(
   })
   return {
     grid,
-    contours: buildContourIndex(features, extent),
+    contours,
     contourIntervalMeters,
     mappedArea,
   }

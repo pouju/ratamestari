@@ -1,7 +1,7 @@
 import type { LocalPoint } from '@ratamestari/core'
 import { ROUTE_CHOICE } from '@ratamestari/rules'
 import { countContourCrossings } from './contours'
-import type { CostGrid } from './cost-grid'
+import { CONTOUR_SLOTS_PER_CELL, type CostGrid } from './cost-grid'
 import { distanceToSegment } from './polyline'
 import { cellIndexOf } from './raster'
 import { findRoute, type Route, type RouteOptions } from './router'
@@ -138,7 +138,14 @@ function fastestWithinCorridor(
   visitCorridor(corridor, route.points, radiusMeters, index => {
     const column = (index % corridor.columns) + columnOffset
     const row = Math.floor(index / corridor.columns) + rowOffset
-    corridor.speed[index] = grid.speed[row * grid.columns + column]!
+    const gridIndex = row * grid.columns + column
+    corridor.speed[index] = grid.speed[gridIndex]!
+    if (corridor.contours) {
+      for (let slot = 0; slot < CONTOUR_SLOTS_PER_CELL; slot++) {
+        corridor.contours.lineIds[index * CONTOUR_SLOTS_PER_CELL + slot] =
+          grid.contours!.lineIds[gridIndex * CONTOUR_SLOTS_PER_CELL + slot]!
+      }
+    }
   })
   return findRoute(corridor, route.points[0]!, route.points.at(-1)!, routeOptions)
 }
@@ -166,6 +173,12 @@ function croppedAround(
     rows,
     speed: new Float32Array(columns * rows),
     maxSpeed: grid.maxSpeed,
+    ...(grid.contours && {
+      contours: {
+        ...grid.contours,
+        lineIds: new Int32Array(columns * rows * CONTOUR_SLOTS_PER_CELL).fill(-1),
+      },
+    }),
   }
 }
 

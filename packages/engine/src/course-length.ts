@@ -11,7 +11,16 @@ function passableOnly(grid: CostGrid): CostGrid {
   const cached = passableGrids.get(grid)
   if (cached) return cached
   const speed = grid.speed.map(s => (s === BLOCKED ? BLOCKED : EVERY_PASSABLE_CELL_SPEED))
-  const passable = { ...grid, speed, maxSpeed: EVERY_PASSABLE_CELL_SPEED }
+  const { minX, minY, cellSizeMeters, columns, rows } = grid
+  const passable = {
+    minX,
+    minY,
+    cellSizeMeters,
+    columns,
+    rows,
+    speed,
+    maxSpeed: EVERY_PASSABLE_CELL_SPEED,
+  }
   passableGrids.set(grid, passable)
   return passable
 }

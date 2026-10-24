@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { runnabilityClassSchema } from './runnability'
-import { citedSchema, isom } from './source'
+import { citedSchema, isom, ratamestarikirja } from './source'
 
 export const citedNumberSchema = citedSchema.extend({ value: z.number().positive() })
 
@@ -32,5 +32,11 @@ export const CROSSING_SLOWS_SPEED_FACTOR: CitedNumber = {
 export const FORBIDDEN_ALONG_SPEED_FACTOR: CitedNumber = {
   value: 0.1,
   sources: [isom('sym. 711')],
+  interpretation: true,
+}
+
+export const CLIMB_EQUIVALENT_FLAT_METERS: CitedNumber = {
+  value: 10,
+  sources: [isom('§2.3'), ratamestarikirja('1.1.2'), ratamestarikirja('1.2.2.SHP')],
   interpretation: true,
 }
