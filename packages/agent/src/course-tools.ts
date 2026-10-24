@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Course } from '@ratamestari/engine'
+import type { Course, ReplacementPreference } from '@ratamestari/engine'
 import {
   courseRequestSchema,
   courseTargetFor,
@@ -10,6 +10,7 @@ import {
 } from '@ratamestari/rules'
 import { summarizeCourse } from './course-summary'
 import { isomEffect } from './map-symbols'
+import { describeFinding } from './rule-findings'
 import { defineTool, type AgentTool } from './llm-provider'
 
 export interface WorkspaceStatus {
@@ -37,6 +38,11 @@ export interface MapSymbolInfo {
 export interface CourseWorkspace {
   status(): WorkspaceStatus
   generateCourse(request: CourseRequest, options: GenerateOptions): Promise<Course | null>
+  replaceControl(
+    course: Course,
+    controlNumber: number,
+    preference: ReplacementPreference,
+  ): Promise<Course | null>
   mapSymbols(): readonly MapSymbolInfo[]
   correctSymbol(symbol: string, isomCode: string | null | undefined): Promise<void>
 }
@@ -75,6 +81,7 @@ const requestFields = {
 
 const json = (value: unknown) => JSON.stringify(value)
 
+const MAX_FIX_PASSES = 6
 const AUTOMATIC = 'automatic'
 const IGNORE = 'none'
 
@@ -98,6 +105,56 @@ export function createCourseTools(workspace: CourseWorkspace): AgentTool[] {
       run: async input => {
         const target = courseTargetFor(courseRequestSchema.parse(input))
         return target ? json(targetFacts(target)) : NO_RULES_FOR_CLASS
+      },
+    }),
+    defineTool({
+      name: 'replace_control',
+      description:
+        'Moves one control of the current course to another control site within about 400 m, chosen by the engine: the best by the rules, or a harder or easier site. Returns the old and new control and the course summary.',
+      inputSchema: z.object({
+        control: z.int().min(1).describe('Control number on the course'),
+        preference: z
+          .enum(['best', 'harder', 'easier'])
+          .default('best')
+          .describe('best = best by the rules; harder or easier than the current control'),
+      }),
+      run: async ({ control, preference }) => {
+        const before = workspace.status().course
+        if (!before) return 'There is no course yet. Generate one first.'
+        if (control > before.controls.length) {
+          return `The course has only ${before.controls.length} controls.`
+        }
+        const after = await workspace.replaceControl(before, control, preference)
+        if (!after) return 'The control could not be replaced.'
+        const describeControlAt = (course: Course) => summarizeCourse(course).controls[control - 1]
+        const unchanged = after.controls[control - 1]!.id === before.controls[control - 1]!.id
+        return json({
+          changed: !unchanged,
+          before: describeControlAt(before),
+          after: describeControlAt(after),
+          course: summarizeCourse(after),
+        })
+      },
+    }),
+    defineTool({
+      name: 'fix_rule_problems',
+      description:
+        'Fixes rule problems of the current course by moving the controls involved to better nearby sites, one at a time, until no problem can be improved. Returns the problems before and after.',
+      inputSchema: z.object({}),
+      run: async () => {
+        let course = workspace.status().course
+        if (!course) return 'There is no course yet. Generate one first.'
+        const before = summarizeCourse(course).ruleProblems
+        for (let pass = 0; pass < MAX_FIX_PASSES; pass++) {
+          const fixable = course.findings
+            .map(finding => describeFinding(finding, course!.controls.length).fixableControl)
+            .find(control => control !== null)
+          if (fixable === undefined || fixable === null) break
+          const fixed = await workspace.replaceControl(course, fixable, 'best')
+          if (!fixed || fixed.findings.length >= course.findings.length) break
+          course = fixed
+        }
+        return json({ problemsBefore: before, course: summarizeCourse(course) })
       },
     }),
     defineTool({

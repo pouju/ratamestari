@@ -40,7 +40,13 @@ export {
 export { siteAreaQuality } from './site-quality'
 export { difficultyInCourse, flagSideFor, type FlagSide } from './flag-side'
 export { fitCourseToPaper, papersFor, setCourseOnPaper, type PaperChoice } from './course-on-paper'
-export { fixControl, moveControl, nearestSite, recheckCourse } from './course-editing'
+export {
+  fixControl,
+  moveControl,
+  nearestSite,
+  recheckCourse,
+  type ReplacementPreference,
+} from './course-editing'
 export {
   descriptionBoxGroundSize,
   fitPrintAreaToCourse,

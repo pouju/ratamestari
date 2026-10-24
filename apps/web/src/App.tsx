@@ -176,6 +176,11 @@ export function App() {
       course,
     }),
     generateCourse: generateFromChat,
+    replaceControl: async (current, controlNumber, preference) => {
+      const edited = await engine.fixControl(current, controlNumber, preference)
+      if (edited) setCourse(edited)
+      return edited
+    },
     mapSymbols: () =>
       state.status === 'ready'
         ? state.map.symbols().map(symbol => ({
@@ -199,6 +204,8 @@ export function App() {
       status: () => latestWorkspace.current!.status(),
       generateCourse: (nextRequest, options) =>
         latestWorkspace.current!.generateCourse(nextRequest, options),
+      replaceControl: (current, controlNumber, preference) =>
+        latestWorkspace.current!.replaceControl(current, controlNumber, preference),
       mapSymbols: () => latestWorkspace.current!.mapSymbols(),
       correctSymbol: (symbol, isomCode) => latestWorkspace.current!.correctSymbol(symbol, isomCode),
     }),

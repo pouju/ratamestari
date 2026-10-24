@@ -11,6 +11,7 @@ import {
   setCourseOnPaper,
   type CourseSpec,
   type PaperChoice,
+  type ReplacementPreference,
   type ControlSiteCandidate,
   type Course,
   type LegEvaluation,
@@ -86,8 +87,14 @@ const engine = {
     return editedCourse(course, spec => moveControl(terrain!, sites, spec, course, stopIndex, to))
   },
 
-  fixControl(course: Course, controlNumber: number): Course | null {
-    return editedCourse(course, spec => fixControl(terrain!, sites, spec, course, controlNumber))
+  fixControl(
+    course: Course,
+    controlNumber: number,
+    preference: ReplacementPreference = 'best',
+  ): Course | null {
+    return editedCourse(course, spec =>
+      fixControl(terrain!, sites, spec, course, controlNumber, preference),
+    )
   },
 
   controlSites(): readonly ControlSiteCandidate[] {

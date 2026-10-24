@@ -5,7 +5,7 @@ import { findControlSites } from '../src/control-sites'
 import { fixControl, moveControl, recheckCourse } from '../src/course-editing'
 import { searchCourse, type CourseSpec } from '../src/course-search'
 import { buildTerrain } from '../src/terrain'
-import { feature, point } from './fixtures'
+import { feature, line, point } from './fixtures'
 
 const extent = localExtent(0, 0, 2000, 2000)
 const boulders: MapFeature[] = []
@@ -76,5 +76,20 @@ describe('course editing', { timeout: EDITING_TIMEOUT_MS }, () => {
     const fixed = fixControl(terrain, sites, spec, crowded, 3)
     expect(fixed.problems.spacing).toBe(0)
     expect(fixed.score).toBeLessThan(crowded.score)
+  })
+
+  it('replaces a control with a harder one when asked', () => {
+    const withPath = [...boulders, feature('505', line([0, 1000], [2000, 1000]))]
+    const pathTerrain = buildTerrain(withPath, extent)
+    const pathSites = findControlSites(withPath, pathTerrain)
+    const byPath = pathSites.find(
+      site => site.placement === 'point' && site.leadingFeatureDistance === 'on',
+    )!
+    const easy = recheckCourse(pathTerrain, pathSites, spec, {
+      ...course,
+      controls: course.controls.map((site, i) => (i === 0 ? byPath : site)),
+    })
+    const harder = fixControl(pathTerrain, pathSites, spec, easy, 1, 'harder')
+    expect(harder.controlDifficulties[0]).toBeGreaterThan(easy.controlDifficulties[0]!)
   })
 })

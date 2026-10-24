@@ -20,6 +20,7 @@ const READY: WorkspaceStatus = {
 
 function workspaceWith(status: Partial<WorkspaceStatus> = {}) {
   const calls: { request: CourseRequest; options: GenerateOptions }[] = []
+  const replacements: { controlNumber: number; preference: string }[] = []
   const symbols: MapSymbolInfo[] = [
     { symbol: '502.0', name: 'Moottoritie', objects: 12, isomCode: '502', corrected: false },
   ]
@@ -28,6 +29,18 @@ function workspaceWith(status: Partial<WorkspaceStatus> = {}) {
     generateCourse: async (request, options) => {
       calls.push({ request, options })
       return COURSE
+    },
+    replaceControl: async (_course, controlNumber, preference) => {
+      replacements.push({ controlNumber, preference })
+      return {
+        ...COURSE,
+        controls: COURSE.controls.map((site, i) =>
+          i === controlNumber - 1
+            ? { ...site, id: 99, isomCode: '112', placement: 'point', contourForm: null }
+            : site,
+        ),
+        findings: [],
+      }
     },
     mapSymbols: () => symbols,
     correctSymbol: async (symbol, isomCode) => {
@@ -40,7 +53,7 @@ function workspaceWith(status: Partial<WorkspaceStatus> = {}) {
     },
   }
   const tools = Object.fromEntries(createCourseTools(workspace).map(tool => [tool.name, tool]))
-  return { tools, calls, symbols }
+  return { tools, calls, symbols, replacements }
 }
 
 describe('generate_course', () => {
@@ -137,5 +150,30 @@ describe('map symbol tools', () => {
       /not an ISOM/,
     )
     expect(symbols[0]!.isomCode).toBe('502')
+  })
+})
+
+describe('course editing tools', () => {
+  it('replaces a control as asked and tells what changed', async () => {
+    const { tools, replacements } = workspaceWith({ course: COURSE })
+    const result = JSON.parse(
+      await tools.replace_control!.run({ control: 2, preference: 'harder' }),
+    )
+    expect(replacements).toEqual([{ controlNumber: 2, preference: 'harder' }])
+    expect(result.changed).toBe(true)
+    expect(result.after.feature).toBe('Pit')
+  })
+
+  it('fixes rule problems until none are left', async () => {
+    const { tools, replacements } = workspaceWith({ course: COURSE })
+    const result = JSON.parse(await tools.fix_rule_problems!.run({}))
+    expect(replacements).toEqual([{ controlNumber: 2, preference: 'best' }])
+    expect(result.problemsBefore).toHaveLength(1)
+    expect(result.course.ruleProblems).toEqual([])
+  })
+
+  it('asks for a course first', async () => {
+    const { tools } = workspaceWith()
+    expect(await tools.replace_control!.run({ control: 1 })).toMatch(/no course/)
   })
 })

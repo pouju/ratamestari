@@ -8,6 +8,7 @@ import {
   type CourseContext,
   type CourseSpec,
 } from './course-search'
+import { difficultyInCourse } from './flag-side'
 import { isUsableInPrintArea } from './print-area'
 import { cellIndexOf } from './raster'
 import { findRoute } from './router'
@@ -106,19 +107,31 @@ export function moveControl(
   return recheckCourse(terrain, sites, spec, moved)
 }
 
+export type ReplacementPreference = 'best' | 'harder' | 'easier'
+
 export function fixControl(
   terrain: Terrain,
   sites: readonly ControlSiteCandidate[],
   spec: CourseSpec,
   course: Course,
   controlNumber: number,
+  preference: ReplacementPreference = 'best',
 ): Course {
   const current = course.controls[controlNumber - 1]
   if (!current) return course
+  const maxDifficulty = spec.target.siteDifficulty[1]
+  const currentDifficulty = difficultyInCourse(current, maxDifficulty)
+  const suitsPreference = (site: ControlSiteCandidate) => {
+    const difficulty = difficultyInCourse(site, maxDifficulty)
+    if (preference === 'harder') return difficulty > currentDifficulty
+    if (preference === 'easier') return difficulty < currentDifficulty
+    return true
+  }
   const inCourse = new Set([course.start.id, ...course.controls.map(site => site.id)])
   const candidates = sites.filter(
     site =>
       !inCourse.has(site.id) &&
+      suitsPreference(site) &&
       (!spec.printArea || isUsableInPrintArea(site.position, spec.printArea)) &&
       distanceBetween(site.position, current.position) <= FIX_SEARCH_RADIUS_METERS,
   )
@@ -126,7 +139,9 @@ export function fixControl(
   const context = editingContext(terrain, sites, spec, course.finish, pool)
   const order = controlOrder(course.controls.length)
   let bestOrder = order
-  let bestScore = context.evaluation.score(0, order).score
+  // A harder or easier control is wanted even if the rules score it a little worse.
+  let bestScore =
+    preference === 'best' ? context.evaluation.score(0, order).score : Number.POSITIVE_INFINITY
   candidates.forEach((_, i) => {
     const replaced = order.map((poolIndex, k) =>
       k === controlNumber - 1 ? course.controls.length + 1 + i : poolIndex,
