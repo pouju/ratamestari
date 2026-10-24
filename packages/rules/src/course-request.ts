@@ -30,6 +30,23 @@ export const skillColourSchema = z.enum([
   'black',
 ])
 
+export type CourseClass = Pick<CourseRequest, 'sex' | 'ageClass' | 'skillLetter'>
+
+const CLASS_IN_COURSE_NAME = /(?:^|[^A-Za-z])([HDMWN])\s?(\d{1,2})\s?([EABC])?(?![A-Za-z0-9])/i
+const SEX_LETTERS: Readonly<Record<string, 'H' | 'D'>> = { H: 'H', M: 'H', D: 'D', W: 'D', N: 'D' }
+
+// Course setters name courses after their class ("H21", "D16A", "M45"); a guess the user confirms.
+export function classFromCourseName(name: string): CourseClass | null {
+  const match = CLASS_IN_COURSE_NAME.exec(name)
+  if (!match) return null
+  const [, sexLetter = '', age = '', letter = 'A'] = match
+  const sex = sexSchema.safeParse(SEX_LETTERS[sexLetter.toUpperCase()])
+  const ageClass = ageClassSchema.safeParse(Number(age))
+  const skillLetter = skillLetterSchema.safeParse(letter.toUpperCase())
+  if (!sex.success || !ageClass.success || !skillLetter.success) return null
+  return { sex: sex.data, ageClass: ageClass.data, skillLetter: skillLetter.data }
+}
+
 export type SkillLetter = z.infer<typeof skillLetterSchema>
 export type CourseRequest = z.infer<typeof courseRequestSchema>
 export type SkillColour = z.infer<typeof skillColourSchema>

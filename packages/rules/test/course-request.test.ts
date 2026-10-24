@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  classFromCourseName,
   courseRequestSchema,
   courseTargetFor,
   courseTargetSchema,
@@ -67,5 +68,20 @@ describe('courseTargetFor', () => {
 
   it('returns null when the event has no winning time for the class', () => {
     expect(courseTargetFor(request({ ageClass: 12 }))).toBeNull()
+  })
+})
+
+describe('classFromCourseName', () => {
+  it('reads the class from usual course names', () => {
+    expect(classFromCourseName('H21')).toEqual({ sex: 'H', ageClass: 21, skillLetter: 'A' })
+    expect(classFromCourseName('D16B')).toEqual({ sex: 'D', ageClass: 16, skillLetter: 'B' })
+    expect(classFromCourseName('Rata 3 M45')).toEqual({ sex: 'H', ageClass: 45, skillLetter: 'A' })
+    expect(classFromCourseName('W 35')).toEqual({ sex: 'D', ageClass: 35, skillLetter: 'A' })
+  })
+
+  it('gives no class when the name holds none', () => {
+    expect(classFromCourseName('Rata 3')).toBeNull()
+    expect(classFromCourseName('H22')).toBeNull()
+    expect(classFromCourseName('Helppo')).toBeNull()
   })
 })
