@@ -36,6 +36,8 @@ interface Props {
   course: Course | null
   descriptionBox: DescriptionBox | null
   onExportXml: () => void
+  onPrintPdf: () => void
+  isPreparingPdf: boolean
   paper: PaperChoice
   onPaperChange: (paper: PaperChoice) => void
   printScale: PrintScaleChoice
@@ -58,6 +60,8 @@ export function CoursePanel({
   course,
   descriptionBox,
   onExportXml,
+  onPrintPdf,
+  isPreparingPdf,
   paper,
   onPaperChange,
   printScale,
@@ -180,6 +184,13 @@ export function CoursePanel({
       {descriptionBox && <DescriptionList sheet={descriptionBox.sheet} />}
       {course && (
         <div className="buttons">
+          <button
+            type="button"
+            disabled={course.lengthMeters === null || isPreparingPdf}
+            onClick={onPrintPdf}
+          >
+            {isPreparingPdf ? 'Preparing PDF…' : 'Print PDF'}
+          </button>
           <button type="button" disabled={course.lengthMeters === null} onClick={onExportXml}>
             Export IOF XML
           </button>
@@ -187,7 +198,8 @@ export function CoursePanel({
       )}
       {course && (
         <p className="note">
-          IOF XML 3.0 opens in OCAD, Condes and Purple Pen. The file is saved on this computer.
+          The PDF is the print page with the course and descriptions. IOF XML 3.0 opens in OCAD,
+          Condes and Purple Pen. Files are saved on this computer.
         </p>
       )}
     </section>

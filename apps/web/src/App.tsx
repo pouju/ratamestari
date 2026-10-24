@@ -9,6 +9,8 @@ import { ChatPanel } from './ChatPanel'
 import { CoursePanel } from './CoursePanel'
 import { descriptionBoxFor } from './description-box'
 import { downloadCourseXml } from './export-xml'
+import { savePrintPdf } from './print-pdf'
+import { courseNameOf } from './course-labels'
 import { createEngine, progressCallback } from './engine'
 import { formatDuration, parsePace } from './format'
 import { LegDetails } from './LegDetails'
@@ -60,6 +62,8 @@ export function App() {
   const [paceText, setPaceText] = useState(DEFAULT_WINNER_PACE)
   const [paper, setPaper] = useState<PaperChoice>('auto')
   const [printScale, setPrintScale] = useState<PrintScaleChoice>('auto')
+  const [isPreparingPdf, setIsPreparingPdf] = useState(false)
+  const [printError, setPrintError] = useState<string | null>(null)
   const paceSecondsPerKm = parsePace(paceText)
 
   async function openFile(file: File) {
@@ -271,6 +275,20 @@ export function App() {
             onPaperChange={setPaper}
             printScale={printScale}
             onPrintScaleChange={setPrintScale}
+            isPreparingPdf={isPreparingPdf}
+            onPrintPdf={() => {
+              if (!course || !descriptionBox || state.status !== 'ready') return
+              setIsPreparingPdf(true)
+              setPrintError(null)
+              savePrintPdf(
+                state.map,
+                course,
+                descriptionBox.sheet,
+                `${courseNameOf(request)}-${request.format}.pdf`,
+              )
+                .catch(e => setPrintError(errorMessage(e)))
+                .finally(() => setIsPreparingPdf(false))
+            }}
             onExportXml={() => {
               if (course && descriptionBox && mapInfo) {
                 downloadCourseXml(course, descriptionBox.sheet, request, mapInfo)
@@ -278,6 +296,8 @@ export function App() {
             }}
           />
         )}
+
+        {printError && <p className="error">The PDF could not be made: {printError}</p>}
 
         {state.status === 'ready' && (
           <section>
