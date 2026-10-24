@@ -70,14 +70,16 @@
     [280.5, 33.8],
     [138.1, 58.4],
     [160.7, 92.4],
-    [106.5, 132],
-    [76.5, 147.8]
+    [114.2, 105.2],
+    [99.3, 59.9],
+    [76.4, 73.9],
+    [57.4, 93.2]
   ],
   "finish": [74.8, 122.4],
   "descriptions": {
     "width": 137.1,
-    "height": 188.6,
-    "rows": 11
+    "height": 222.9,
+    "rows": 13
   },
   "symbols": {
     "lineWidth": 1.5,
@@ -89,6 +91,6 @@
     "gap": 2.1
   },
   "siteCount": 840,
-  "lengthMeters": 2144,
-  "climbMeters": 95
+  "lengthMeters": 2364,
+  "climbMeters": 85
 }
