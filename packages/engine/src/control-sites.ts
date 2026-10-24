@@ -3,11 +3,14 @@ import {
   CONTOUR_FEATURE_SITES,
   CONTROL_CIRCLE,
   CONTROL_SITE_DIFFICULTY,
+  FEATURE_FLAG_SIDES,
   isomDescription,
   isomSymbolRule,
   LEADING_FEATURES,
   LINE_FEATURE_SITES,
   RUNNABILITY,
+  type DescriptionFeature,
+  type FlagSideLocation,
 } from '@ratamestari/rules'
 import { BLOCKED, type CostGrid } from './cost-grid'
 import { polylineLength } from './polyline'
@@ -45,6 +48,36 @@ export interface ControlSiteCandidate {
   readonly technicalDifficulty: TechnicalDifficulty
   readonly orientation: SiteOrientation | null
   readonly similarFeatureOffsets: readonly Offset[]
+  readonly flagSide: FlagSideLocation | null
+}
+
+type DescribedSite = Pick<ControlSiteCandidate, 'placement' | 'isomCode' | 'contourForm'>
+
+export function descriptionFeatureOf(site: DescribedSite): DescriptionFeature | null {
+  switch (site.placement) {
+    case 'contourKnoll':
+      if (site.contourForm === 'knoll') return 'hill'
+      if (site.contourForm === 'depression') return 'depression'
+      return null
+    case 'contourBend':
+      if (site.contourForm === 'spur') return 'spur'
+      if (site.contourForm === 'reEntrant') return 'reEntrant'
+      return null
+    default:
+      return isomDescription(site.isomCode)?.feature ?? null
+  }
+}
+
+const PLACEMENTS_WITH_FLAG_SIDES: ReadonlySet<SitePlacement> = new Set([
+  'point',
+  'smallArea',
+  'contourKnoll',
+])
+
+function flagSideOf(site: DescribedSite): FlagSideLocation | null {
+  if (!PLACEMENTS_WITH_FLAG_SIDES.has(site.placement)) return null
+  const feature = descriptionFeatureOf(site)
+  return (feature && FEATURE_FLAG_SIDES[feature]?.location) ?? null
 }
 
 const MERGE_DISTANCE_METERS = 10
@@ -144,6 +177,11 @@ export function findControlSites(
       ) as TechnicalDifficulty,
       orientation: raw.orientation,
       similarFeatureOffsets: [],
+      flagSide: flagSideOf({
+        placement: raw.placement,
+        isomCode: raw.feature.isomCode!,
+        contourForm: raw.contourForm,
+      }),
     })
     acceptedRaw.push(raw)
   }

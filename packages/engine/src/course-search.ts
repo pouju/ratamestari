@@ -6,7 +6,8 @@ import {
   type CourseTarget,
   type Format,
 } from '@ratamestari/rules'
-import type { ControlSiteCandidate } from './control-sites'
+import type { ControlSiteCandidate, TechnicalDifficulty } from './control-sites'
+import { difficultyInCourse, flagSideFor, type FlagSide } from './flag-side'
 import { measureCourse } from './course-length'
 import { siteAreaQuality } from './site-quality'
 import { distanceToSegment, segmentsCross } from './polyline'
@@ -46,6 +47,8 @@ export interface Course {
   readonly legSeconds: readonly number[]
   readonly estimatedSeconds: number
   readonly targetSeconds: number
+  readonly controlDifficulties: readonly TechnicalDifficulty[]
+  readonly flagSides: readonly (FlagSide | null)[]
   readonly lengthMeters: number | null
   readonly climbMeters: number | null
   readonly problems: CourseProblems
@@ -232,10 +235,14 @@ export function searchCourse(
   function toCourse(scored: ScoredCourse, withLength = false): Course {
     const stops = [startIndex, ...scored.order].map(i => pool[i]!.position)
     const measured = withLength ? measureCourse(terrain, [...stops, finish]) : null
+    const controls = scored.order.map(i => pool[i]!)
+    const maxDifficulty = spec.target.siteDifficulty[1]
     return {
       seed: spec.seed,
       start: pool[startIndex]!,
-      controls: scored.order.map(i => pool[i]!),
+      controls,
+      controlDifficulties: controls.map(site => difficultyInCourse(site, maxDifficulty)),
+      flagSides: controls.map((site, i) => flagSideFor(site, stops[i]!, maxDifficulty)),
       finish,
       legSeconds: scored.legSeconds,
       estimatedSeconds: scored.estimatedSeconds,
@@ -316,7 +323,7 @@ function createEvaluation(
     const meanQuality =
       order.length === 0 ? 0 : order.reduce((sum, i) => sum + quality[i]!, 0) / order.length
     const difficultyOutsideRange = order.filter(i => {
-      const difficulty = pool[i]!.technicalDifficulty
+      const difficulty = difficultyInCourse(pool[i]!, maxDifficulty)
       return difficulty < minDifficulty || difficulty > maxDifficulty
     }).length
 
@@ -570,8 +577,10 @@ function buildGreedy(
       }
       return true
     }
-    const isInDifficultyRange = (i: number) =>
-      pool[i]!.technicalDifficulty >= minDifficulty && pool[i]!.technicalDifficulty <= maxDifficulty
+    const isInDifficultyRange = (i: number) => {
+      const difficulty = difficultyInCourse(pool[i]!, maxDifficulty)
+      return difficulty >= minDifficulty && difficulty <= maxDifficulty
+    }
     const fitting = (widen: number, inRangeOnly: boolean) =>
       pool.flatMap((_, i) =>
         (!inRangeOnly || isInDifficultyRange(i)) && fits(i, widen) ? [i] : [],
@@ -583,7 +592,7 @@ function buildGreedy(
 
     const isHeadingHome = remaining < HEADING_HOME_SHARE_OF_TARGET * targetSeconds
     const preference = (i: number) => {
-      const difficulty = pool[i]!.technicalDifficulty
+      const difficulty = difficultyInCourse(pool[i]!, maxDifficulty)
       const inRange = difficulty >= minDifficulty && difficulty <= maxDifficulty
       const closerToFinish = isHeadingHome ? 2 * (1 - toFinish[i]! / remaining) : 0
       const expected = (2 * Math.PI * times[i]!) / targetSeconds

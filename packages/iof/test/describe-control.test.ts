@@ -97,4 +97,22 @@ describe('describeControl', () => {
       ),
     ).toBeNull()
   })
+
+  it('says which side of the feature the flag is on', () => {
+    const side = (location: 'side' | 'edge' | 'directionalFoot', directionRadians: number) => ({
+      location,
+      directionRadians,
+      isHiddenFromApproach: true,
+    })
+    const text = (overrides: Parameters<typeof site>[0], flagSide: ReturnType<typeof side>) =>
+      descriptionText(describeControl(site(overrides), flagSide)!)
+    expect(text({}, side('side', 0))).toBe('Boulder, east side')
+    expect(text({ isomCode: '112' }, side('edge', Math.PI))).toBe('Pit, west edge')
+    expect(
+      text(
+        { isomCode: '101', placement: 'contourKnoll', contourForm: 'knoll' },
+        side('directionalFoot', Math.PI / 4),
+      ),
+    ).toBe('Hill, north-east foot')
+  })
 })

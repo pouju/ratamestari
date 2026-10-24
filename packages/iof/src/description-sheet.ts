@@ -55,7 +55,7 @@ export function descriptionSheet(
     controls: course.controls.map((site, i) => ({
       number: i + 1,
       code: codes[i]!,
-      description: describeControl(site),
+      description: describeControl(site, course.flagSides[i] ?? null),
     })),
     finish: {
       distanceMeters: roundToFive(

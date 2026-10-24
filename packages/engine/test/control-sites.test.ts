@@ -133,6 +133,19 @@ describe('findControlSites', () => {
     expect(at300.similarFeatureOffsets).toEqual([[20, 0]])
   })
 
+  it('knows which features take a flag side, edge or foot', () => {
+    const sites = sitesOf([
+      feature('204', point(300, 300)),
+      feature('112', point(600, 300)),
+      feature('505', line([100, 700], [300, 700])),
+    ])
+    const at = (x: number, y: number) =>
+      sites.find(s => s.position[0] === x && s.position[1] === y)!.flagSide
+    expect(at(300, 300)).toBe('side')
+    expect(at(600, 300)).toBe('edge')
+    expect(at(100, 700)).toBeNull()
+  })
+
   it('keeps one site where features are closer than 10 m', () => {
     expect(
       sitesOf([feature('204', point(300, 300)), feature('204', point(305, 300))]),

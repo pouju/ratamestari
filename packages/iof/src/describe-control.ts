@@ -1,4 +1,9 @@
-import type { ControlSiteCandidate, Offset } from '@ratamestari/engine'
+import {
+  descriptionFeatureOf,
+  type ControlSiteCandidate,
+  type FlagSide,
+  type Offset,
+} from '@ratamestari/engine'
 import {
   DESCRIPTION_GEOMETRY,
   isomDescription,
@@ -28,7 +33,10 @@ interface FeatureAndAppearance {
 
 const OPEN_AREA_FEATURES: ReadonlySet<DescriptionFeature> = new Set(['openLand', 'semiOpenLand'])
 
-export function describeControl(site: ControlSiteCandidate): ControlDescription | null {
+export function describeControl(
+  site: ControlSiteCandidate,
+  flagSide: FlagSide | null = null,
+): ControlDescription | null {
   const described = featureOf(site)
   if (!described) return null
   const { flagOnAreaSide, ...base } = described
@@ -61,34 +69,21 @@ export function describeControl(site: ControlSiteCandidate): ControlDescription 
       location: { kind: isTip ? 'tip' : cornerKind, direction },
     }
   }
-  return { ...base, whichOfSimilar, location: null }
+  const location = flagSide
+    ? { kind: flagSide.location, direction: compassPointOf(flagSide.directionRadians) }
+    : null
+  return { ...base, whichOfSimilar, location }
 }
 
 function featureOf(site: ControlSiteCandidate): FeatureAndAppearance | null {
-  const contourFeature = (feature: DescriptionFeature) => ({
+  const feature = descriptionFeatureOf(site)
+  if (!feature) return null
+  const isContourFeature = site.placement === 'contourKnoll' || site.placement === 'contourBend'
+  const mapping = isContourFeature ? undefined : isomDescription(site.isomCode)
+  return {
     feature,
-    appearance: null,
-    flagOnAreaSide: true,
-  })
-  switch (site.placement) {
-    case 'contourKnoll':
-      if (site.contourForm === 'knoll') return contourFeature('hill')
-      if (site.contourForm === 'depression') return contourFeature('depression')
-      return null
-    case 'contourBend':
-      if (site.contourForm === 'spur') return contourFeature('spur')
-      if (site.contourForm === 'reEntrant') return contourFeature('reEntrant')
-      return null
-    default: {
-      const mapping = isomDescription(site.isomCode)
-      return mapping
-        ? {
-            feature: mapping.feature,
-            appearance: mapping.appearance,
-            flagOnAreaSide: mapping.flagOnAreaSide,
-          }
-        : null
-    }
+    appearance: mapping?.appearance ?? null,
+    flagOnAreaSide: mapping?.flagOnAreaSide ?? true,
   }
 }
 

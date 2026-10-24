@@ -19,6 +19,7 @@ export const site = (
   technicalDifficulty: 4,
   orientation: null,
   similarFeatureOffsets: [],
+  flagSide: null,
   ...overrides,
 })
 
@@ -42,6 +43,8 @@ export const COURSE: Course = {
     site(1834.5, 2745.5, { placement: 'contourBend', contourForm: 'reEntrant' }),
   ],
   finish: localPoint(1234.5, 2745.5),
+  controlDifficulties: [4, 4],
+  flagSides: [null, null],
   legSeconds: [150, 90, 180],
   estimatedSeconds: 420,
   targetSeconds: 450,

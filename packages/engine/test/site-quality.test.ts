@@ -20,6 +20,7 @@ const site = (
   technicalDifficulty: 4,
   orientation: null,
   similarFeatureOffsets: [],
+  flagSide: null,
   ...overrides,
 })
 

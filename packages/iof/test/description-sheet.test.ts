@@ -12,6 +12,8 @@ const course: Course = {
     site({ position: localPoint(300, 400), isomCode: '112' }),
   ],
   finish: localPoint(300, 523),
+  controlDifficulties: [4, 4],
+  flagSides: [null, null],
   legSeconds: [100, 100, 50],
   estimatedSeconds: 250,
   targetSeconds: 250,

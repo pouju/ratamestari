@@ -84,6 +84,16 @@ Lines marked **Interpretation** are our own reading.
 - **Interpretation:** directions are relative to map north, which is the map's paper up. They are rounded to the nearest of the eight compass points.
 - **Interpretation:** "corner (inside)" means the flag is inside the angle of the corner, "outside" outside it. With the flag on the area's own side, a convex corner is inside and a concave corner outside; with the flag off the area, the other way round.
 
+### Which side the flag is on
+
+- The flag must hang at the feature as the description says, and be visible to competitors when they can see the described position (IOF Rules 19.3).
+- Ideally competitors first see the flag only when they have reached the described feature. The flag must never be hidden: at the control they should not have to search for it (IOF App. 2 §3.5.3).
+- Controls must not be sited where flag visibility from different directions cannot be judged from the map or the description (IOF App. 2 §3.5.1).
+- A flag on the side of a feature is usually not visible from the opposite side (IOF CD 12.1).
+- A control's difficulty depends on the size and visibility of the feature (RMK 1.2.5).
+- Spec examples use side for boulders, ruins, thickets, wells and buildings, foot for knolls and hills, and edge for depressions, pits, ponds, springs and boulder fields (IOF CD examples 19–109). The table is `FEATURE_FLAG_SIDES` in [`packages/rules/src/control-description.ts`](../../packages/rules/src/control-description.ts).
+- **Interpretation:** a flag on the side away from the incoming leg is hidden until the competitor reaches the feature, and counts as one difficulty step harder. It is used when the class's difficulty range allows; otherwise the flag faces the approach. The side is named by the eight compass points.
+
 ## Difficulty
 
 - Descriptions also feed the difficulty assessment: a big, easily seen feature such as "hill" is too easy for championship level (D8, [`docs/decisions.md`](../decisions.md)).

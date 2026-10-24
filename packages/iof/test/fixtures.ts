@@ -14,6 +14,7 @@ export const site = (overrides: Partial<ControlSiteCandidate> = {}): ControlSite
   technicalDifficulty: 4,
   orientation: null,
   similarFeatureOffsets: [],
+  flagSide: null,
   ...overrides,
 })
 

@@ -10,6 +10,7 @@ export {
 export { evaluateLeg, type LegEvaluation } from './leg'
 export { buildTerrain, type Terrain, type TerrainOptions } from './terrain'
 export {
+  descriptionFeatureOf,
   findControlSites,
   type ContourForm,
   type ControlSiteCandidate,
@@ -30,3 +31,4 @@ export {
   type CourseMeasurements,
 } from './course-length'
 export { siteAreaQuality } from './site-quality'
+export { difficultyInCourse, flagSideFor, type FlagSide } from './flag-side'

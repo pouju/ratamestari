@@ -1,5 +1,5 @@
 import type { LocalPoint } from '@ratamestari/core'
-import type { ControlSiteCandidate, Course } from '@ratamestari/engine'
+import type { ControlSiteCandidate, Course, FlagSide } from '@ratamestari/engine'
 import { describeControl, descriptionText } from '@ratamestari/iof'
 
 export interface ControlSummary {
@@ -23,8 +23,8 @@ export interface CourseSummary {
   readonly finishLeg: { readonly straightMeters: number; readonly minutes: number }
 }
 
-export function describeSite(site: ControlSiteCandidate): string {
-  const description = describeControl(site)
+export function describeSite(site: ControlSiteCandidate, flagSide: FlagSide | null = null): string {
+  const description = describeControl(site, flagSide)
   return description ? descriptionText(description) : 'not describable'
 }
 
@@ -63,8 +63,8 @@ export function summarizeCourse(course: Course): CourseSummary {
     start: describeSite(course.start),
     controls: course.controls.map((site, i) => ({
       number: i + 1,
-      feature: describeSite(site),
-      technicalDifficulty: site.technicalDifficulty,
+      feature: describeSite(site, course.flagSides[i] ?? null),
+      technicalDifficulty: course.controlDifficulties[i] ?? site.technicalDifficulty,
       legStraightMeters: distance(positions[i]!, site.position),
       legMinutes: minutes(course.legSeconds[i] ?? 0),
     })),

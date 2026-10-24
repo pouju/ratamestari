@@ -118,7 +118,7 @@ function printSummary(c: Course, seconds: number) {
       `${((c.lengthMeters ?? 0) / 1000).toFixed(1)} km, search ${seconds.toFixed(1)} s`,
   )
   console.log(`legs (min): ${c.legSeconds.map(minutes).join(' ')}`)
-  console.log(`difficulty: ${c.controls.map(s => s.technicalDifficulty).join('')}`)
+  console.log(`difficulty: ${c.controlDifficulties.join('')}`)
   console.log(`problems: ${JSON.stringify(c.problems)}`)
 }
 

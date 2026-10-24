@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { citedSchema, iofDescriptions, ratamestarikirja } from './source'
+import { citedSchema, iofDescriptions, iofRules, ratamestarikirja } from './source'
 
 export const descriptionSymbolSchema = citedSchema.extend({
   ref: z.string().regex(/^\d{1,2}\.\d{1,2}$/),
@@ -276,5 +276,58 @@ export const DESCRIPTION_GEOMETRY = {
     iofDescriptions('col. C'),
     ratamestarikirja('5.2.ST'),
   ],
+  interpretation: true,
+}
+
+export const flagSideLocationSchema = z.enum(['side', 'edge', 'directionalFoot'])
+export type FlagSideLocation = z.infer<typeof flagSideLocationSchema>
+
+export const flagSideRuleSchema = citedSchema.extend({ location: flagSideLocationSchema })
+export type FlagSideRule = z.infer<typeof flagSideRuleSchema>
+
+const flagSide = (location: FlagSideLocation, interpretation = false): FlagSideRule => ({
+  location,
+  sources: [iofDescriptions(DESCRIPTION_LOCATIONS[location].ref)],
+  interpretation,
+})
+
+export const FEATURE_FLAG_SIDES: Readonly<Partial<Record<DescriptionFeature, FlagSideRule>>> = {
+  hill: flagSide('directionalFoot'),
+  knoll: flagSide('directionalFoot'),
+  antHill: flagSide('side'),
+  rockPillar: flagSide('directionalFoot'),
+  boulder: flagSide('side'),
+  boulderCluster: flagSide('side'),
+  thicket: flagSide('side'),
+  copse: flagSide('side', true),
+  prominentTree: flagSide('side', true),
+  prominentVegetationFeature: flagSide('side'),
+  well: flagSide('side'),
+  waterTank: flagSide('side'),
+  building: flagSide('side'),
+  ruin: flagSide('side'),
+  tower: flagSide('side'),
+  cairn: flagSide('side'),
+  fodderRack: flagSide('side'),
+  monument: flagSide('side', true),
+  depression: flagSide('edge'),
+  smallDepression: flagSide('edge'),
+  pit: flagSide('edge'),
+  waterhole: flagSide('edge'),
+  pond: flagSide('edge'),
+  spring: flagSide('edge'),
+  marsh: flagSide('edge'),
+  boulderField: flagSide('edge'),
+  stonyGround: flagSide('edge'),
+  clearing: flagSide('edge'),
+}
+
+export const hiddenFlagSideRuleSchema = citedSchema.extend({
+  difficultyStep: z.int().positive(),
+})
+
+export const HIDDEN_FLAG_SIDE: z.infer<typeof hiddenFlagSideRuleSchema> = {
+  difficultyStep: 1,
+  sources: [iofDescriptions('12.1'), iofRules('App. 2 §3.5.3'), ratamestarikirja('1.2.5')],
   interpretation: true,
 }
