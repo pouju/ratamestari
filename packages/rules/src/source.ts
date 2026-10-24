@@ -3,6 +3,7 @@ import { z } from 'zod'
 export const sourceDocumentSchema = z.enum([
   'ISOM 2017-2',
   'IOF Rules 2026',
+  'IOF Control Descriptions 2024',
   'Lajisäännöt 2026',
   'Ratamestarikirja',
 ])
@@ -23,6 +24,10 @@ export type Cited = z.infer<typeof citedSchema>
 
 export const isom = (section: string): Source => ({ document: 'ISOM 2017-2', section })
 export const iofRules = (section: string): Source => ({ document: 'IOF Rules 2026', section })
+export const iofDescriptions = (section: string): Source => ({
+  document: 'IOF Control Descriptions 2024',
+  section,
+})
 export const lajisaannot = (section: string): Source => ({ document: 'Lajisäännöt 2026', section })
 export const ratamestarikirja = (section: string): Source => ({
   document: 'Ratamestarikirja',

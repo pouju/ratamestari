@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { citedSchema, iofRules, lajisaannot, ratamestarikirja } from './source'
+import { citedSchema, iofRules, isom, lajisaannot, ratamestarikirja } from './source'
 
 export const controlSpacingRuleSchema = citedSchema.extend({
   minStraightMeters: z.number().positive(),
@@ -72,5 +72,17 @@ export const ACUTE_ANGLE: AcuteAngleRule = {
 export const CLIMB: ClimbRule = {
   maxClimbPerShortestRouteLength: 0.04,
   sources: [iofRules('App. 2 §3.11.6')],
+  interpretation: false,
+}
+
+export const controlCircleRuleSchema = citedSchema.extend({
+  footprintMeters: z.number().positive(),
+})
+
+export type ControlCircleRule = z.infer<typeof controlCircleRuleSchema>
+
+export const CONTROL_CIRCLE: ControlCircleRule = {
+  footprintMeters: 75,
+  sources: [isom('sym. 703')],
   interpretation: false,
 }
