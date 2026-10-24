@@ -38,6 +38,7 @@ export interface MapSymbolInfo {
 export interface CourseWorkspace {
   status(): WorkspaceStatus
   generateCourse(request: CourseRequest, options: GenerateOptions): Promise<Course | null>
+  showRequest(request: CourseRequest): void
   replaceControl(
     course: Course,
     controlNumber: number,
@@ -228,9 +229,11 @@ export function createCourseTools(workspace: CourseWorkspace): AgentTool[] {
       run: async ({ winnerPaceSecondsPerKm, option, ...requestInput }) => {
         const status = workspace.status()
         if (!status.mapLoaded) return 'No map is open. Ask the user to open an OCAD map first.'
-        if (!status.hasCompetitionCentre)
-          return 'The competition centre is not set. Ask the user to click it on the map with "Set competition centre"; the finish goes there.'
         const request = courseRequestSchema.parse(requestInput)
+        if (!status.hasCompetitionCentre) {
+          workspace.showRequest(request)
+          return 'The competition centre is not set, so no course yet. The request is now filled in the Course panel. Tell the user to click the competition centre on the map (the course starts and finishes near it), then press "Set course", or ask you again.'
+        }
         const target = courseTargetFor(request)
         if (!target) return NO_RULES_FOR_CLASS
         const course = await workspace.generateCourse(request, {

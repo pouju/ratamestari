@@ -294,6 +294,7 @@ export function App() {
       course,
     }),
     generateCourse: generateFromChat,
+    showRequest: setRequest,
     replaceControl: async (current, controlNumber, preference) => {
       const edited = await engine.fixControl(current, controlNumber, preference)
       if (edited) setCourse(edited)
@@ -322,6 +323,7 @@ export function App() {
       status: () => latestWorkspace.current!.status(),
       generateCourse: (nextRequest, options) =>
         latestWorkspace.current!.generateCourse(nextRequest, options),
+      showRequest: nextRequest => latestWorkspace.current!.showRequest(nextRequest),
       replaceControl: (current, controlNumber, preference) =>
         latestWorkspace.current!.replaceControl(current, controlNumber, preference),
       mapSymbols: () => latestWorkspace.current!.mapSymbols(),

@@ -20,6 +20,7 @@ const READY: WorkspaceStatus = {
 
 function workspaceWith(status: Partial<WorkspaceStatus> = {}) {
   const calls: { request: CourseRequest; options: GenerateOptions }[] = []
+  const shownRequests: CourseRequest[] = []
   const replacements: { controlNumber: number; preference: string }[] = []
   const symbols: MapSymbolInfo[] = [
     { symbol: '502.0', name: 'Moottoritie', objects: 12, isomCode: '502', corrected: false },
@@ -29,6 +30,9 @@ function workspaceWith(status: Partial<WorkspaceStatus> = {}) {
     generateCourse: async (request, options) => {
       calls.push({ request, options })
       return COURSE
+    },
+    showRequest: request => {
+      shownRequests.push(request)
     },
     replaceControl: async (_course, controlNumber, preference) => {
       replacements.push({ controlNumber, preference })
@@ -53,7 +57,7 @@ function workspaceWith(status: Partial<WorkspaceStatus> = {}) {
     },
   }
   const tools = Object.fromEntries(createCourseTools(workspace).map(tool => [tool.name, tool]))
-  return { tools, calls, symbols, replacements }
+  return { tools, calls, shownRequests, symbols, replacements }
 }
 
 describe('generate_course', () => {
@@ -85,10 +89,13 @@ describe('generate_course', () => {
     expect(result.course.controlCount).toBe(2)
   })
 
-  it('asks for the competition centre before generating', async () => {
-    const { tools, calls } = workspaceWith({ hasCompetitionCentre: false })
-    expect(await tools.generate_course!.run(H21_LONG_SM)).toMatch(/competition centre/)
+  it('asks for the competition centre and leaves the request for the Set course button', async () => {
+    const { tools, calls, shownRequests } = workspaceWith({ hasCompetitionCentre: false })
+    const reply = await tools.generate_course!.run(H21_LONG_SM)
+    expect(reply).toMatch(/competition centre/)
+    expect(reply).toMatch(/"Set course"/)
     expect(calls).toHaveLength(0)
+    expect(shownRequests).toEqual([H21_LONG_SM])
   })
 
   it('refuses classes that have no winning time in the rules config', async () => {
