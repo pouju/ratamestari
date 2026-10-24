@@ -81,4 +81,4 @@ To redeploy a release, run the **Deploy** workflow from the Actions tab with its
 
 ## License
 
-[AGPL-3.0-or-later](LICENSE)
+[AGPL-3.0-or-later](LICENSE). The sample map in [`apps/web/public/sample`](apps/web/public/sample) is © Vehkalahden Veikot and is not covered by this licence; see its [README](apps/web/public/sample/README.md).
