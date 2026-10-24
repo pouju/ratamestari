@@ -60,6 +60,7 @@ export {
 } from './course-editing'
 export {
   findPeripheralInformation,
+  isInPeripheralBlock,
   peripheralLayout,
   type PeripheralBlock,
   type PeripheralBlockKind,

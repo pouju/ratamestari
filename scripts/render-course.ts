@@ -10,6 +10,7 @@ import {
   evaluateLeg,
   findControlSites,
   findPeripheralInformation,
+  isInPeripheralBlock,
   peripheralLayout,
   setCourseOnPaper,
   type PaperChoice,
@@ -64,8 +65,10 @@ const seed = Number(values.seed)
 const map = await loadOcadMap(new Uint8Array(readFileSync(mapPath)))
 const features = map.features()
 const terrain = buildTerrain(features, map.info.extent)
-const sites = findControlSites(features, terrain).filter(site => describeControl(site) !== null)
 const peripheral = findPeripheralInformation(map.annotations(), terrain, map.info.scale)
+const sites = findControlSites(features, terrain).filter(
+  site => describeControl(site) !== null && !isInPeripheralBlock(peripheral, site.position),
+)
 const target = courseTargetFor(request)
 if (!target) throw new Error('No winning time for this class and event')
 

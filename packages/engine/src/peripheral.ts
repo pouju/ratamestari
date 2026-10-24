@@ -1,4 +1,10 @@
-import { localExtent, localPoint, type LocalExtent, type MapAnnotation } from '@ratamestari/core'
+import {
+  localExtent,
+  localPoint,
+  type LocalExtent,
+  type LocalPoint,
+  type MapAnnotation,
+} from '@ratamestari/core'
 import { PERIPHERAL_INFORMATION } from '@ratamestari/rules'
 import { cellIndexOf } from './raster'
 import type { Terrain } from './terrain'
@@ -137,6 +143,15 @@ export function findPeripheralInformation(
     marginObjectIndices,
   }
 }
+
+// A logo can borrow vegetation or cliff symbols, which would otherwise read as control sites.
+export const isInPeripheralBlock = (
+  { blocks }: PeripheralInformation,
+  [x, y]: LocalPoint,
+): boolean =>
+  blocks.some(
+    ({ extent: [minX, minY, maxX, maxY] }) => x >= minX && x <= maxX && y >= minY && y <= maxY,
+  )
 
 function groupNearby(annotations: readonly MapAnnotation[], maxGap: number): Group[] {
   const groups: Group[] = []

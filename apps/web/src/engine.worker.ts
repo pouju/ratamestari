@@ -6,6 +6,7 @@ import {
   evaluateLeg,
   findControlSites,
   findPeripheralInformation,
+  isInPeripheralBlock,
   fitCourseToPaper,
   fixControl,
   moveControl,
@@ -119,8 +120,11 @@ const engine = {
     if (!map) throw new Error('No map loaded in the engine')
     const features = map.features(corrections)
     terrain = buildTerrain(features, map.info.extent)
-    sites = findControlSites(features, terrain).filter(site => describeControl(site) !== null)
     peripheral = findPeripheralInformation(map.annotations(corrections), terrain, map.info.scale)
+    const inMargin = isInPeripheralBlock.bind(null, peripheral)
+    sites = findControlSites(features, terrain).filter(
+      site => describeControl(site) !== null && !inMargin(site.position),
+    )
   },
 
   peripheralInformation(): PeripheralInformation {

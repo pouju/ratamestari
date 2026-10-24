@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { localExtent, type MapAnnotation } from '@ratamestari/core'
+import { localExtent, localPoint, type MapAnnotation } from '@ratamestari/core'
 import { PERIPHERAL_INFORMATION } from '@ratamestari/rules'
-import { findPeripheralInformation, peripheralLayout } from '../src/peripheral'
+import { findPeripheralInformation, isInPeripheralBlock, peripheralLayout } from '../src/peripheral'
 import { buildTerrain } from '../src/terrain'
 import { SQUARE_KILOMETRE } from './fixtures'
 
@@ -72,6 +72,11 @@ describe('findPeripheralInformation', () => {
       expect(found.marginObjectIndices.has(inMargin.objectIndex)).toBe(true)
     for (const inMap of [placeName, roadInMap])
       expect(found.marginObjectIndices.has(inMap.objectIndex)).toBe(false)
+  })
+
+  it('tells which points lie in the logo, so its symbols give no control sites', () => {
+    expect(isInPeripheralBlock(found, localPoint(850, 850))).toBe(true)
+    expect(isInPeripheralBlock(found, localPoint(300, 300))).toBe(false)
   })
 
   it('reads the contour interval from the map texts', () => {
