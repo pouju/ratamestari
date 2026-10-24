@@ -1,15 +1,10 @@
-import { z } from 'zod'
 import { describeFinding } from '@ratamestari/agent'
-import type { Course, PaperChoice } from '@ratamestari/engine'
+import type { Course } from '@ratamestari/engine'
 import { descriptionText, type ControlDescription, type DescriptionSheet } from '@ratamestari/iof'
 import {
   ageClassSchema,
   eventLevelSchema,
   formatSchema,
-  paperSizeSchema,
-  PRINT_SCALE,
-  printScaleSchema,
-  type PrintScaleChoice,
   sexSchema,
   skillLetterSchema,
   type CourseRequest,
@@ -18,8 +13,6 @@ import { EVENT_LEVEL_LABELS, FORMAT_LABELS } from './course-labels'
 import type { DescriptionBox } from './description-box'
 import { formatDuration, formatKilometers, formatMeters } from './format'
 import { ScoreBreakdown } from './ScoreBreakdown'
-
-const paperChoiceSchema = z.union([z.literal('auto'), paperSizeSchema])
 
 interface Props {
   request: CourseRequest
@@ -41,10 +34,6 @@ interface Props {
   onFixControl: (controlNumber: number) => void
   isEditing: boolean
   isPreparingPdf: boolean
-  paper: PaperChoice
-  onPaperChange: (paper: PaperChoice) => void
-  printScale: PrintScaleChoice
-  onPrintScaleChange: (scale: PrintScaleChoice) => void
 }
 
 export function CoursePanel({
@@ -67,10 +56,6 @@ export function CoursePanel({
   onFixControl,
   isEditing,
   isPreparingPdf,
-  paper,
-  onPaperChange,
-  printScale,
-  onPrintScaleChange,
 }: Props) {
   const change = (fields: Partial<CourseRequest>) => onRequestChange({ ...request, ...fields })
   return (
@@ -140,38 +125,6 @@ export function CoursePanel({
           aria-invalid={!isPaceValid}
         />{' '}
         min/km
-      </label>
-      <label className="pace">
-        Paper{' '}
-        <select
-          value={paper}
-          onChange={e => onPaperChange(paperChoiceSchema.parse(e.target.value))}
-        >
-          <option value="auto">Automatic (A4, A3 if needed)</option>
-          {paperSizeSchema.options.map(size => (
-            <option key={size}>{size}</option>
-          ))}
-        </select>
-      </label>
-      <label className="pace">
-        Scale{' '}
-        <select
-          value={printScale}
-          onChange={e =>
-            onPrintScaleChange(
-              e.target.value === 'auto' ? 'auto' : printScaleSchema.parse(Number(e.target.value)),
-            )
-          }
-        >
-          <option value="auto">
-            Automatic (1:{PRINT_SCALE.defaultByFormat[request.format].toLocaleString('fi')})
-          </option>
-          {[...printScaleSchema.values].map(scale => (
-            <option key={scale} value={scale}>
-              1:{scale.toLocaleString('fi')}
-            </option>
-          ))}
-        </select>
       </label>
       {!isPaceValid && <p className="error">Write the pace as minutes:seconds, e.g. 5:00.</p>}
       <div className="buttons">

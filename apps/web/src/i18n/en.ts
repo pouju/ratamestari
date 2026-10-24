@@ -26,6 +26,36 @@ export const en = {
     fromSymbols: "Routes are worked out from the map's symbols, not from GPS tracks.",
     selectHint: 'Tap a leg or a control on the map to see its routes.',
   },
+  map: {
+    toolbar: 'Map tools',
+    zoomIn: 'Zoom in',
+    zoomOut: 'Zoom out',
+    layers: 'Layers',
+    costMap: 'Cost map',
+    costMapLegend:
+      'Blue is fast (paths, open land), clear is normal forest, orange is slow and darker is slower, red is impassable or out of bounds.',
+    sites: 'Candidate control sites',
+    siteCount: (count: number) => `${count} sites.`,
+    difficulty: 'Difficulty from 1 easy to 5 hard:',
+    planLeg: 'Plan a leg',
+    building: 'Reading the terrain…',
+    engineError: 'The engine could not read this map.',
+  },
+  print: {
+    scaleLine: (scale: string, contourInterval: string | null) =>
+      contourInterval === null ? scale : `${scale} · contour interval ${contourInterval}`,
+    adjust: 'Adjust print',
+    paper: 'Paper',
+    scale: 'Scale',
+    automaticPaper: 'Automatic (A4, A3 if needed)',
+    automaticPaperShort: 'Automatic paper',
+    automaticScale: (scale: string) => `Automatic (${scale})`,
+    orientation: { portrait: 'portrait', landscape: 'landscape' },
+    onPaper: (paper: string, orientation: string, scale: string) =>
+      `${paper} ${orientation}, ${scale}`,
+    beforeCourse: (paper: string, scale: string) => `${paper}, ${scale}`,
+    refitFailed: 'The course does not fit on that paper at that scale.',
+  },
   planLeg: {
     open: 'Plan a leg',
     title: 'Plan a leg',
@@ -225,10 +255,6 @@ export const en = {
       closeness: 'Passing close again',
       legCount: 'Number of legs',
     } satisfies Record<keyof Course['breakdown']['terms'], string>,
-  },
-  print: {
-    scaleLine: (scale: string, contourInterval: string | null) =>
-      contourInterval === null ? scale : `${scale} · contour interval ${contourInterval}`,
   },
   units: {
     seconds: (value: string) => `${value} s`,

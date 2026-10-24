@@ -27,13 +27,14 @@ export interface Format {
   readonly distance: (meters: number) => string
   readonly share: (fraction: number) => string
   readonly bearing: (degrees: number) => string
+  readonly scale: (denominator: number) => string
   readonly duration: (seconds: number) => string
   readonly timeDifference: (seconds: number) => string
-  readonly scale: (denominator: number) => string
 }
 
 const SECONDS_PER_MINUTE = 60
 const METRES_SHOWN_UP_TO = 1000
+const NARROW_NO_BREAK_SPACE = '\u202f'
 
 export function formatFor({ locale, messages }: Language): Format {
   const kilometres = new Intl.NumberFormat(locale, {
@@ -69,11 +70,13 @@ export function formatFor({ locale, messages }: Language): Format {
       meters < METRES_SHOWN_UP_TO ? formatMetres(meters) : formatKilometres(meters),
     share: fraction => share.format(fraction),
     bearing: value => degrees.format(value),
+    // Map scales keep the ISOM style "1:15 000" whatever the language's thousands separator.
+    scale: denominator =>
+      `1:${String(Math.round(denominator)).replace(/\B(?=(\d{3})+(?!\d))/g, NARROW_NO_BREAK_SPACE)}`,
     duration,
     timeDifference: seconds =>
       Math.round(seconds) < SECONDS_PER_MINUTE
         ? messages.units.seconds(wholeNumber.format(Math.round(seconds)))
         : duration(seconds),
-    scale: denominator => `1:${wholeNumber.format(denominator)}`,
   }
 }

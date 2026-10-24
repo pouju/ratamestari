@@ -28,7 +28,8 @@ import { formatDuration, parsePace } from './format'
 import { LegRoutesPanel, PlanLegPanel, type LegRoutesState } from './LegRoutesPanel'
 import { EMPTY_PLANNED_LEG, legEnds, plannedEnds, type PlannedLeg } from './leg-routes'
 import { useFormat, useMessages } from './i18n'
-import { DIFFICULTY_COLOURS, MapView } from './MapView'
+import { MapView } from './MapView'
+import { LayersMenu, PlanLegTool, PrintLabel } from './MapTools'
 import { rasterizeSvg, type MapImage } from './rasterize'
 import { SOURCE_CODE_URL } from './config'
 
@@ -285,6 +286,16 @@ export function App() {
     setPlannedLeg(EMPTY_PLANNED_LEG)
   }
 
+  function changePrint(nextPaper: PaperChoice, nextScale: PrintScaleChoice) {
+    setPaper(nextPaper)
+    setPrintScale(nextScale)
+    if (course)
+      void editCourse(
+        current => engine.refitToPaper(current, nextPaper, nextScale),
+        messages.print.refitFailed,
+      )
+  }
+
   function selectLeg(leg: number | null) {
     setPlannedLeg(null)
     setSelectedLeg(leg)
@@ -334,6 +345,33 @@ export function App() {
               setIsPickingCentre(false)
             }}
             canEditCourse={course !== null && !isGenerating && !isEditing}
+            tools={
+              <>
+                <LayersMenu
+                  showCostMap={showCostMap}
+                  onShowCostMap={setShowCostMap}
+                  showSites={showSites}
+                  onShowSites={setShowSites}
+                  siteCount={sites?.length ?? null}
+                />
+                <PlanLegTool
+                  isActive={plannedLeg !== null}
+                  isDisabled={engineState !== 'ready'}
+                  onToggle={() => (plannedLeg ? setPlannedLeg(null) : startPlanningLeg())}
+                />
+              </>
+            }
+            footer={
+              <PrintLabel
+                course={course}
+                format={request.format}
+                paper={paper}
+                printScale={printScale}
+                isDisabled={isGenerating || isEditing}
+                onPaperChange={next => changePrint(next, printScale)}
+                onPrintScaleChange={next => changePrint(paper, next)}
+              />
+            }
             onStopMoved={(stopIndex, to) =>
               void editCourse(
                 current => engine.moveControl(current, stopIndex, to),
@@ -426,10 +464,6 @@ export function App() {
             onGenerate={nextSeed => void generateCourse(request, nextSeed, paceSecondsPerKm)}
             course={course}
             descriptionBox={descriptionBox}
-            paper={paper}
-            onPaperChange={setPaper}
-            printScale={printScale}
-            onPrintScaleChange={setPrintScale}
             isPreparingPdf={isPreparingPdf}
             isEditing={isEditing || isGenerating}
             onFixControl={controlNumber =>
@@ -476,33 +510,8 @@ export function App() {
         {editMessage && <p className="error">{editMessage}</p>}
         {printError && <p className="error">The PDF could not be made: {printError}</p>}
 
-        {state.status === 'ready' && (
-          <section>
-            {plannedLeg === null && (
-              <button type="button" disabled={engineState !== 'ready'} onClick={startPlanningLeg}>
-                {messages.planLeg.open}
-              </button>
-            )}
-            {engineState === 'loading' && <p className="note">Building the cost map…</p>}
-            {engineState === 'error' && (
-              <p className="error">The engine could not read this map.</p>
-            )}
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={showCostMap}
-                onChange={e => setShowCostMap(e.target.checked)}
-              />{' '}
-              Show cost map
-            </label>
-            {showCostMap && (
-              <p className="note">
-                Blue: fast (paths, open land). Clear: normal forest. Orange: slow, darker is slower.
-                Red: impassable or out of bounds.
-              </p>
-            )}
-          </section>
-        )}
+        {engineState === 'loading' && <p className="note">{messages.map.building}</p>}
+        {engineState === 'error' && <p className="error">{messages.map.engineError}</p>}
 
         {state.status === 'ready' && (
           <SymbolPanel
@@ -511,31 +520,6 @@ export function App() {
             isApplying={engineState === 'loading'}
             onCorrect={(symbolNumber, isomCode) => void correctSymbol(symbolNumber, isomCode)}
           />
-        )}
-
-        {state.status === 'ready' && (
-          <section>
-            <h2>Candidate control sites</h2>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={showSites}
-                onChange={e => setShowSites(e.target.checked)}
-              />{' '}
-              Show candidate control sites
-            </label>
-            {showSites && sites && (
-              <p className="note">
-                {sites.length} sites. Difficulty:{' '}
-                {Object.entries(DIFFICULTY_COLOURS).map(([difficulty, colour]) => (
-                  <span key={difficulty} className="legend-dot" style={{ background: colour }}>
-                    {difficulty}
-                  </span>
-                ))}{' '}
-                (1 easy, 5 hard)
-              </p>
-            )}
-          </section>
         )}
 
         <footer>

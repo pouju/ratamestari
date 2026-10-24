@@ -97,6 +97,20 @@ const engine = {
     return setCourseOnPaper(terrain, sites, spec, paper, onProgress)
   },
 
+  refitToPaper(
+    course: Course,
+    paper: PaperChoice,
+    printScaleChoice: PrintScaleChoice,
+  ): Course | null {
+    if (!terrain || !lastSetting) throw new Error('Set a course before changing its paper')
+    const spec = {
+      ...lastSetting.spec,
+      printScale: printScaleFor(printScaleChoice, lastSetting.spec.format),
+    }
+    lastSetting = { spec, paper }
+    return fitCourseToPaper(terrain, course, papersFor(paper), spec.printScale)
+  },
+
   moveControl(course: Course, stopIndex: number, to: LocalPoint): Course | null {
     return editedCourse(course, spec => moveControl(terrain!, sites, spec, course, stopIndex, to))
   },

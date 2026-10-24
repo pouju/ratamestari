@@ -1,7 +1,7 @@
 :root {
   font-family: var(--font-family);
-  color: #1d1d1f;
-  background: #f4f4f2;
+  color: var(--colour-ink);
+  background: var(--colour-field-grey);
 }
 body {
   margin: 0;
@@ -15,10 +15,13 @@ main {
   min-width: 0;
   position: relative;
 }
+.map-frame,
 .map {
   position: absolute;
   inset: 0;
-  background: #e8e8e4;
+}
+.map {
+  background: var(--colour-field-grey);
 }
 .drop {
   height: 100%;
@@ -29,19 +32,24 @@ main {
   box-sizing: border-box;
 }
 aside {
-  width: 320px;
-  padding: 16px;
+  width: 400px;
+  padding: 28px 32px;
   box-sizing: border-box;
-  background: white;
-  border-left: 1px solid #ddd;
+  background: var(--colour-map-white);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   overflow-y: auto;
 }
 h1 {
   font-size: 18px;
   margin: 0 0 8px;
+}
+h1 a {
+  color: var(--colour-ink);
+  font-weight: var(--font-weight-display);
+  letter-spacing: -0.02em;
+  text-decoration: none;
 }
 .file input {
   display: block;
@@ -325,5 +333,132 @@ button.link {
 }
 .leg-view-figures dd {
   font-size: 26px;
+  font-weight: var(--font-weight-strong);
+}
+
+.map-toolbar {
+  position: absolute;
+  top: var(--space-5);
+  left: var(--space-5);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--colour-map-white);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 12%);
+}
+.map-toolbar button,
+.print-label button {
+  font: inherit;
+  color: var(--colour-ink);
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.map-toolbar button:focus-visible,
+.print-label button:focus-visible,
+.tool-menu-panel :focus-visible {
+  outline: 2px solid var(--colour-overprint);
+  outline-offset: 2px;
+}
+.map-tool-icon {
+  width: var(--touch-target);
+  height: var(--touch-target);
+  border-radius: var(--radius-pill);
+  font-size: 22px;
+  line-height: 1;
+}
+.map-tool {
+  height: var(--touch-target);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: 15px;
+  font-weight: var(--font-weight-strong);
+}
+.map-tool[aria-pressed='true'],
+.map-tool[aria-expanded='true'] {
+  background: var(--colour-ink);
+  color: var(--colour-map-white);
+}
+.map-tool:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.tool-menu {
+  position: relative;
+}
+.tool-menu-panel {
+  position: absolute;
+  left: 0;
+  z-index: 1;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) 18px;
+  background: var(--colour-map-white);
+  box-shadow: 0 8px 28px -8px rgb(0 0 0 / 35%);
+  font-size: 15px;
+}
+.tool-menu-panel[hidden] {
+  display: none;
+}
+.tool-menu-below {
+  top: calc(100% + var(--space-2));
+}
+.tool-menu-above {
+  bottom: calc(100% + var(--space-2));
+  left: 50%;
+  transform: translateX(-50%);
+}
+.tool-menu-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 32px;
+  font-weight: var(--font-weight-strong);
+}
+.tool-menu-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-weight: var(--font-weight-strong);
+}
+.tool-menu-field select {
+  font: inherit;
+  font-weight: var(--font-weight-body);
+  padding: var(--space-2) 10px;
+  border: none;
+  border-radius: 10px;
+  background: var(--colour-field-grey);
+}
+.tool-menu-note {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--colour-ink-soft);
+  line-height: 1.5;
+}
+.map-footer {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-5);
+  transform: translateX(-50%);
+}
+.print-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4);
+  border-radius: var(--radius-pill);
+  background: var(--colour-map-white);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 12%);
+  font-size: 15px;
+  white-space: nowrap;
+}
+.print-label .print-label-adjust {
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  color: var(--colour-overprint);
   font-weight: var(--font-weight-strong);
 }

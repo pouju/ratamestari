@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import OlMap from 'ol/Map'
 import View from 'ol/View'
 import Feature from 'ol/Feature'
@@ -181,7 +181,12 @@ interface Props {
   onCentrePicked: (centre: LocalPoint) => void
   onStopMoved: (stopIndex: number, to: LocalPoint) => void
   canEditCourse: boolean
+  tools: ReactNode
+  footer: ReactNode
 }
+
+const ZOOM_STEP = 1
+const ZOOM_ANIMATION_MS = 200
 
 export function MapView({
   info,
@@ -200,8 +205,12 @@ export function MapView({
   onCentrePicked,
   onStopMoved,
   canEditCourse,
+  tools,
+  footer,
 }: Props) {
   const target = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<OlMap | null>(null)
+  const messages = useMessages()
   const [routeSource] = useState(() => new VectorSource())
   const [costLayer] = useState(() => new ImageLayer<ImageStatic>({ visible: false }))
   const [descriptionLayer] = useState(() => new ImageLayer<ImageStatic>({ visible: false }))
@@ -246,7 +255,7 @@ export function MapView({
   isPickingCentreRef.current = isPickingCentre
   const onLegSelectedRef = useRef(onLegSelected)
   onLegSelectedRef.current = onLegSelected
-  const routeLetters = useMessages().leg.routeLetters
+  const routeLetters = messages.leg.routeLetters
 
   useEffect(() => {
     if (!target.current) return
@@ -273,8 +282,10 @@ export function MapView({
         legToolLayer,
         new VectorLayer({ source: centreSource, style: centreStyle }),
       ],
+      controls: [],
       view: new View({ projection: localFrame, extent, constrainOnlyCenter: true }),
     })
+    mapRef.current = map
     map.getView().fit(extent, { padding: [20, 20, 20, 20] })
 
     legToolLayer.setStyle(
@@ -467,6 +478,37 @@ export function MapView({
     routeSource.addFeatures([...lines, ...labels])
   }, [routes, routeSource, routeLetters])
 
+  const zoomBy = (delta: number) => {
+    const view = mapRef.current?.getView()
+    const zoom = view?.getZoom()
+    if (view && zoom !== undefined)
+      view.animate({ zoom: zoom + delta, duration: ZOOM_ANIMATION_MS })
+  }
+
   const isPlacing = isPickingCentre || (plannedLeg !== null && needsPlacing(plannedLeg))
-  return <div ref={target} className={isPlacing ? 'map picking' : 'map'} />
+  return (
+    <div className="map-frame">
+      <div ref={target} className={isPlacing ? 'map picking' : 'map'} />
+      <div className="map-toolbar" role="toolbar" aria-label={messages.map.toolbar}>
+        <button
+          type="button"
+          className="map-tool-icon"
+          aria-label={messages.map.zoomIn}
+          onClick={() => zoomBy(ZOOM_STEP)}
+        >
+          +
+        </button>
+        <button
+          type="button"
+          className="map-tool-icon"
+          aria-label={messages.map.zoomOut}
+          onClick={() => zoomBy(-ZOOM_STEP)}
+        >
+          −
+        </button>
+        {tools}
+      </div>
+      <div className="map-footer">{footer}</div>
+    </div>
+  )
 }

@@ -28,6 +28,10 @@ describe('formatFor', () => {
     expect(format.share(0.1)).toBe('10%')
   })
 
+  it('writes map scales the ISOM way', () => {
+    expect(format.scale(15000)).toBe('1:15\u202f000')
+  })
+
   it('rounds bearings to whole degrees', () => {
     expect(format.bearing(50.6)).toBe('51°')
   })
