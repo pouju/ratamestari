@@ -63,6 +63,8 @@ export function App() {
   const [paper, setPaper] = useState<PaperChoice>('auto')
   const [printScale, setPrintScale] = useState<PrintScaleChoice>('auto')
   const [isPreparingPdf, setIsPreparingPdf] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editMessage, setEditMessage] = useState<string | null>(null)
   const [printError, setPrintError] = useState<string | null>(null)
   const paceSecondsPerKm = parsePace(paceText)
 
@@ -165,6 +167,23 @@ export function App() {
     }),
   )
 
+  async function editCourse(edit: (current: Course) => Promise<Course | null>, refused: string) {
+    if (!course || isEditing) return
+    setIsEditing(true)
+    setEditMessage(null)
+    const before = course
+    try {
+      const edited = await edit(before)
+      setCourse(edited ?? { ...before })
+      if (!edited) setEditMessage(refused)
+    } catch (e) {
+      setCourse({ ...before })
+      setEditMessage(errorMessage(e))
+    } finally {
+      setIsEditing(false)
+    }
+  }
+
   function onDrop(e: DragEvent) {
     e.preventDefault()
     const file = e.dataTransfer.files[0]
@@ -198,6 +217,13 @@ export function App() {
               setIsPickingCentre(false)
             }}
             onControlsMoved={setControls}
+            canEditCourse={course !== null && !isGenerating && !isEditing}
+            onStopMoved={(stopIndex, to) =>
+              void editCourse(
+                current => engine.moveControl(current, stopIndex, to),
+                'No control site within 60 m of that spot, so the control stayed where it was.',
+              )
+            }
           />
         ) : (
           <div className="drop">
@@ -276,6 +302,13 @@ export function App() {
             printScale={printScale}
             onPrintScaleChange={setPrintScale}
             isPreparingPdf={isPreparingPdf}
+            isEditing={isEditing || isGenerating}
+            onFixControl={controlNumber =>
+              void editCourse(
+                current => engine.fixControl(current, controlNumber),
+                'The control could not be fixed.',
+              )
+            }
             onPrintPdf={() => {
               if (!course || !descriptionBox || state.status !== 'ready') return
               setIsPreparingPdf(true)
@@ -297,6 +330,7 @@ export function App() {
           />
         )}
 
+        {editMessage && <p className="error">{editMessage}</p>}
         {printError && <p className="error">The PDF could not be made: {printError}</p>}
 
         {state.status === 'ready' && (

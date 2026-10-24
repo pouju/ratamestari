@@ -10,7 +10,7 @@ describe('summarizeCourse', () => {
     expect(summary.targetWinningMinutes).toBe(7.5)
     expect(summary.lengthKilometers).toBe(1.2)
     expect(summary.climbMeters).toBe(40)
-    expect(summary.ruleProblems).toEqual(['1 controls too close together'])
+    expect(summary.ruleProblems).toEqual(['Control 1 and control 2 are too close together'])
     expect(summary.controls[0]).toEqual({
       number: 1,
       feature: 'Boulder',

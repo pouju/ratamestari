@@ -6,7 +6,6 @@ export {
   type LlmProvider,
 } from './llm-provider'
 export {
-  courseProblemTexts,
   describeSite,
   summarizeCourse,
   type ControlSummary,
@@ -20,3 +19,4 @@ export {
 } from './course-tools'
 export { CLAUDE_MODEL, createClaudeProvider, TruncatedToolCallError } from './claude-provider'
 export { COURSE_SETTER_SYSTEM_PROMPT } from './system-prompt'
+export { describeFinding, type FindingDescription, type Severity } from './rule-findings'

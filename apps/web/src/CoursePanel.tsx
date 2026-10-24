@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { courseProblemTexts } from '@ratamestari/agent'
+import { describeFinding } from '@ratamestari/agent'
 import type { Course, PaperChoice } from '@ratamestari/engine'
 import { descriptionText, type ControlDescription, type DescriptionSheet } from '@ratamestari/iof'
 import {
@@ -37,6 +37,8 @@ interface Props {
   descriptionBox: DescriptionBox | null
   onExportXml: () => void
   onPrintPdf: () => void
+  onFixControl: (controlNumber: number) => void
+  isEditing: boolean
   isPreparingPdf: boolean
   paper: PaperChoice
   onPaperChange: (paper: PaperChoice) => void
@@ -61,6 +63,8 @@ export function CoursePanel({
   descriptionBox,
   onExportXml,
   onPrintPdf,
+  onFixControl,
+  isEditing,
   isPreparingPdf,
   paper,
   onPaperChange,
@@ -181,6 +185,9 @@ export function CoursePanel({
         <p className="note">Set the competition centre first. The finish goes there.</p>
       )}
       {course && <CourseSummary course={course} />}
+      {course && course.lengthMeters !== null && (
+        <RuleChecks course={course} onFixControl={onFixControl} isEditing={isEditing} />
+      )}
       {descriptionBox && <DescriptionList sheet={descriptionBox.sheet} />}
       {course && (
         <div className="buttons">
@@ -207,7 +214,6 @@ export function CoursePanel({
 }
 
 function CourseSummary({ course }: { course: Course }) {
-  const problemTexts = courseProblemTexts(course)
   return (
     <dl>
       <dt>Controls</dt>
@@ -220,8 +226,7 @@ function CourseSummary({ course }: { course: Course }) {
       <dd>{course.lengthMeters === null ? 'measuring…' : formatKilometers(course.lengthMeters)}</dd>
       <dt>Climb</dt>
       <dd>{course.climbMeters === null ? 'measuring…' : formatMeters(course.climbMeters)}</dd>
-      <dt>Rule checks</dt>
-      <dd>{problemTexts.length === 0 ? 'No problems found' : problemTexts.join(', ')}</dd>
+
       {course.printArea && (
         <>
           <dt>Paper</dt>
@@ -253,6 +258,49 @@ function DescriptionList({ sheet }: { sheet: DescriptionSheet }) {
       </ol>
       <p className="note">
         {sheet.finish.distanceMeters} m from the last control to the finish, taped route.
+      </p>
+    </>
+  )
+}
+
+const SEVERITY_LABELS = { error: 'Error', warning: 'Warning', note: 'Note' } as const
+
+function RuleChecks({
+  course,
+  onFixControl,
+  isEditing,
+}: {
+  course: Course
+  onFixControl: (controlNumber: number) => void
+  isEditing: boolean
+}) {
+  const findings = course.findings.map(finding => describeFinding(finding, course.controls.length))
+  return (
+    <>
+      <h2>Rule checks</h2>
+      {findings.length === 0 ? (
+        <p className="note">No problems found.</p>
+      ) : (
+        <ul className="findings">
+          {findings.map(({ fixableControl, ...finding }, i) => (
+            <li key={i} className={finding.severity}>
+              <span className="severity">{SEVERITY_LABELS[finding.severity]}</span> {finding.text}
+              <span className="basis"> ({finding.basis})</span>
+              {fixableControl !== null && (
+                <button
+                  type="button"
+                  disabled={isEditing}
+                  onClick={() => onFixControl(fixableControl)}
+                >
+                  Fix control {fixableControl}
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="note">
+        Drag a control or the start on the map to move it; the rules are checked again.
       </p>
     </>
   )

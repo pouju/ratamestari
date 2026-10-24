@@ -12,7 +12,8 @@ import VectorLayer from 'ol/layer/Vector'
 import ImageStatic from 'ol/source/ImageStatic'
 import VectorSource from 'ol/source/Vector'
 import Projection from 'ol/proj/Projection'
-import Translate from 'ol/interaction/Translate'
+import Translate, { type TranslateEvent } from 'ol/interaction/Translate'
+import type Geometry from 'ol/geom/Geometry'
 import { Circle as CircleStyle, Fill, RegularShape, Stroke, Style } from 'ol/style'
 import { localPoint, type LocalExtent, type LocalPoint, type MapInfo } from '@ratamestari/core'
 import type {
@@ -25,6 +26,7 @@ import {
   COURSE_OVERPRINT_PURPLE,
   courseOverprintFeatures,
   courseOverprintStyle,
+  STOP_INDEX,
 } from './course-overprint'
 import type { CostMapImage } from './cost-map-image'
 import type { DescriptionBox } from './description-box'
@@ -67,6 +69,24 @@ const siteStyles = Object.fromEntries(
     }),
   ]),
 )
+
+const DRAG_HIT_TOLERANCE_PIXELS = 8
+
+function centreOf(geometry: Geometry): LocalPoint {
+  if (geometry instanceof Circle) {
+    const [x = 0, y = 0] = geometry.getCenter()
+    return localPoint(x, y)
+  }
+  const corners = geometry instanceof Polygon ? geometry.getCoordinates()[0]!.slice(0, -1) : []
+  let sumX = 0
+  let sumY = 0
+  for (const [x = 0, y = 0] of corners) {
+    sumX += x
+    sumY += y
+  }
+  const count = Math.max(1, corners.length)
+  return localPoint(sumX / count, sumY / count)
+}
 
 const PRINT_FRAME_MARGIN_METERS = 2000
 const printFrameStyle = new Style({
@@ -115,6 +135,8 @@ interface Props {
   showLegTool: boolean
   onControlsMoved: (controls: ControlPair) => void
   onCentrePicked: (centre: LocalPoint) => void
+  onStopMoved: (stopIndex: number, to: LocalPoint) => void
+  canEditCourse: boolean
 }
 
 export function MapView({
@@ -130,6 +152,8 @@ export function MapView({
   showLegTool,
   onControlsMoved,
   onCentrePicked,
+  onStopMoved,
+  canEditCourse,
 }: Props) {
   const target = useRef<HTMLDivElement>(null)
   const [routeSource] = useState(() => new VectorSource())
@@ -139,6 +163,19 @@ export function MapView({
   const localFrameRef = useRef<Projection | null>(null)
   const [siteSource] = useState(() => new VectorSource())
   const [courseSource] = useState(() => new VectorSource())
+  const [courseLayer] = useState(
+    () => new VectorLayer({ source: courseSource, style: courseOverprintStyle }),
+  )
+  const [courseTranslate] = useState(
+    () =>
+      new Translate({
+        layers: [courseLayer],
+        filter: feature => feature.get(STOP_INDEX) !== undefined,
+        hitTolerance: DRAG_HIT_TOLERANCE_PIXELS,
+      }),
+  )
+  const onStopMovedRef = useRef(onStopMoved)
+  onStopMovedRef.current = onStopMoved
   const [centreSource] = useState(() => new VectorSource())
   const [legToolLayer] = useState(() => new VectorLayer({ source: new VectorSource() }))
   const [legToolFeatures] = useState(() => new Collection<Feature>())
@@ -190,7 +227,7 @@ export function MapView({
             }),
         }),
         new VectorLayer({ source: printFrameSource, style: printFrameStyle }),
-        new VectorLayer({ source: courseSource, style: courseOverprintStyle }),
+        courseLayer,
         descriptionLayer,
         legToolLayer,
         new VectorLayer({ source: centreSource, style: centreStyle }),
@@ -229,7 +266,18 @@ export function MapView({
     map.addInteraction(legToolTranslate)
     reportControls()
 
+    const reportStopMoved = (event: TranslateEvent) => {
+      const feature = event.features.item(0)
+      const stopIndex = feature?.get(STOP_INDEX)
+      const geometry = feature?.getGeometry()
+      if (typeof stopIndex !== 'number' || !geometry) return
+      onStopMovedRef.current(stopIndex, centreOf(geometry))
+    }
+    courseTranslate.on('translateend', reportStopMoved)
+    map.addInteraction(courseTranslate)
+
     return () => {
+      courseTranslate.un('translateend', reportStopMoved)
       legToolTranslate.un('translateend', reportControls)
       map.setTarget(undefined)
     }
@@ -246,7 +294,13 @@ export function MapView({
     legToolLayer,
     legToolFeatures,
     legToolTranslate,
+    courseLayer,
+    courseTranslate,
   ])
+
+  useEffect(() => {
+    courseTranslate.setActive(canEditCourse)
+  }, [canEditCourse, courseTranslate])
 
   useEffect(() => {
     legToolLayer.setVisible(showLegTool)

@@ -33,9 +33,9 @@ export function courseOverprintFeatures(course: Course): Feature[] {
   const finishRadius = courseMm(FINISH_OUTER_DIAMETER_MM) / 2
   const gap = courseMm(COURSE_LINE_GAP_MM)
 
-  const features: Feature[] = [startTriangle(start, firstTarget, startRadius)]
+  const features: Feature[] = [draggable(startTriangle(start, firstTarget, startRadius), 0)]
   controls.forEach((position, i) => {
-    features.push(lineFeature(new Circle([...position], controlRadius)))
+    features.push(draggable(lineFeature(new Circle([...position], controlRadius)), i + 1))
     features.push(controlNumber(position, i + 1, controlRadius))
   })
   features.push(lineFeature(new Circle([...course.finish], courseMm(FINISH_INNER_DIAMETER_MM) / 2)))
@@ -69,6 +69,13 @@ export function courseOverprintStyle(feature: FeatureLike, metersPerPixel: numbe
       width: Math.max(1, courseMm(COURSE_LINE_WIDTH_MM) / metersPerPixel),
     }),
   })
+}
+
+export const STOP_INDEX = 'stopIndex'
+
+function draggable(feature: Feature, stopIndex: number): Feature {
+  feature.set(STOP_INDEX, stopIndex)
+  return feature
 }
 
 function lineFeature(geometry: Circle | LineString | Polygon): Feature {

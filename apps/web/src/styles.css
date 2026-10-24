@@ -151,3 +151,33 @@ button.link {
   margin: 0;
   padding-left: 28px;
 }
+.findings {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.findings .severity {
+  font-weight: 600;
+}
+.findings .error .severity {
+  color: #b00020;
+}
+.findings .warning .severity {
+  color: #b26a00;
+}
+.findings .note .severity {
+  color: #666;
+}
+.findings .basis {
+  color: #666;
+  font-size: 12px;
+}
+.findings button {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+}
