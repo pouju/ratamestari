@@ -12,7 +12,12 @@ import {
   searchCourse,
   type Course,
 } from '@ratamestari/engine'
-import { describeControl } from '@ratamestari/iof'
+import {
+  describeControl,
+  descriptionSheet,
+  descriptionText,
+  renderDescriptionSheet,
+} from '@ratamestari/iof'
 import { loadOcadMap } from '@ratamestari/map-ocad'
 import { courseRequestSchema, courseTargetFor, type CourseRequest } from '@ratamestari/rules'
 
@@ -74,6 +79,11 @@ const searchSeconds = (performance.now() - started) / 1000
 
 printSummary(course, searchSeconds)
 if (values.legs) printLegs(course)
+const sheet = descriptionSheet(course, {
+  title: `${request.format} ${values.class}${values.letter}`,
+  courseName: `${values.class}${values.letter}`,
+})
+printDescriptions()
 
 const outPath =
   values.out ??
@@ -110,6 +120,14 @@ function printSummary(c: Course, seconds: number) {
   console.log(`legs (min): ${c.legSeconds.map(minutes).join(' ')}`)
   console.log(`difficulty: ${c.controls.map(s => s.technicalDifficulty).join('')}`)
   console.log(`problems: ${JSON.stringify(c.problems)}`)
+}
+
+function printDescriptions() {
+  const text = (d: Parameters<typeof descriptionText>[0] | null) => (d ? descriptionText(d) : '?')
+  console.log(`climb: ${sheet.climbMeters} m`)
+  console.log(`  S  ${text(sheet.start)}`)
+  for (const row of sheet.controls)
+    console.log(`  ${row.number}  ${row.code}  ${text(row.description)}`)
 }
 
 function printLegs(c: Course) {
@@ -189,6 +207,16 @@ function renderPng(c: Course): Buffer {
   const cropMinY = Math.min(...points.map(p => p[1])) - margin
   const cropWidth = Math.max(...points.map(p => p[0])) + margin - cropMinX
   const cropHeight = Math.max(...points.map(p => p[1])) + margin - cropMinY
+
+  const rendered = renderDescriptionSheet(sheet)
+  const paperUnitsPerMm = 100
+  overlay.push(
+    rendered.svg.replace(
+      /width="[\d.]+mm" height="[\d.]+mm"/,
+      `x="${cropMinX + 5 * paperUnitsPerMm}" y="${cropMinY + 5 * paperUnitsPerMm}" ` +
+        `width="${rendered.widthMillimetres * paperUnitsPerMm}" height="${rendered.heightMillimetres * paperUnitsPerMm}"`,
+    ),
+  )
 
   const mapMarkup = new XMLSerializer().serializeToString(svg as unknown as Node)
   const withOverlay = mapMarkup

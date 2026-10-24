@@ -31,9 +31,14 @@ const escapeXml = (text: string) =>
 
 const round = (value: number) => Math.round(value * 1000) / 1000
 
+export interface RenderOptions {
+  readonly boxMillimetres?: number
+  readonly pixelsPerMillimetre?: number
+}
+
 export function renderDescriptionSheet(
   sheet: DescriptionSheet,
-  boxMillimetres = DEFAULT_BOX_MILLIMETRES,
+  { boxMillimetres = DEFAULT_BOX_MILLIMETRES, pixelsPerMillimetre }: RenderOptions = {},
 ): RenderedSheet {
   const box = boxMillimetres
   const width = COLUMNS * box
@@ -130,8 +135,11 @@ export function renderDescriptionSheet(
   vLine(6, 1, HEADING_ROWS)
   for (let column = 1; column < COLUMNS; column++) vLine(column, HEADING_ROWS, finishRow)
 
+  const size = pixelsPerMillimetre
+    ? `width="${round(width * pixelsPerMillimetre)}" height="${round(height * pixelsPerMillimetre)}"`
+    : `width="${round(width)}mm" height="${round(height)}mm"`
   const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${round(width)}mm" height="${round(height)}mm"` +
+    `<svg xmlns="http://www.w3.org/2000/svg" ${size}` +
     ` viewBox="0 0 ${round(width)} ${round(height)}" color="black" fill="black" stroke="currentColor"` +
     ` stroke-linecap="round" stroke-linejoin="round" font-family="Arial, Helvetica, sans-serif">` +
     `<rect x="0" y="0" width="${round(width)}" height="${round(height)}" fill="white" stroke-width="${THICK_LINE}"/>` +

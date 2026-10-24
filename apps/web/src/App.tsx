@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import type { LocalPoint } from '@ratamestari/core'
 import type { ControlSiteCandidate, Course, LegEvaluation } from '@ratamestari/engine'
 import type { CourseRequest } from '@ratamestari/rules'
@@ -7,6 +7,7 @@ import { loadOcadMap, type OcadMap } from '@ratamestari/map-ocad'
 import { renderCostMap, type CostMapImage } from './cost-map-image'
 import { ChatPanel } from './ChatPanel'
 import { CoursePanel } from './CoursePanel'
+import { descriptionBoxFor } from './description-box'
 import { createEngine, progressCallback } from './engine'
 import { formatDuration, parsePace } from './format'
 import { LegDetails } from './LegDetails'
@@ -162,6 +163,11 @@ export function App() {
   }
 
   const georef = state.status === 'ready' ? state.map.info.georef : null
+  const mapInfo = state.status === 'ready' ? state.map.info : null
+  const descriptionBox = useMemo(
+    () => (course && mapInfo ? descriptionBoxFor(course, request, mapInfo) : null),
+    [course, request, mapInfo],
+  )
 
   return (
     <div className="workspace" onDragOver={e => e.preventDefault()} onDrop={onDrop}>
@@ -174,6 +180,7 @@ export function App() {
             costMap={showCostMap ? costMap : null}
             sites={showSites ? sites : null}
             course={course}
+            descriptionBox={descriptionBox}
             competitionCentre={competitionCentre}
             isPickingCentre={isPickingCentre}
             showLegTool={showLegTool}
@@ -254,6 +261,7 @@ export function App() {
             seed={seed}
             onGenerate={nextSeed => void generateCourse(request, nextSeed, paceSecondsPerKm)}
             course={course}
+            descriptionBox={descriptionBox}
           />
         )}
 

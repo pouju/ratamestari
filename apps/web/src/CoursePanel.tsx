@@ -1,5 +1,6 @@
 import { courseProblemTexts } from '@ratamestari/agent'
 import type { Course } from '@ratamestari/engine'
+import { descriptionText, type ControlDescription, type DescriptionSheet } from '@ratamestari/iof'
 import {
   ageClassSchema,
   eventLevelSchema,
@@ -8,16 +9,9 @@ import {
   skillLetterSchema,
   type CourseRequest,
 } from '@ratamestari/rules'
-import { formatDuration, formatKilometers } from './format'
-
-const EVENT_LEVEL_LABELS: Record<CourseRequest['eventLevel'], string> = {
-  national: 'National event',
-  finnishChampionship: 'Finnish championship (SM) final',
-}
-const FORMAT_LABELS: Record<CourseRequest['format'], string> = {
-  long: 'Long distance',
-  middle: 'Middle distance',
-}
+import { EVENT_LEVEL_LABELS, FORMAT_LABELS } from './course-labels'
+import type { DescriptionBox } from './description-box'
+import { formatDuration, formatKilometers, formatMeters } from './format'
 
 interface Props {
   request: CourseRequest
@@ -33,6 +27,7 @@ interface Props {
   seed: number
   onGenerate: (seed: number) => void
   course: Course | null
+  descriptionBox: DescriptionBox | null
 }
 
 export function CoursePanel({
@@ -49,6 +44,7 @@ export function CoursePanel({
   seed,
   onGenerate,
   course,
+  descriptionBox,
 }: Props) {
   const change = (fields: Partial<CourseRequest>) => onRequestChange({ ...request, ...fields })
   return (
@@ -132,6 +128,7 @@ export function CoursePanel({
         <p className="note">Set the competition centre first. The finish goes there.</p>
       )}
       {course && <CourseSummary course={course} />}
+      {descriptionBox && <DescriptionList sheet={descriptionBox.sheet} />}
     </section>
   )
 }
@@ -148,10 +145,33 @@ function CourseSummary({ course }: { course: Course }) {
       </dd>
       <dt>Course length (shortest route, LS 11.22)</dt>
       <dd>{course.lengthMeters === null ? 'measuring…' : formatKilometers(course.lengthMeters)}</dd>
+      <dt>Climb</dt>
+      <dd>{course.climbMeters === null ? 'measuring…' : formatMeters(course.climbMeters)}</dd>
       <dt>Rule checks</dt>
       <dd>{problemTexts.length === 0 ? 'No problems found' : problemTexts.join(', ')}</dd>
       <dt>Option</dt>
       <dd>Seed {course.seed}</dd>
     </dl>
+  )
+}
+
+function DescriptionList({ sheet }: { sheet: DescriptionSheet }) {
+  const text = (description: ControlDescription | null) =>
+    description ? descriptionText(description) : 'Not describable'
+  return (
+    <>
+      <h2>Control descriptions</h2>
+      <ol className="descriptions">
+        <li value={0}>Start: {text(sheet.start)}</li>
+        {sheet.controls.map(control => (
+          <li key={control.number} value={control.number}>
+            {control.code} {text(control.description)}
+          </li>
+        ))}
+      </ol>
+      <p className="note">
+        {sheet.finish.distanceMeters} m from the last control to the finish, taped route.
+      </p>
+    </>
   )
 }

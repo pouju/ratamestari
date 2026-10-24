@@ -13,7 +13,7 @@ export {
   type DescriptionSheet,
   type SheetOptions,
 } from './description-sheet'
-export { renderDescriptionSheet, type RenderedSheet } from './description-svg'
+export { renderDescriptionSheet, type RenderedSheet, type RenderOptions } from './description-svg'
 export {
   APPEARANCE_PICTOGRAMS,
   DIRECTION_ARROW,

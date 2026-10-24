@@ -146,3 +146,8 @@ button.link {
   text-decoration: underline;
   cursor: pointer;
 }
+.descriptions {
+  font-size: 13px;
+  margin: 0;
+  padding-left: 28px;
+}

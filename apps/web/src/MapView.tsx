@@ -26,6 +26,7 @@ import {
   courseOverprintStyle,
 } from './course-overprint'
 import type { CostMapImage } from './cost-map-image'
+import type { DescriptionBox } from './description-box'
 import type { MapImage } from './rasterize'
 import 'ol/ol.css'
 
@@ -77,6 +78,7 @@ interface Props {
   costMap: CostMapImage | null
   sites: readonly ControlSiteCandidate[] | null
   course: Course | null
+  descriptionBox: DescriptionBox | null
   competitionCentre: LocalPoint | null
   isPickingCentre: boolean
   showLegTool: boolean
@@ -91,6 +93,7 @@ export function MapView({
   costMap,
   sites,
   course,
+  descriptionBox,
   competitionCentre,
   isPickingCentre,
   showLegTool,
@@ -100,6 +103,7 @@ export function MapView({
   const target = useRef<HTMLDivElement>(null)
   const [routeSource] = useState(() => new VectorSource())
   const [costLayer] = useState(() => new ImageLayer<ImageStatic>({ visible: false }))
+  const [descriptionLayer] = useState(() => new ImageLayer<ImageStatic>({ visible: false }))
   const localFrameRef = useRef<Projection | null>(null)
   const [siteSource] = useState(() => new VectorSource())
   const [courseSource] = useState(() => new VectorSource())
@@ -154,6 +158,7 @@ export function MapView({
             }),
         }),
         new VectorLayer({ source: courseSource, style: courseOverprintStyle }),
+        descriptionLayer,
         legToolLayer,
         new VectorLayer({ source: centreSource, style: centreStyle }),
       ],
@@ -200,6 +205,7 @@ export function MapView({
     image,
     routeSource,
     costLayer,
+    descriptionLayer,
     siteSource,
     courseSource,
     centreSource,
@@ -248,6 +254,18 @@ export function MapView({
       }),
     )
   }, [costMap, costLayer])
+
+  useEffect(() => {
+    descriptionLayer.setVisible(descriptionBox !== null)
+    if (!descriptionBox || !localFrameRef.current) return
+    descriptionLayer.setSource(
+      new ImageStatic({
+        url: descriptionBox.url,
+        imageExtent: [...descriptionBox.extent],
+        projection: localFrameRef.current,
+      }),
+    )
+  }, [descriptionBox, descriptionLayer])
 
   useEffect(() => {
     routeSource.clear()

@@ -25,10 +25,15 @@ const sheet: DescriptionSheet = {
 
 describe('renderDescriptionSheet', () => {
   it('sizes the sheet from 8 columns of boxes and one row per line', () => {
-    const rendered = renderDescriptionSheet(sheet, 6)
+    const rendered = renderDescriptionSheet(sheet, { boxMillimetres: 6 })
     expect(rendered.widthMillimetres).toBe(48)
     expect(rendered.heightMillimetres).toBe((2 + 1 + 4 + 1) * 6)
     expect(rendered.svg).toMatch(/^<svg [^>]*width="48mm" height="48mm"/)
+  })
+
+  it('can size the image in pixels for sharp display', () => {
+    const { svg } = renderDescriptionSheet(sheet, { boxMillimetres: 6, pixelsPerMillimetre: 10 })
+    expect(svg).toMatch(/^<svg [^>]*width="480" height="480"/)
   })
 
   it('writes the heading and escapes the event title', () => {
@@ -44,7 +49,7 @@ describe('renderDescriptionSheet', () => {
   })
 
   it('draws a thicker line after every third control', () => {
-    const { svg } = renderDescriptionSheet(sheet, 6)
+    const { svg } = renderDescriptionSheet(sheet, { boxMillimetres: 6 })
     const thickRowYs = [...svg.matchAll(/<line x1="0" y1="([\d.]+)"[^>]*stroke-width="0.45"/g)].map(
       match => Number(match[1]),
     )
