@@ -33,7 +33,8 @@ export interface Skeleton {
   readonly score: number
 }
 
-export type SkeletonPlanning = Generator<null, Skeleton | null, boolean | undefined>
+// Ranked, best first; empty when no start can be found.
+export type SkeletonPlanning = Generator<null, Skeleton[], boolean | undefined>
 
 // When the last area is farther from the finish than this share of the winning time, a run-in
 // section from sites near the finish closes the course (the existing final-leg limit).
@@ -60,7 +61,7 @@ export function planSkeleton(
 ): Skeleton | null {
   const planning = planSkeletonSteps(context, areas, usableAreaSquareMetres, random)
   for (let step = planning.next(); ; step = planning.next()) {
-    if (step.done) return step.value
+    if (step.done) return step.value[0] ?? null
   }
 }
 
@@ -242,13 +243,15 @@ export function* planSkeletonSteps(
   const shortlist = complete.sort((a, b) => a.score - b.score).slice(0, SKELETON_SEARCH.refined)
 
   // 2. Refine the best orders with real endpoints, start, run-in and budgets.
-  let best: Skeleton | null = null
+  const ranked: Skeleton[] = []
   for (const { sequence } of shortlist) {
     const refined = refine(sequence)
-    if (refined && (!best || refined.score < best.score)) best = refined
+    if (refined) ranked.push(refined)
     if (yield null) break
   }
-  return best ?? wholePool()
+  if (ranked.length > 0) return ranked.sort((a, b) => a.score - b.score)
+  const whole = wholePool()
+  return whole ? [whole] : []
 
   function refine(sequence: readonly number[]): Skeleton | null {
     const used = new Set<number>()

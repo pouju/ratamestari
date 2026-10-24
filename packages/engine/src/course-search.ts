@@ -8,6 +8,7 @@ import {
   TECHNICAL_AREAS,
   FORMAT_QUALITY,
   SCORE_WEIGHTS,
+  SECTION_FILL,
   controlSpacingForScale,
   REFERENCE_PACE_SECONDS_PER_KM,
   type CourseTarget,
@@ -47,7 +48,8 @@ import {
   type PrintFrame,
 } from './print-area'
 import { findTechnicalAreas, type TechnicalArea } from './areas'
-import { planSkeleton, type Skeleton } from './skeleton'
+import { fillSection } from './section-fill'
+import { planSkeleton, planSkeletonSteps, type Skeleton } from './skeleton'
 import { siteAreaQualityOf, type SiteQualityOf } from './site-quality'
 import { distanceToSegment, segmentsCross } from './polyline'
 import { BLOCKED, routableCellOf, type CostGrid } from './cost-grid'
@@ -205,77 +207,30 @@ export function* searchCourseSteps(
   const { grid } = terrain
   const { finish, targetSeconds, qualityOf, secondsToFinish, reachable } = prepared
   const pace = prepared.paceSecondsPerKm
-  const core =
-    spec.format === 'middle'
-      ? densestCore(
-          reachable.filter(
-            site => secondsToFinish(site) <= MIDDLE_CORE_REACH_SHARE_OF_TARGET * targetSeconds,
-          ),
-          qualityOf,
-        )
-      : null
-  const pool = core
-    ? reachable.filter(
-        site =>
-          distanceBetween(site.position, core) <= MIDDLE_CORE_RADIUS_METERS ||
-          secondsToFinish(site) <= FINAL_LEG_MAX_SHARE_OF_TARGET * targetSeconds,
-      )
-    : reachable.filter(
-        site =>
-          qualityOf(site) >= LONG_MIN_AREA_QUALITY ||
-          secondsToFinish(site) <= FINAL_LEG_MAX_SHARE_OF_TARGET * targetSeconds,
-      )
+  const pool = plannerPool(prepared)
   if (pool.length === 0) return null
   const planning = planningContextFor(terrain, spec, prepared, pool)
-  const { toFinish, quality, timesFrom, evaluation, isAllowedCourseLine, routeChoiceValue } =
-    planning
+  const { evaluation } = planning
   const context: CourseContext = { terrain, spec, pool, finish, targetSeconds, evaluation }
+  const areas = findTechnicalAreas(
+    pool,
+    planning.quality,
+    TECHNICAL_AREAS[spec.format],
+    grid,
+    planning.paceSecondsPerKm,
+  )
+  const usable = mappedAreaWithin(terrain, spec.printArea?.extent ?? null)
+  const skeletons = yield* planSkeletonSteps(planning, areas, usable, random)
   let startIndex = NO_SITE
-  let order: number[] = []
+  let order: readonly number[] = []
   let best: ScoredCourse | null = null
-  for (let draft = 0; draft < MAX_DRAFTS; draft++) {
-    const zoneCandidates = core
-      ? pool.flatMap((site, i) =>
-          distanceBetween(site.position, core) <= MIDDLE_CORE_RADIUS_METERS ? [i] : [],
-        )
-      : pool.map((_, i) => i)
-    const waypoints = planWaypoints(
-      zoneCandidates.map(i => pool[i]!),
-      Float32Array.from(zoneCandidates, i => quality[i]!),
-      finish,
-      FORMAT_QUALITY[spec.format],
-      random,
-    )
-    const draftStart = pickStart(
-      pool,
-      toFinish,
-      targetSeconds,
-      waypoints,
-      finish,
-      core,
-      spec.startDistanceFromFinishMeters ?? null,
-      random,
-    )
-    if (draftStart === NO_SITE) continue
-    const draftOrder = buildGreedy(
-      draftStart,
-      pool,
-      toFinish,
-      timesFrom,
-      targetSeconds,
-      spec,
-      waypoints,
-      finish,
-      isAllowedCourseLine,
-      quality,
-      routeChoiceValue,
-      random,
-    )
-    const scored = evaluation.score(draftStart, draftOrder)
+  for (const skeleton of skeletons.slice(0, MAX_DRAFTS)) {
+    const draft = fillSkeleton(planning, skeleton, areas, random)
+    const scored = evaluation.score(skeleton.start, draft)
     if (!best || scored.score < best.score) {
       best = scored
-      startIndex = draftStart
-      order = draftOrder
+      startIndex = skeleton.start
+      order = draft
     }
     if (yield null) break
   }
@@ -288,8 +243,8 @@ export function* searchCourseSteps(
       startIndex,
       order,
       pool,
-      toFinish,
-      timesFrom,
+      planning.toFinish,
+      planning.timesFrom,
       best,
       finish,
       random,
@@ -311,6 +266,107 @@ export function* searchCourseSteps(
   function toCourse(scored: ScoredCourse, withLength = false): Course {
     return assembleCourse(context, startIndex, scored.order, withLength)
   }
+}
+
+// Sites in usable terrain, plus any site near the finish for the run-in: weak terrain far from
+// the finish never holds a control, but connecting legs may cross it.
+function plannerPool({ reachable, qualityOf, secondsToFinish, targetSeconds }: PreparedSearch) {
+  return reachable.filter(
+    site =>
+      qualityOf(site) >= LONG_MIN_AREA_QUALITY ||
+      secondsToFinish(site) <= FINAL_LEG_MAX_SHARE_OF_TARGET * targetSeconds,
+  )
+}
+
+// Sets every section of the skeleton in course order and returns the course's controls.
+function fillSkeleton(
+  context: PlanningContext,
+  skeleton: Skeleton,
+  areas: readonly TechnicalArea[],
+  random: Random,
+): number[] {
+  const { pool, toFinish } = context
+  const positionOf = (i: number) => pool[i]!.position
+  const anchors = [
+    skeleton.start,
+    ...skeleton.connectingLegs.flatMap(leg => [leg.from, leg.to]),
+    ...skeleton.sections.flatMap(section => (section.exit === 'finish' ? [] : [section.exit])),
+  ]
+  const connecting = skeleton.connectingLegs.map(
+    leg => [positionOf(leg.from), positionOf(leg.to)] as const,
+  )
+  const order: number[] = []
+  const filledLegs: (readonly [LocalPoint, LocalPoint])[] = []
+  const used = new Set(anchors)
+  skeleton.sections.forEach((section, k) => {
+    if (section.entry !== skeleton.start && order[order.length - 1] !== section.entry) {
+      order.push(section.entry)
+    }
+    const allowed =
+      section.area === null
+        ? pool.flatMap((_, i) => (toFinish[i]! <= section.budgetSeconds ? [i] : []))
+        : sitesNearArea(pool, areas[section.area]!)
+    const next = skeleton.connectingLegs[k]
+    const fill = fillSection(
+      context,
+      {
+        entry: section.entry,
+        exit: section.exit,
+        budgetSeconds: section.budgetSeconds,
+        allowed,
+        legBandMetres: section.legBandMetres,
+        fixedStops: [...new Set([...anchors, ...order])]
+          .filter(i => i !== section.entry)
+          .map(positionOf),
+        fixedLegs: [...connecting, ...filledLegs],
+        usedSites: used,
+        afterExit:
+          next && section.exit === next.from && skeleton.sections[k + 1]?.area !== null
+            ? positionOf(next.to)
+            : null,
+      },
+      random,
+    )
+    const stops = [
+      positionOf(section.entry),
+      ...fill.controls.map(positionOf),
+      section.exit === 'finish' ? context.finish : positionOf(section.exit),
+    ]
+    stops.slice(1).forEach((stop, j) => filledLegs.push([stops[j]!, stop]))
+    for (const control of fill.controls) {
+      order.push(control)
+      used.add(control)
+    }
+    if (section.exit !== 'finish' && order[order.length - 1] !== section.exit) {
+      order.push(section.exit)
+    }
+  })
+  return order
+}
+
+function sitesNearArea(pool: readonly ControlSiteCandidate[], area: TechnicalArea): number[] {
+  const buffer = SECTION_FILL.areaBufferMetres
+  const hull = area.hull
+  const isNear = (point: LocalPoint) =>
+    isInsideHull(point, hull) ||
+    hull.some(
+      (corner, k) => distanceToSegment(point, corner, hull[(k + 1) % hull.length]!) <= buffer,
+    )
+  return pool.flatMap((site, i) => (isNear(site.position) ? [i] : []))
+}
+
+function isInsideHull(point: LocalPoint, hull: readonly LocalPoint[]): boolean {
+  let inside = false
+  for (let i = 0, j = hull.length - 1; i < hull.length; j = i++) {
+    const [xi, yi] = hull[i]!
+    const [xj, yj] = hull[j]!
+    if (
+      yi > point[1] !== yj > point[1] &&
+      point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi
+    )
+      inside = !inside
+  }
+  return inside
 }
 
 interface PreparedSearch {
@@ -476,12 +532,7 @@ export function planCourse(
 ): CoursePlan | null {
   const prepared = prepareSearch(terrain, sites, spec)
   if (!prepared) return null
-  const { qualityOf, secondsToFinish, targetSeconds } = prepared
-  const pool = prepared.reachable.filter(
-    site =>
-      qualityOf(site) >= LONG_MIN_AREA_QUALITY ||
-      secondsToFinish(site) <= FINAL_LEG_MAX_SHARE_OF_TARGET * targetSeconds,
-  )
+  const pool = plannerPool(prepared)
   if (pool.length === 0) return null
   const context = planningContextFor(terrain, spec, prepared, pool)
   const areas = findTechnicalAreas(

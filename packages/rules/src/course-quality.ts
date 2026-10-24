@@ -109,7 +109,9 @@ export const FORMAT_QUALITY: Readonly<Record<Format, FormatQualityProfile>> = {
   middle: {
     legLengths: {
       binEdgesMetres: LEG_BIN_EDGES_METRES,
-      shares: [0.25, 0.35, 0.25, 0.1, 0.05, 0, 0],
+      // Calibrated on the human middle courses in maps/ (benchmark 2026-10-24): about one leg
+      // under 150 m per course, median leg 330 m. RMK 2.S.2: legs are short on average.
+      shares: [0.08, 0.35, 0.4, 0.1, 0.07, 0, 0],
       sources: [iofRules('App. 2 §3.4.1'), ratamestarikirja('2.S.2')],
       interpretation: true,
     },
@@ -266,6 +268,43 @@ export const SKELETON_SEARCH: z.infer<typeof skeletonSearchSchema> = {
     routeChoice: 8,
   },
   sources: [ratamestarikirja('1.2.6.S'), iofRules('App. 2 §3.4.1')],
+  interpretation: true,
+}
+
+export const sectionFillSchema = citedSchema.extend({
+  beamWidth: z.int().min(1),
+  expansions: z.int().min(1),
+  budgetTolerance: z.number().min(0).max(1),
+  // Sites within this distance of a technical area's hull may hold its controls.
+  areaBufferMetres: z.number().nonnegative(),
+  weights: z.object({
+    quality: z.number().nonnegative(),
+    difficultyOutsideRange: z.number().nonnegative(),
+    legMix: z.number().nonnegative(),
+    pacing: z.number().nonnegative(),
+    straightOn: z.number().nonnegative(),
+    budgetErrorPerPercent: z.number().nonnegative(),
+    noise: z.number().nonnegative(),
+  }),
+})
+
+// The beam search that sets each section from its entry to its exit within its budget (D19,
+// section-planning-spec 5.4). Starting values, to be tuned on the club maps.
+export const SECTION_FILL: z.infer<typeof sectionFillSchema> = {
+  beamWidth: 40,
+  expansions: 10,
+  budgetTolerance: 0.03,
+  areaBufferMetres: 100,
+  weights: {
+    quality: 3,
+    difficultyOutsideRange: 2,
+    legMix: 3,
+    pacing: 4,
+    straightOn: 1,
+    budgetErrorPerPercent: 0.3,
+    noise: 0.3,
+  },
+  sources: [ratamestarikirja('1.2.6.S'), ratamestarikirja('2.S.2')],
   interpretation: true,
 }
 
