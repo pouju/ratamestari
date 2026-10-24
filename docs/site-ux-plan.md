@@ -213,6 +213,18 @@ Real buttons and labels, 44 px touch targets, text contrast at least 4.5:1, visi
 
 The tokens go into one CSS custom-property file in `apps/web` (convention agreed in D14).
 
+## Later: other kinds of courses
+
+Today a course is always one class at one event level, for example SM long distance for H21 at skill level A, and the letter only changes difficulty and winning time (B and C as in `docs/rules/competition.md`). In the first version the sentence names the letter as a **skill level** and says in one line what it changes.
+
+What the letters mean depends on the kind of competition. These notes come from the course setter's experience, not yet from the rule PDFs, so they must be checked against Lajisäännöt and Ratamestarikirja (and written into `docs/rules`) before anything is built:
+
+- **Open courses:** courses named by letter only, with no age class. A is the longest and most difficult, D the shortest and easiest, with more letters in between or after. The request would be "open course B" instead of a class.
+- **Finals and qualification:** at national events and the Finnish championships, A, B and C can mean the A, B and C finals, and K the qualification.
+- **K and A together:** a qualification and its final should finish at the same competition centre but mostly use different parts of the terrain. This needs planning two courses together, which D10 left out for now.
+
+For the UI this means the sentence will start with the kind of course (class, open course, final or qualification) and only then ask for what that kind needs. The letter menu will then say "final A" or "open course B" rather than "skill level A".
+
 ## Server-ready points
 
 - `LlmProvider`: the Settings switch already has a slot for a hosted provider.

@@ -45,5 +45,6 @@ describe('CoursePanel', () => {
     const html = render(true)
     expect(html).toContain('SM level')
     expect(html).toContain('Set course')
+    expect(html).toContain('skill level A')
   })
 })

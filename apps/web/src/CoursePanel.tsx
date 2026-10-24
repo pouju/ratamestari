@@ -138,7 +138,8 @@ function RequestSentence({ request, onRequestChange }: Pick<Props, 'request' | '
               ))}
             </optgroup>
           ))}
-        </select>{' '}
+        </select>
+        {m.beforeSkillLevel}
         <select
           className="request-token"
           aria-label={m.skillLevel}
@@ -147,11 +148,12 @@ function RequestSentence({ request, onRequestChange }: Pick<Props, 'request' | '
         >
           {skillLetterSchema.options.map(letter => (
             <option key={letter} value={letter}>
-              {letter}
+              {m.skillLevelOption(letter)}
             </option>
           ))}
         </select>
       </p>
+      <p className="request-note">{m.skillLevels[request.skillLetter]}</p>
       {replacedClass && (
         <p className="request-note" role="status">
           {replacedClass}
