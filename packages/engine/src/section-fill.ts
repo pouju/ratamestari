@@ -153,10 +153,14 @@ export function fillSection(
       CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS + FINISH_OUTER_CIRCLE_FOOTPRINT_RADIUS_METERS
     )
       return false
-    const crowd = [...placed, to].filter(
-      stop => distanceBetween(stop, to) <= crowdingRule.radiusMetres,
-    ).length
-    return crowd <= crowdingRule.maxControls
+    // Adding `to` must keep its own circle and every circle it falls into within the limit.
+    const withNew = [...placed, to]
+    const crowdAround = (centre: LocalPoint) =>
+      withNew.filter(stop => distanceBetween(stop, centre) <= crowdingRule.radiusMetres).length
+    return [
+      to,
+      ...placed.filter(stop => distanceBetween(stop, to) <= crowdingRule.radiusMetres),
+    ].every(centre => crowdAround(centre) <= crowdingRule.maxControls)
   }
 
   const costOf = (state: Omit<State, 'cost'>, closingSeconds: number | null) => {

@@ -68,7 +68,9 @@ describe('course editing', { timeout: EDITING_TIMEOUT_MS }, () => {
 
   it('snaps a moved control to the nearest control site and re-checks the rules', () => {
     const first = course.controls[0]!
-    const target = localPoint(first.position[0] + 50, first.position[1] + 10)
+    // Towards the middle of the map, so there is always a neighbouring site to snap to.
+    const towardsMiddle = first.position[0] > 1000 ? -1 : 1
+    const target = localPoint(first.position[0] + towardsMiddle * 50, first.position[1] + 10)
     const moved = moveControl(terrain, sites, spec, course, 1, target)!
     const [x, y] = moved.controls[0]!.position
     expect(Math.hypot(x - target[0], y - target[1])).toBeLessThanOrEqual(45)
