@@ -338,7 +338,55 @@ Tooling lives in `scripts/` and never ships to the browser or uploads anything.
 
 ---
 
-## 15. Changes from the original draft
+## 15. Status (2026-10-24, paused after phase A)
+
+Phase A is built and committed; work on course generation is paused for demo preparation and resumes from here.
+
+### Built
+
+- Quality config `packages/rules/src/course-quality.ts`: leg-length targets per format, shape thresholds, crossing severity, score weights. Hard rules cost 1000 points (sharp angles 500), so the search never breaks them, not even to reach the winning time.
+- Metrics in `course-metrics.ts`: reversals, ring (from 8 turns), leg-length mix, leg count, monotonous runs, direction changes (60–135°), first leg, spread, legs side by side, passing close again, route doglegs, crossing severity.
+- Score breakdown on every course, shown in the panel and printed by `pnpm render-course`.
+- Waypoint zones instead of the forced loop; greedy fill with leg lengths drawn towards the target mix and backtracking at dead ends (8 steps).
+- Moves: shift (150 m), and insert, replace and shift only offer sites that keep spacing, clear the finish, make no bad crossing and no angle under 60°. Half of the moves target controls named in a finding. The hill-climb never accepts a move that adds bad crossings, lines through circles or sharp angles.
+- Final passes: hard-rule repair (every site within 400 m), dogleg repair on the actual routes (250 m, only if it costs under 60 points), clean close of a draft that stopped early.
+- A finding when the course cannot reach the class's winning-time range ("terrain may be too small for this class").
+- Benchmark: `pnpm benchmark-courses [--only <course file>] [--formats long,middle] [--seeds n]`, comparing generated courses with real ones (IOF XML 2.0.3 and 3.0, matched to maps by ground position). Results in the git-ignored `maps/renders/benchmark-*.md`; the old engine's numbers in `benchmark-baseline.md`.
+
+### Fixed along the way
+
+- Terrain quality was looked up by site id after undescribable sites were filtered out, so every course read other sites' quality and some scores were NaN.
+- Time trees were wasted on rejected candidates and taken-back controls (141 per long course, now about 40).
+
+### Results (long on the large map, seeds 1–5; middle on all three maps, seeds 1–3)
+
+|                        | Long                                   | Middle                           |
+| ---------------------- | -------------------------------------- | -------------------------------- |
+| Controls               | 15–24 (old: 17–20)                     | 14–20                            |
+| Same-way turning       | 1–22% (old: 11–55%)                    | 3–41%                            |
+| Route doglegs over 60% | 1 in 2 of 5 courses (old: 3 in 2 of 3) | none                             |
+| Winning time           | −4.7% to +1.7%, inside the range       | −6.8% to +0.5%, inside the range |
+| Rule findings          | 0–4, none hard                         | 0–3, none hard                   |
+| Search time            | 10–23 s (old: 20–23 s)                 | 1–9 s                            |
+
+Middle distance is clearly better than before. Long distance keeps the rules and has more varied legs, but the course setter's review of renders still finds it far from what a person would draw.
+
+### Open problems, in order
+
+1. **Legs side by side at long-distance scale.** Two 2 km legs out and back 300–500 m apart score only a few points: the separation limit is a fixed 300 m and a modest angle discounts it too much. Scale the limit with leg length (about 30% of the shorter leg) and soften the angle discount.
+2. **Bunching near the finish.** The course spends its remaining time in a tangle of short legs near home. Limit the share of controls within reach of the finish, or count closeness more strongly in the last part.
+3. **Doglegs the repair cannot fix** when no site within 250 m removes them: let the repair move the neighbouring control too.
+4. **Weights are hand-tuned.** Tuning from single renders is slow and seed-dependent; calibration (phase E) against the user's real courses should replace it.
+5. **Good crossings are tolerated, not sought:** the search only reaches them indirectly. A stronger search (phase C) could use them to make better use of good terrain.
+
+### Course setter guidance gathered
+
+- Crossings are acceptable far from controls at a wide angle; bad near controls, at shallow angles or in numbers.
+- Banning all crossings forces legs side by side and controls close to each other and to other legs.
+- Long distance should be judged on a large map; the small map cannot hold an SM long course.
+- The reference courses are open courses and may not meet every standard.
+
+## 16. Changes from the original draft
 
 - Numbered **D13**, not D11 (D11 is the tech stack).
 - Problem statement corrected: the engine already scores whole courses and hill-climbs; the real gaps are listed in section 1.
