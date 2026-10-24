@@ -111,6 +111,8 @@ const CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS = 37.5
 const FINISH_OUTER_CIRCLE_FOOTPRINT_RADIUS_METERS = 45
 const FINAL_LEG_MAX_SHARE_OF_TARGET = 0.04
 const REVERSE_SECTION_CHANCE = 0.25
+const SHIFT_CHANCE = 0.4
+const SHIFT_RADIUS_METERS = 150
 const HEADING_HOME_SHARE_OF_TARGET = 0.25
 const QUALITY_PREFERENCE = 2
 const ROUTE_CHOICE_PREFERENCE = 2
@@ -250,7 +252,16 @@ export function searchCourse(
 
   const steps = spec.improvementSteps ?? DEFAULT_IMPROVEMENT_STEPS[spec.format]
   for (let step = 0; step < steps; step++) {
-    const candidate = proposeChange(startIndex, order, pool, toFinish, timesFrom, best, random)
+    const candidate = proposeChange(
+      startIndex,
+      order,
+      pool,
+      toFinish,
+      timesFrom,
+      best,
+      finish,
+      random,
+    )
     if (!candidate) continue
     const scored = evaluation.score(startIndex, candidate)
     if (scored.score < best.score) {
@@ -883,6 +894,7 @@ function proposeChange(
   toFinish: Float32Array,
   timesFrom: (poolIndex: number) => Float32Array,
   current: ScoredCourse,
+  finish: LocalPoint,
   random: Random,
 ): number[] | null {
   if (order.length === 0) {
@@ -930,16 +942,56 @@ function proposeChange(
   const previous = position === 0 ? startIndex : order[position - 1]!
   const legSeconds = current.legSeconds[position]!
   const fromPrevious = timesFrom(previous)
-  const candidatesWithin = (lowShare: number, highShare: number) =>
-    pool.flatMap((_, i) => {
+  const stops = [startIndex, ...order].map(i => pool[i]!.position)
+  const next = position + 1 < order.length ? pool[order[position + 1]!]!.position : finish
+  // Legs that stay when the control at `position` is replaced (or a control inserted before it).
+  const keepsClear = (candidate: LocalPoint, replacing: boolean) => {
+    const before = stops[position]!
+    const after = replacing ? next : (stops[position + 1] ?? finish)
+    const skipFrom = position
+    const skipTo = replacing ? position + 1 : position
+    for (let k = 0; k + 1 < stops.length; k++) {
+      if (k >= skipFrom && k <= skipTo) continue
+      const a = stops[k]!
+      const b = stops[k + 1]!
+      if (segmentsCross(a, b, before, candidate) || segmentsCross(a, b, candidate, after)) {
+        return false
+      }
+    }
+    return true
+  }
+  const candidatesWithin = (lowShare: number, highShare: number, replacing = true) =>
+    pool.flatMap((site, i) => {
       const t = fromPrevious[i]!
-      return !used.has(i) && t >= legSeconds * lowShare && t <= legSeconds * highShare ? [i] : []
+      return !used.has(i) &&
+        t >= legSeconds * lowShare &&
+        t <= legSeconds * highShare &&
+        keepsClear(site.position, replacing)
+        ? [i]
+        : []
     })
 
   if (isTooShort && random.next() < LENGTH_CHANGE_CHANCE) {
-    const inserted = random.pick(candidatesWithin(...INSERT_LEG_TIME_RANGE))
+    const inserted = random.pick(candidatesWithin(...INSERT_LEG_TIME_RANGE, false))
     if (inserted === undefined) return null
     return [...order.slice(0, position), inserted, ...order.slice(position)]
+  }
+
+  if (random.next() < SHIFT_CHANCE) {
+    const here = pool[order[position]!]!.position
+    const nearby = pool.flatMap((site, i) =>
+      !used.has(i) &&
+      distanceBetween(site.position, here) <= SHIFT_RADIUS_METERS &&
+      keepsClear(site.position, true)
+        ? [i]
+        : [],
+    )
+    const shifted = random.pick(nearby)
+    if (shifted !== undefined) {
+      const changed = [...order]
+      changed[position] = shifted
+      return changed
+    }
   }
 
   const replacement = random.pick(candidatesWithin(...SWAP_LEG_TIME_RANGE))
