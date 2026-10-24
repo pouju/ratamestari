@@ -197,16 +197,14 @@ export function HeroDemo({ run }: { run: DemoRun }) {
             textAnchor="middle"
             dominantBaseline="central"
           >
-            {run.controls.map(([x, y], i) => (
-              <text
-                key={i}
-                x={x + labelOffset}
-                y={y - labelOffset}
-                opacity={appearsAfterLeg(i + 1)}
-              >
-                {i + 1}
-              </text>
-            ))}
+            {run.controls.map(([x, y], i) => {
+              const [numberX, numberY] = run.numbers?.[i] ?? [x + labelOffset, y - labelOffset]
+              return (
+                <text key={i} x={numberX} y={numberY} opacity={appearsAfterLeg(i + 1)}>
+                  {i + 1}
+                </text>
+              )
+            })}
           </g>
         </g>
       </svg>

@@ -14,6 +14,11 @@ import {
   nearestSite,
   findPeripheralInformation,
   isInPeripheralBlock,
+  layOutOverprint,
+  overprintDetailOf,
+  NO_OVERPRINT_DETAIL,
+  type OverprintDetailIndex,
+  type OverprintLayout,
   fitCourseToFrame,
   fitCourseToPaper,
   fixControl,
@@ -62,6 +67,7 @@ import { legEndsAround, type ControlPreview, type PreviewLeg } from './leg-route
 let map: OcadMap | null = null
 let terrain: Terrain | null = null
 let sites: readonly ControlSiteCandidate[] = []
+let overprintDetail: OverprintDetailIndex = NO_OVERPRINT_DETAIL
 let peripheral: PeripheralInformation | null = null
 let lastSetting: { spec: CourseSpec; paper: PaperChoice } | null = null
 let imported: ImportedCourseData | null = null
@@ -147,11 +153,16 @@ const engine = {
     if (!map) throw new Error('No map loaded in the engine')
     const features = map.features(corrections)
     terrain = buildTerrain(features, map.info.extent)
+    overprintDetail = overprintDetailOf(features)
     peripheral = findPeripheralInformation(map.annotations(corrections), terrain, map.info.scale)
     const inMargin = isInPeripheralBlock.bind(null, peripheral)
     sites = findControlSites(features, terrain).filter(
       site => describeControl(site) !== null && !inMargin(site.position),
     )
+  },
+
+  overprintLayout(course: Course): OverprintLayout {
+    return layOutOverprint(course, overprintDetail)
   },
 
   peripheralInformation(): PeripheralInformation {

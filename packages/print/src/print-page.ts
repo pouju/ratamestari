@@ -1,8 +1,12 @@
 import { localPoint, type LocalExtent, type LocalPoint } from '@ratamestari/core'
 import {
+  drawnArcs,
+  layOutOverprint,
   peripheralLayout,
   placeDescriptionBox,
   type Course,
+  type Arc,
+  type OverprintLayout,
   type PeripheralBlock,
   type PrintArea,
 } from '@ratamestari/engine'
@@ -18,6 +22,8 @@ export interface PrintPageInput {
   readonly mapSvg: string
   readonly mapScale: number
   readonly course: Course
+  // Where numbers go and where circles and lines are cut; without one, nothing is cut.
+  readonly overprintLayout?: OverprintLayout
   readonly sheet: DescriptionSheet
   readonly peripheral?: PrintPeripheral
   // Only the map and its peripheral information, for a background the course is drawn over.
@@ -49,6 +55,7 @@ export function printPageSvg({
   mapSvg,
   mapScale,
   course,
+  overprintLayout,
   sheet,
   peripheral,
   withoutCourse = false,
@@ -71,7 +78,9 @@ export function printPageSvg({
     ((maxX - minX) * MILLIMETRES_PER_METRE) / area.scale,
     ((maxY - minY) * MILLIMETRES_PER_METRE) / area.scale,
   ])
-  const overprint = withoutCourse ? '' : courseOverprint(course, area.scale, toPage)
+  const overprint = withoutCourse
+    ? ''
+    : courseOverprint(course, overprintLayout ?? layOutOverprint(course), area.scale, toPage)
   const descriptions = withoutCourse ? '' : descriptionBox(sheet, area, toPage)
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${pageWidth}mm" height="${pageHeight}mm"` +
@@ -158,10 +167,12 @@ const escapeXml = (text: string) =>
 
 function courseOverprint(
   course: Course,
+  layout: OverprintLayout,
   printScale: number,
   toPage: (point: LocalPoint) => [number, number],
 ): string {
   const mm = (millimetres: number) => overprintMillimetresAt(millimetres, printScale)
+  const metresPerMillimetre = printScale / MILLIMETRES_PER_METRE
   const lineWidth = mm(COURSE_OVERPRINT.courseLineWidthMillimetres)
   const stroke = `fill="none" stroke="${COURSE_OVERPRINT.colour}" stroke-width="${round(lineWidth)}"`
   const parts: string[] = []
@@ -178,7 +189,6 @@ function courseOverprint(
   const triangleRadius = mm(COURSE_OVERPRINT.startTriangleSideMillimetres) / Math.sqrt(3)
   const finishOuter = mm(COURSE_OVERPRINT.finishOuterDiameterMillimetres)
   const numberHeight = mm(COURSE_OVERPRINT.controlNumberHeightMillimetres)
-  const gap = mm(COURSE_OVERPRINT.courseLineGapMillimetres)
 
   const [sx, sy] = pagePoints[0]!
   const [tx, ty] = pagePoints[1]!
@@ -189,11 +199,13 @@ function courseOverprint(
   })
   parts.push(`<polygon points="${corners.join(' ')}" ${stroke}/>`)
 
-  pagePoints.slice(1, -1).forEach(([cx, cy], i) => {
-    circle([cx, cy], controlDiameter)
-    const offset = (controlDiameter / 2 + numberHeight / 2) * Math.SQRT1_2
+  course.controls.forEach((control, i) => {
+    const arcs = drawnArcs(layout.circleCuts[i] ?? [])
+    if (!arcs) circle(pagePoints[i + 1]!, controlDiameter)
+    else parts.push(...arcs.map(arc => arcPath(control.position, arc, controlDiameter / 2)))
+    const [nx, ny] = toPage(layout.numberCentres[i]!)
     parts.push(
-      `<text x="${round(cx + offset)}" y="${round(cy - offset)}" font-family="Arial, Helvetica, sans-serif"` +
+      `<text x="${round(nx)}" y="${round(ny)}" font-family="Arial, Helvetica, sans-serif"` +
         ` font-size="${round(numberHeight)}" text-anchor="middle" dominant-baseline="central"` +
         ` fill="${COURSE_OVERPRINT.colour}">${i + 1}</text>`,
     )
@@ -202,22 +214,34 @@ function courseOverprint(
   circle(finish, mm(COURSE_OVERPRINT.finishInnerDiameterMillimetres))
   circle(finish, finishOuter)
 
-  const radii = [triangleRadius, ...course.controls.map(() => controlDiameter / 2), finishOuter / 2]
-  for (let i = 1; i < pagePoints.length; i++) {
-    const [ax, ay] = pagePoints[i - 1]!
-    const [bx, by] = pagePoints[i]!
-    const length = Math.hypot(bx - ax, by - ay)
-    const trimStart = radii[i - 1]! + gap
-    const trimEnd = radii[i]! + gap
-    if (length <= trimStart + trimEnd) continue
-    const ux = (bx - ax) / length
-    const uy = (by - ay) / length
+  for (const [from, to] of layout.legPieces.flat()) {
+    const [x1, y1] = toPage(from)
+    const [x2, y2] = toPage(to)
     parts.push(
-      `<line x1="${round(ax + ux * trimStart)}" y1="${round(ay + uy * trimStart)}"` +
-        ` x2="${round(bx - ux * trimEnd)}" y2="${round(by - uy * trimEnd)}" ${stroke}/>`,
+      `<line x1="${round(x1)}" y1="${round(y1)}" x2="${round(x2)}" y2="${round(y2)}" ${stroke}/>`,
     )
   }
   return `<g>${parts.join('')}</g>`
+
+  // Arcs run counter-clockwise on the ground. The page's y axis points down, so that is the
+  // negative angle direction there: SVG sweep flag 0.
+  function arcPath(centre: LocalPoint, { from, to }: Arc, radiusOnPage: number) {
+    const groundRadius = radiusOnPage * metresPerMillimetre
+    const at = (angle: number) =>
+      toPage(
+        localPoint(
+          centre[0] + groundRadius * Math.cos(angle),
+          centre[1] + groundRadius * Math.sin(angle),
+        ),
+      )
+    const [x1, y1] = at(from)
+    const [x2, y2] = at(to)
+    const largeArc = to - from > Math.PI ? 1 : 0
+    return (
+      `<path d="M${round(x1)} ${round(y1)}A${round(radiusOnPage)} ${round(radiusOnPage)} 0 ${largeArc} 0` +
+      ` ${round(x2)} ${round(y2)}" ${stroke}/>`
+    )
+  }
 }
 
 function descriptionBox(

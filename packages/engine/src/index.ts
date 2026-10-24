@@ -140,3 +140,14 @@ export {
   type Metric,
   type ShapeMetricName,
 } from './course-metrics'
+export {
+  drawnArcs,
+  layOutOverprint,
+  mergeArcs,
+  NO_OVERPRINT_DETAIL,
+  overprintDetailOf,
+  type Arc,
+  type LinePiece,
+  type OverprintDetailIndex,
+  type OverprintLayout,
+} from './overprint-layout'

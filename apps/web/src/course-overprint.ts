@@ -1,13 +1,13 @@
 import Feature from 'ol/Feature'
 import Circle from 'ol/geom/Circle'
-import LineString from 'ol/geom/LineString'
+import MultiLineString from 'ol/geom/MultiLineString'
 import Point from 'ol/geom/Point'
 import Polygon from 'ol/geom/Polygon'
 import { asArray } from 'ol/color'
 import { Fill, Stroke, Style, Text } from 'ol/style'
 import type { FeatureLike } from 'ol/Feature'
 import type { LocalPoint } from '@ratamestari/core'
-import type { Course } from '@ratamestari/engine'
+import { drawnArcs, type Arc, type Course, type OverprintLayout } from '@ratamestari/engine'
 import { COURSE_OVERPRINT } from '@ratamestari/rules'
 
 export const COURSE_OVERPRINT_PURPLE = COURSE_OVERPRINT.colour
@@ -23,7 +23,6 @@ const FINISH_INNER_DIAMETER_MM = COURSE_OVERPRINT.finishInnerDiameterMillimetres
 const FINISH_OUTER_DIAMETER_MM = COURSE_OVERPRINT.finishOuterDiameterMillimetres
 const CONTROL_NUMBER_HEIGHT_MM = COURSE_OVERPRINT.controlNumberHeightMillimetres
 const COURSE_LINE_WIDTH_MM = COURSE_OVERPRINT.courseLineWidthMillimetres
-const COURSE_LINE_GAP_MM = COURSE_OVERPRINT.courseLineGapMillimetres
 const SELECTED_LINE_WIDTH_FACTOR = 2.5
 
 // Course symbols keep their ground size at any print scale (ISOM 2017-2 §3.7).
@@ -31,24 +30,27 @@ const courseMm = (mm: number) => (mm * COURSE_OVERPRINT.baseScale) / 1000
 
 type Kind = 'line' | 'label'
 
-export function courseOverprintFeatures(course: Course): Feature[] {
+const ARC_STEP_RADIANS = Math.PI / 36
+const CUTS = 'cuts'
+
+export function courseOverprintFeatures(course: Course, layout: OverprintLayout): Feature[] {
   const start = course.start.position
   const controls = course.controls.map(c => c.position)
   const firstTarget = controls[0] ?? course.finish
   const controlRadius = courseMm(CONTROL_CIRCLE_DIAMETER_MM) / 2
   const startRadius = courseMm(START_TRIANGLE_SIDE_MM) / Math.sqrt(3)
   const finishRadius = courseMm(FINISH_OUTER_DIAMETER_MM) / 2
-  const gap = courseMm(COURSE_LINE_GAP_MM)
 
   const finishStop = controls.length + 1
   const features: Feature[] = [
     draggable(atStop(startTriangle(start, firstTarget, startRadius), 0), 0),
   ]
   controls.forEach((position, i) => {
-    features.push(
-      draggable(atStop(lineFeature(new Circle([...position], controlRadius)), i + 1), i + 1),
-    )
-    features.push(atStop(controlNumber(position, i + 1, controlRadius), i + 1))
+    const circle = lineFeature(new Circle([...position], controlRadius))
+    circle.set(CUTS, layout.circleCuts[i] ?? [])
+    features.push(draggable(atStop(circle, i + 1), i + 1))
+    const numberAt = layout.numberCentres[i]
+    if (numberAt) features.push(atStop(controlNumber(numberAt, i + 1), i + 1))
   })
   features.push(
     atStop(
@@ -63,12 +65,11 @@ export function courseOverprintFeatures(course: Course): Feature[] {
     ),
   )
 
-  const stops = [start, ...controls, course.finish]
-  const radii = [startRadius, ...controls.map(() => controlRadius), finishRadius]
-  for (let i = 1; i < stops.length; i++) {
-    const leg = shortenedLeg(stops[i - 1]!, stops[i]!, radii[i - 1]! + gap, radii[i]! + gap)
-    if (leg) features.push(onLeg(lineFeature(new LineString(leg)), i - 1))
-  }
+  layout.legPieces.forEach((pieces, leg) => {
+    if (pieces.length === 0) return
+    const lines = pieces.map(([from, to]) => [[...from], [...to]])
+    features.push(onLeg(lineFeature(new MultiLineString(lines)), leg))
+  })
   return features
 }
 
@@ -86,6 +87,23 @@ export const previewControlStyle = (_feature: FeatureLike, metersPerPixel: numbe
       lineDash: PREVIEW_DASH_PIXELS,
     }),
   })
+
+// A cut circle is drawn as the arcs between its cuts; the feature stays a circle for dragging.
+function drawnCircle(circle: Circle, cuts: readonly Arc[]): MultiLineString | null {
+  const arcs = drawnArcs(cuts)
+  if (!arcs) return null
+  const [cx = 0, cy = 0] = circle.getCenter()
+  const radius = circle.getRadius()
+  return new MultiLineString(
+    arcs.map(({ from, to }) => {
+      const steps = Math.max(1, Math.ceil((to - from) / ARC_STEP_RADIANS))
+      return Array.from({ length: steps + 1 }, (_, k) => {
+        const angle = from + ((to - from) * k) / steps
+        return [cx + radius * Math.cos(angle), cy + radius * Math.sin(angle)]
+      })
+    }),
+  )
+}
 
 // drawnLegs is how far the course has been drawn, in legs (1.5 = first leg and half the second),
 // or null when the whole course is shown.
@@ -110,21 +128,28 @@ export const courseOverprintStyle =
       if (share <= 0) return undefined
       const style = overprintStyle(feature, metersPerPixel, colour)
       const line = feature.getGeometry()
-      if (share < 1 && line instanceof LineString) style.setGeometry(partOfLine(line, share))
+      if (share < 1 && line instanceof MultiLineString) style.setGeometry(partOfLeg(line, share))
       return style
     }
     if (typeof stop === 'number' && stop > drawnLegs) return undefined
     return overprintStyle(feature, metersPerPixel, colour)
   }
 
-function partOfLine(line: LineString, share: number): LineString {
-  const [from = [], to = []] = line.getCoordinates()
-  const [x1 = 0, y1 = 0] = from
-  const [x2 = 0, y2 = 0] = to
-  return new LineString([
-    [x1, y1],
-    [x1 + (x2 - x1) * share, y1 + (y2 - y1) * share],
-  ])
+// The first `share` of a leg, measured along the leg from its first piece to its last.
+function partOfLeg(leg: MultiLineString, share: number): MultiLineString {
+  const lines = leg.getCoordinates()
+  const [x0 = 0, y0 = 0] = lines[0]?.[0] ?? []
+  const [x1 = 0, y1 = 0] = lines.at(-1)?.at(-1) ?? []
+  const length = Math.hypot(x1 - x0, y1 - y0) || 1
+  const [ux, uy] = [(x1 - x0) / length, (y1 - y0) / length]
+  const limit = share * length
+  const along = ([x = 0, y = 0]: number[]) => (x - x0) * ux + (y - y0) * uy
+  const shown = lines.flatMap(([from = [], to = []]) => {
+    if (along(from) >= limit) return []
+    if (along(to) <= limit) return [[from, to]]
+    return [[from, [x0 + ux * limit, y0 + uy * limit]]]
+  })
+  return new MultiLineString(shown)
 }
 
 function overprintStyle(
@@ -145,12 +170,17 @@ function overprintStyle(
       }),
     })
   }
-  return new Style({
+  const style = new Style({
     stroke: new Stroke({
       color: colour,
       width: lineWidthFactor * Math.max(1, courseMm(COURSE_LINE_WIDTH_MM) / metersPerPixel),
     }),
   })
+  const geometry = feature.getGeometry()
+  const cuts = feature.get(CUTS) as readonly Arc[] | undefined
+  const cutCircle = cuts && geometry instanceof Circle ? drawnCircle(geometry, cuts) : null
+  if (cutCircle) style.setGeometry(cutCircle)
+  return style
 }
 
 export const STOP_INDEX = 'stopIndex'
@@ -199,7 +229,7 @@ function draggable(feature: Feature, stopIndex: number): Feature {
   return feature
 }
 
-function lineFeature(geometry: Circle | LineString | Polygon): Feature {
+function lineFeature(geometry: Circle | MultiLineString | Polygon): Feature {
   return new Feature({ geometry, kind: 'line' satisfies Kind })
 }
 
@@ -212,10 +242,9 @@ function startTriangle(center: LocalPoint, towards: LocalPoint, radius: number):
   return lineFeature(new Polygon([[...corners, corners[0]!]]))
 }
 
-function controlNumber(position: LocalPoint, number: number, circleRadius: number): Feature {
-  const offset = circleRadius + courseMm(CONTROL_NUMBER_HEIGHT_MM) / 2
+function controlNumber(at: LocalPoint, number: number): Feature {
   return new Feature({
-    geometry: new Point([position[0] + offset * Math.SQRT1_2, position[1] + offset * Math.SQRT1_2]),
+    geometry: new Point([...at]),
     kind: 'label' satisfies Kind,
     label: number,
   })

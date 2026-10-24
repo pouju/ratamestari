@@ -24,11 +24,13 @@ import {
   type LocalPoint,
   type MapInfo,
 } from '@ratamestari/core'
-import type {
-  ControlSiteCandidate,
-  Course,
-  LegEvaluation,
-  TechnicalDifficulty,
+import {
+  layOutOverprint,
+  type ControlSiteCandidate,
+  type Course,
+  type LegEvaluation,
+  type OverprintLayout,
+  type TechnicalDifficulty,
 } from '@ratamestari/engine'
 import {
   COURSE_OVERPRINT_PURPLE,
@@ -233,6 +235,8 @@ interface Props {
   costMap: CostMapImage | null
   sites: readonly ControlSiteCandidate[] | null
   course: Course | null
+  // Where the numbers go and where circles and lines are cut, laid out for `course`.
+  overprintLayout: OverprintLayout | null
   printFrame: LocalExtent | null
   isPlacingFrame: boolean
   onFrameMoved: (centre: LocalPoint) => void
@@ -269,6 +273,7 @@ export function MapView({
   costMap,
   sites,
   course,
+  overprintLayout,
   printFrame,
   isPlacingFrame,
   onFrameMoved,
@@ -612,8 +617,11 @@ export function MapView({
   useEffect(() => {
     if (revealingCourse.current && course !== revealingCourse.current) endReveal.current()
     courseSource.clear()
-    if (course) courseSource.addFeatures(courseOverprintFeatures(course))
-  }, [course, courseSource])
+    if (course)
+      courseSource.addFeatures(
+        courseOverprintFeatures(course, overprintLayout ?? layOutOverprint(course)),
+      )
+  }, [course, overprintLayout, courseSource])
 
   useEffect(() => {
     suggestionSource.clear()

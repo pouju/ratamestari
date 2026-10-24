@@ -7,6 +7,8 @@ import { DOMImplementation, XMLSerializer } from 'xmldom'
 import type { LocalPoint } from '@ratamestari/core'
 import {
   buildTerrain,
+  layOutOverprint,
+  overprintDetailOf,
   cellCenterOf,
   findControlSites,
   findPeripheralInformation,
@@ -146,6 +148,7 @@ const run = {
   sites: onPage.filter((_, i) => i % every === 0).map(site => toPage(site.position)),
   start: toPage(course.start.position),
   controls: course.controls.map(site => toPage(site.position)),
+  numbers: layOutOverprint(course, overprintDetailOf(features)).numberCentres.map(toPage),
   finish: toPage(course.finish),
   descriptions: {
     width: round(described.widthMillimetres * PAGE_UNITS_PER_MILLIMETRE),

@@ -23,6 +23,8 @@ export interface DemoRun {
   readonly sites: readonly DemoPoint[]
   readonly start: DemoPoint
   readonly controls: readonly DemoPoint[]
+  // Where each control's number goes (ISOM sym. 704); recorded runs before it have none.
+  readonly numbers: readonly DemoPoint[] | null
   readonly finish: DemoPoint
   readonly descriptions: {
     readonly image: string
@@ -45,6 +47,7 @@ export const SAMPLE_RUN: DemoRun = {
   sites: recorded.sites.map(point),
   start: point(recorded.start),
   controls: recorded.controls.map(point),
+  numbers: 'numbers' in recorded ? (recorded.numbers as number[][]).map(point) : null,
   finish: point(recorded.finish),
   descriptions: { image: sampleDescriptions, ...recorded.descriptions },
   symbols: recorded.symbols,

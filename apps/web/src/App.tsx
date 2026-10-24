@@ -7,6 +7,7 @@ import {
   type ControlSiteCandidate,
   type Course,
   type Orientation,
+  type OverprintLayout,
   type PaperChoice,
   type SearchProgress,
 } from '@ratamestari/engine'
@@ -158,6 +159,10 @@ export function App() {
   const [request, setRequest] = useState<CourseRequest>(DEFAULT_REQUEST)
   const [seed, setSeed] = useState(1)
   const [course, setCourse] = useState<Course | null>(null)
+  const [overprint, setOverprint] = useState<{
+    course: Course
+    layout: OverprintLayout
+  } | null>(null)
   const [search, setSearch] = useState<SearchStatus | null>(null)
   const isGenerating = search !== null
   const [paceText, setPaceText] = useState(DEFAULT_WINNER_PACE)
@@ -319,6 +324,18 @@ export function App() {
         if (state && request === latestLegRoutesRequest.current) setLegRoutes(state)
       })
   }, [engine, engineState, routeQueue, routeCache, course, selectedLeg, winnerPace])
+
+  useEffect(() => {
+    if (!course || isGenerating || engineState !== 'ready') return
+    let isCurrent = true
+    void engine.overprintLayout(course).then(layout => {
+      if (isCurrent) setOverprint({ course, layout })
+    })
+    return () => {
+      isCurrent = false
+    }
+  }, [engine, engineState, course, isGenerating])
+  const overprintLayout = overprint && overprint.course === course ? overprint.layout : null
 
   useEffect(() => {
     if (!showCostMap || costMap || engineState !== 'ready') return
@@ -960,6 +977,7 @@ export function App() {
             costMap={showCostMap ? costMap : null}
             sites={showSites ? sites : null}
             course={course}
+            overprintLayout={overprintLayout}
             printFrame={printFrame?.extent ?? course?.printArea?.extent ?? null}
             isPlacingFrame={isPlacingFrame && !isGenerating && !isEditing}
             onFrameMoved={centre =>
@@ -1189,6 +1207,7 @@ export function App() {
                   return savePrintPdf(
                     map,
                     course,
+                    overprintLayout,
                     descriptionBox.sheet,
                     `${courseNameOf(request)}-${request.format}.pdf`,
                     peripheral,

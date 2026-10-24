@@ -1,5 +1,5 @@
 import { PDFDocument } from 'pdf-lib'
-import type { Course, PeripheralInformation } from '@ratamestari/engine'
+import type { Course, OverprintLayout, PeripheralInformation } from '@ratamestari/engine'
 import type { DescriptionSheet } from '@ratamestari/iof'
 import type { OcadMap } from '@ratamestari/map-ocad'
 import { printPageSvg } from '@ratamestari/print'
@@ -13,6 +13,7 @@ const POINTS_PER_INCH = 72
 export async function savePrintPdf(
   map: OcadMap,
   course: Course,
+  overprintLayout: OverprintLayout | null,
   sheet: DescriptionSheet,
   fileName: string,
   peripheral: PeripheralInformation,
@@ -29,6 +30,7 @@ export async function savePrintPdf(
     mapSvg,
     mapScale: map.info.scale,
     course,
+    ...(overprintLayout && { overprintLayout }),
     sheet,
     peripheral: { blocks, scaleLine },
   })
