@@ -4,6 +4,7 @@ import { FORMAT_QUALITY } from '@ratamestari/rules'
 import {
   alternation,
   convexHullArea,
+  crossingSeverity,
   directionChanges,
   firstLegTowardsFinish,
   legLengthDistribution,
@@ -34,9 +35,40 @@ describe('course metrics', () => {
     expect(reversals(square).value).toBe(0)
   })
 
-  it('calls a course that always turns the same way a ring', () => {
-    expect(ring(square).value).toBeCloseTo(1)
-    expect(ring(zigzag).value).toBeLessThan(0.3)
+  it('calls a long course that always turns the same way a ring', () => {
+    const circle = Array.from({ length: 12 }, (_, i): [number, number] => [
+      1000 * Math.cos((i * Math.PI) / 6),
+      1000 * Math.sin((i * Math.PI) / 6),
+    ])
+    expect(ring(course(...circle)).value).toBeCloseTo(1)
+    expect(ring(zigzag).value).toBe(0)
+  })
+
+  it('accepts a short course that is a small loop', () => {
+    expect(ring(square).value).toBe(0)
+    expect(ring(square).note).toBe('100% of the turning goes the same way')
+  })
+
+  it('rates crossings far from controls at a right angle as mild', () => {
+    const stops = course([0, 0], [1000, 0], [500, -500], [500, 500])
+    const far = crossingSeverity(stops[0]!, stops[1]!, stops[2]!, stops[3]!, stops)
+    const nearControl = crossingSeverity(
+      stops[0]!,
+      stops[1]!,
+      localPoint(950, -300),
+      localPoint(950, 300),
+      [...stops, localPoint(950, 300)],
+    )
+    const shallow = crossingSeverity(
+      localPoint(0, 0),
+      localPoint(1000, 0),
+      localPoint(0, -30),
+      localPoint(1000, 30),
+      course([0, 0], [1000, 0], [0, -1000], [1000, 1000]),
+    )
+    expect(far).toBeCloseTo(0.2)
+    expect(nearControl).toBeGreaterThan(0.8)
+    expect(shallow).toBeGreaterThan(0.9)
   })
 
   it('compares leg lengths with the target distribution', () => {

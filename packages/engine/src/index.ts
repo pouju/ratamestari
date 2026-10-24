@@ -63,6 +63,7 @@ export {
 export {
   alternation,
   convexHullArea,
+  crossingSeverity,
   directionChanges,
   firstLegTowardsFinish,
   legLengthDistribution,

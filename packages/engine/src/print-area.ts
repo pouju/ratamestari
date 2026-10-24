@@ -210,6 +210,7 @@ export function fitPrintAreaToCourse(
   stops: readonly LocalPoint[],
   request: CourseFitRequest,
 ): PrintArea | null {
+  if (stops.length === 0) return null
   const mapped = summedMappedArea(terrain)
   const box = descriptionBoxGroundSize(request.descriptionRows, request.printScale)
   const xs = stops.map(([x]) => x)

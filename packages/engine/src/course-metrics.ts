@@ -1,11 +1,13 @@
 import type { LocalExtent, LocalPoint } from '@ratamestari/core'
 import {
   ACUTE_ANGLE,
+  COURSE_LINE_CROSSING,
   COURSE_SHAPE,
   FORMAT_QUALITY,
   type Format,
   type LegLengthTarget,
 } from '@ratamestari/rules'
+import { segmentIntersection } from './polyline'
 import { cellCenterOf } from './raster'
 import type { Terrain } from './terrain'
 
@@ -56,15 +58,42 @@ export function reversals(stops: readonly LocalPoint[]): Metric {
   }
 }
 
+// A short course is naturally a small loop; only a long run of turns all one way is a ring.
 export function ring(stops: readonly LocalPoint[]): Metric {
   const turns = signedTurns(stops)
   const total = turns.reduce((sum, turn) => sum + Math.abs(turn), 0)
   if (total === 0) return { value: 0, note: 'no turns' }
   const consistency = Math.abs(turns.reduce((sum, turn) => sum + turn, 0)) / total
+  const note = `${Math.round(consistency * 100)}% of the turning goes the same way`
+  if (turns.length < COURSE_SHAPE.ringMinTurns) return { value: 0, note }
+  const { ringFreeConsistency } = COURSE_SHAPE
   return {
-    value: consistency,
-    note: `${Math.round(consistency * 100)}% of the turning goes the same way`,
+    value: Math.max(0, consistency - ringFreeConsistency) / (1 - ringFreeConsistency),
+    note,
   }
+}
+
+// How bad one crossing of two course lines is: worst near a control or at a shallow angle,
+// mild far from controls at nearly a right angle. Every crossing keeps a base cost.
+export function crossingSeverity(
+  a: LocalPoint,
+  b: LocalPoint,
+  c: LocalPoint,
+  d: LocalPoint,
+  stops: readonly LocalPoint[],
+): number {
+  const at = segmentIntersection(a, b, c, d)
+  if (!at) return 0
+  const { fullyBadWithinMetres, harmlessBeyondMetres, baseSeverity } = COURSE_LINE_CROSSING
+  const nearest = Math.min(...stops.map(stop => distance(stop, at)))
+  const nearness = Math.max(
+    0,
+    Math.min(1, (harmlessBeyondMetres - nearest) / (harmlessBeyondMetres - fullyBadWithinMetres)),
+  )
+  const [ux, uy] = [b[0] - a[0], b[1] - a[1]]
+  const [vx, vy] = [d[0] - c[0], d[1] - c[1]]
+  const shallowness = Math.abs(ux * vx + uy * vy) / (Math.hypot(ux, uy) * Math.hypot(vx, vy) || 1)
+  return baseSeverity + (1 - baseSeverity) * Math.max(nearness, shallowness)
 }
 
 export function legLengthDistribution(

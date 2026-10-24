@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { citedSchema, iofRules, ratamestarikirja } from './source'
+import { citedSchema, iofRules, isom, ratamestarikirja } from './source'
 import type { Format } from './winning-time'
 
 export const courseShapeRuleSchema = citedSchema.extend({
@@ -12,6 +12,8 @@ export const courseShapeRuleSchema = citedSchema.extend({
   doglegLengthMetres: z.number().positive(),
   doglegWidthMetres: z.number().positive(),
   doglegHardOverlap: z.number().min(0).max(1),
+  ringMinTurns: z.int().min(1),
+  ringFreeConsistency: z.number().min(0).max(1),
 })
 
 export type CourseShapeRule = z.infer<typeof courseShapeRuleSchema>
@@ -26,12 +28,33 @@ export const COURSE_SHAPE: CourseShapeRule = {
   doglegLengthMetres: 75,
   doglegWidthMetres: 15,
   doglegHardOverlap: 0.6,
+  ringMinTurns: 8,
+  ringFreeConsistency: 0.6,
   sources: [
     iofRules('App. 2 §3.4.1'),
     iofRules('App. 2 §3.5.4'),
     ratamestarikirja('1.3.1'),
     ratamestarikirja('4.5.S'),
   ],
+  interpretation: true,
+}
+
+export const courseLineCrossingRuleSchema = citedSchema.extend({
+  fullyBadWithinMetres: z.number().positive(),
+  harmlessBeyondMetres: z.number().positive(),
+  baseSeverity: z.number().min(0).max(1),
+  acceptableSeverity: z.number().min(0).max(1),
+})
+
+// Course setter guidance (2026-10-24): crossings are bad near controls or at a shallow angle; far
+// from controls at nearly a right angle they are acceptable and can let a course use good terrain
+// in a small area. Too many crossings are still bad.
+export const COURSE_LINE_CROSSING: z.infer<typeof courseLineCrossingRuleSchema> = {
+  fullyBadWithinMetres: 75,
+  harmlessBeyondMetres: 300,
+  baseSeverity: 0.2,
+  acceptableSeverity: 0.5,
+  sources: [isom('sym. 703'), isom('sym. 705')],
   interpretation: true,
 }
 
@@ -65,7 +88,7 @@ export const FORMAT_QUALITY: Readonly<Record<Format, FormatQualityProfile>> = {
       interpretation: true,
     },
     directionChangeRateTarget: 0.6,
-    spreadTarget: 0.5,
+    spreadTarget: 0.3,
     waypoints: { count: [3, 5], minSeparationMetres: 700, reachedWithinMetres: 250 },
     sources: [ratamestarikirja('2.S.1'), iofRules('App. 2 §3.4.1')],
     interpretation: true,
@@ -78,7 +101,7 @@ export const FORMAT_QUALITY: Readonly<Record<Format, FormatQualityProfile>> = {
       interpretation: true,
     },
     directionChangeRateTarget: 0.75,
-    spreadTarget: 0.4,
+    spreadTarget: 0.15,
     waypoints: { count: [2, 3], minSeparationMetres: 300, reachedWithinMetres: 120 },
     sources: [ratamestarikirja('2.S.2'), iofRules('App. 2 §3.4.1')],
     interpretation: true,

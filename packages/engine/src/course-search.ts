@@ -1,6 +1,7 @@
 import type { LocalPoint } from '@ratamestari/core'
 import {
   ACUTE_ANGLE,
+  COURSE_LINE_CROSSING,
   FORMAT_QUALITY,
   SCORE_WEIGHTS,
   controlSpacingForScale,
@@ -15,6 +16,7 @@ import { measureCourse } from './course-length'
 import { planWaypoints } from './waypoints'
 import {
   alternation,
+  crossingSeverity,
   directionChanges,
   firstLegTowardsFinish,
   legLengthDistribution,
@@ -112,6 +114,7 @@ const FINISH_OUTER_CIRCLE_FOOTPRINT_RADIUS_METERS = 45
 const FINAL_LEG_MAX_SHARE_OF_TARGET = 0.04
 const REVERSE_SECTION_CHANCE = 0.25
 const SHIFT_CHANCE = 0.4
+const TARGET_FLAGGED_CONTROL_CHANCE = 0.5
 const SHIFT_RADIUS_METERS = 150
 const HEADING_HOME_SHARE_OF_TARGET = 0.25
 const QUALITY_PREFERENCE = 2
@@ -328,8 +331,7 @@ export function assembleCourse(
   order: readonly number[],
   withLength: boolean,
 ): Course {
-  const findings: Finding[] = []
-  const scored = evaluation.score(startIndex, order, findings)
+  const scored = evaluation.score(startIndex, order)
   const stops = [startIndex, ...order].map(i => pool[i]!.position)
   const measured = withLength ? measureCourse(terrain, [...stops, finish]) : null
   const controls = order.map(i => pool[i]!)
@@ -348,7 +350,7 @@ export function assembleCourse(
     climbMeters: measured?.climbMeters ?? null,
     printArea: spec.printArea ?? null,
     problems: scored.problems,
-    findings,
+    findings: scored.findings,
     breakdown: scored.breakdown,
     score: scored.score,
   }
@@ -373,6 +375,7 @@ interface ScoredCourse {
   readonly targetSeconds: number
   readonly problems: CourseProblems
   readonly breakdown: ScoreBreakdown
+  readonly findings: readonly Finding[]
   readonly score: number
 }
 
@@ -394,12 +397,9 @@ function createEvaluation(
   const profile = FORMAT_QUALITY[spec.format]
   const [minDifficulty, maxDifficulty] = spec.target.siteDifficulty
 
-  const score = (
-    startIndex: number,
-    order: readonly number[],
-    findings?: Finding[],
-  ): ScoredCourse => {
-    const found = (kind: Finding['kind'], ...stops: number[]) => findings?.push({ kind, stops })
+  const score = (startIndex: number, order: readonly number[]): ScoredCourse => {
+    const findings: Finding[] = []
+    const found = (kind: Finding['kind'], ...stops: number[]) => findings.push({ kind, stops })
     const sequence = [startIndex, ...order]
     const legSeconds = [
       ...order.map((site, i) => legSecondsBetween(sequence[i]!, site)),
@@ -458,8 +458,14 @@ function createEvaluation(
       }
     })
 
-    const crossingLegs = courseLineCrossings(stops)
-    crossingLegs.forEach(([a, b]) => found('courseLineCrossings', a, a + 1, b, b + 1))
+    const crossings = courseLineCrossings(stops).map(([a, b]) => ({
+      a,
+      b,
+      severity: crossingSeverity(stops[a]!, stops[a + 1]!, stops[b]!, stops[b + 1]!, stops),
+    }))
+    const badCrossings = crossings.filter(c => c.severity > COURSE_LINE_CROSSING.acceptableSeverity)
+    badCrossings.forEach(({ a, b }) => found('courseLineCrossings', a, a + 1, b, b + 1))
+    const crossingSeverityTotal = crossings.reduce((sum, c) => sum + c.severity, 0)
     const overlapping = overlappingCircles(stops)
     overlapping.forEach(([a, b]) => found('overlappingCircles', a, b))
     let courseLinesOutsideMap = 0
@@ -490,7 +496,7 @@ function createEvaluation(
       acuteAngleWarnings,
       acuteAngleNotes,
       difficultyOutsideRange,
-      courseLineCrossings: crossingLegs.length,
+      courseLineCrossings: badCrossings.length,
       courseLinesThroughControls: linesThroughControls.length,
       courseLinesOutsideMap,
       courseLinesOverDescriptions,
@@ -544,8 +550,8 @@ function createEvaluation(
       ),
       courseLineCrossing: term(
         'courseLineCrossing',
-        crossingLegs.length,
-        count(crossingLegs.length, 'crossings'),
+        crossingSeverityTotal,
+        `${crossings.length} crossings, ${badCrossings.length} near a control or at a shallow angle`,
       ),
       courseLineThroughControl: term(
         'courseLineThroughControl',
@@ -594,6 +600,7 @@ function createEvaluation(
       targetSeconds,
       problems,
       breakdown: { total: score, terms },
+      findings,
       score,
     }
   }
@@ -884,6 +891,63 @@ function buildGreedy(
     previous = current
     current = next
   }
+
+  // The build can stop where nothing more fits, after a control that was never checked as the
+  // last one. If its line into the finish is not clean, put the best clean site there instead.
+  function closeCleanly(course: number[]) {
+    const stopsOf = (indices: readonly number[]) =>
+      [startIndex, ...indices].map(u => pool[u]!.position)
+    const endsCleanly = (indices: readonly number[]) => {
+      const stops = stopsOf(indices)
+      const last = stops[stops.length - 1]!
+      const beforeLast = stops[stops.length - 2]
+      const beforeThat = stops[stops.length - 3]
+      if (beforeLast && angleAt(beforeLast, last, finish) < ACUTE_ANGLE.noteBelowDegrees)
+        return false
+      if (
+        beforeThat &&
+        beforeLast &&
+        angleAt(beforeThat, beforeLast, last) < ACUTE_ANGLE.noteBelowDegrees
+      ) {
+        return false
+      }
+      for (let k = 0; k + 2 < stops.length; k++) {
+        if (segmentsCross(stops[k]!, stops[k + 1]!, last, finish)) return false
+        if (k + 3 < stops.length && segmentsCross(stops[k]!, stops[k + 1]!, beforeLast!, last))
+          return false
+      }
+      return stops
+        .slice(0, -1)
+        .every(
+          stop =>
+            distanceToSegment(stop, last, finish) >= CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS &&
+            (stop === beforeLast ||
+              !beforeLast ||
+              distanceToSegment(stop, beforeLast, last) >= CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS),
+        )
+    }
+    if (course.length === 0 || endsCleanly(course)) return
+    const kept = course.slice(0, -1)
+    const previous = kept.length > 0 ? kept[kept.length - 1]! : startIndex
+    const fromPrevious = timesFrom(previous)
+    const used = new Set([startIndex, ...kept])
+    const elapsedBefore = kept.reduce(
+      (sum, site, i) => sum + timesFrom(i === 0 ? startIndex : kept[i - 1]!)[site]!,
+      0,
+    )
+    let best: { site: number; error: number } | null = null
+    pool.forEach((_, site) => {
+      if (used.has(site)) return
+      const total = elapsedBefore + fromPrevious[site]! + toFinish[site]!
+      if (!Number.isFinite(total)) return
+      const error = Math.abs(targetSeconds - total)
+      if (best && error >= best.error) return
+      if (!endsCleanly([...kept, site])) return
+      best = { site, error }
+    })
+    if (best) course.splice(course.length - 1, 1, (best as { site: number }).site)
+  }
+  closeCleanly(order)
   return order
 }
 
@@ -910,7 +974,14 @@ function proposeChange(
   const used = new Set([startIndex, ...order])
   const isTooLong = current.estimatedSeconds > current.targetSeconds * (1 + TIME_TOLERANCE_SHARE)
   const isTooShort = current.estimatedSeconds < current.targetSeconds * (1 - TIME_TOLERANCE_SHARE)
-  const position = Math.floor(random.next() * order.length)
+  const flaggedPositions = current.findings
+    .flatMap(finding => finding.stops)
+    .map(stop => Math.min(stop, order.length) - 1)
+    .filter(position => position >= 0)
+  const position =
+    flaggedPositions.length > 0 && random.next() < TARGET_FLAGGED_CONTROL_CHANCE
+      ? random.pick(flaggedPositions)!
+      : Math.floor(random.next() * order.length)
 
   if (current.problems.finalLegTooLong && random.next() < BRING_LAST_CONTROL_HOME_CHANCE) {
     const last = order.length - 1
@@ -958,6 +1029,13 @@ function proposeChange(
         return false
       }
     }
+    const sequence = [...stops, finish]
+    const beforeThat = sequence[position - 1]
+    const afterThat = sequence[replacing ? position + 3 : position + 2]
+    const minimumAngle = ACUTE_ANGLE.noteBelowDegrees
+    if (beforeThat && angleAt(beforeThat, before, candidate) < minimumAngle) return false
+    if (angleAt(before, candidate, after) < minimumAngle) return false
+    if (afterThat && angleAt(candidate, after, afterThat) < minimumAngle) return false
     return true
   }
   const candidatesWithin = (lowShare: number, highShare: number, replacing = true) =>
