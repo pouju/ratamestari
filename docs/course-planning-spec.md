@@ -198,6 +198,8 @@ The control count is not a hard rule: no source gives a range, and the winning t
 
 ## 8. Planning and search
 
+> **Replaced** by [`section-planning-spec.md`](section-planning-spec.md) (D19): technical areas, skeleton and section fill. The waypoint zones and greedy build described below are no longer in the engine.
+
 ### 8.1 Waypoint zones (phase A, replaces the forced loop)
 
 Long distance today travels round a loop centre (`planLoop`). Replace it with waypoints:

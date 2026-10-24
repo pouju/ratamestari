@@ -42,12 +42,12 @@ Full decision log with reasoning and rejected alternatives: [`docs/decisions.md`
   - `Storage` — browser now, database later
 - **Map input** (D1): [ocad2geojson](https://github.com/perliedman/ocad2geojson) by Per Liedman, wrapped in **one adapter module** that outputs our internal map format: features with a category (forbidden, impassable, water, path, control feature…), plus scale and georeference. Course logic must not depend on ocad2geojson directly. Features carry OCAD symbol numbers, which map to ISOM/ISSprOM categories.
   - Bundling: provide the `buffer` package and alias `fs` to an empty module (Vite or webpack 5). Pass a `Buffer`, not a file path.
-- **Engine pipeline**: candidate control sites from ISOM symbols → runnability cost map + A* routing → course search → rule checks → fit to paper.
+- **Engine pipeline**: candidate control sites from ISOM symbols → runnability cost map + A* routing → technical areas → skeleton (which areas, connecting legs, a time budget per section) → section fill (beam search) → improvement and rule checks → fit to paper (D19).
 - **Agent tools** (examples): `generate_course`, `make_leg_harder`. Tools run locally and return summaries only.
 
 ## Product behaviour
 
-- **One-view workspace** (D5), not a wizard. Main area: the map as the print page with course and description box. Side panel: assistant chat, interpreted spec, live progress, rule warnings with Fix buttons, tabs per course (H21, D21…). The course draws live; the user can stop, drag controls or the description box, and rules re-check instantly.
+- **One-view workspace** (D5), not a wizard. Main area: the map as the print page with course and description box. Side panel: assistant chat, interpreted spec, live progress, rule warnings with Fix buttons, tabs per course (H21, D21…). While the course is being set, the panel shows the search phase; the finished course is then revealed (D20). The user can stop, drag controls or the description box, and rules re-check instantly.
 - **User picks the competition centre** (D6). Suggest candidates from the map (fields, buildings, parking, roads); user picks or clicks. Start/finish wishes come via chat.
 - **Auto-fit to paper** (D7): course + description box fit A4 or A3; engine picks print area and orientation. User can override paper, orientation, scale, print area. "Fits on paper" is a normal rule check; the description box must not cover the course.
 - **IOF control descriptions** (D8): symbolic format, columns A–H, header rows (event, class, length, climb), thicker line every third control, finish row. Generated from map objects under each control (mainly column D feature, G flag location). Also used in difficulty assessment (e.g. "hill, top" is too easy for SM level). Use the official IOF pictogram set.
