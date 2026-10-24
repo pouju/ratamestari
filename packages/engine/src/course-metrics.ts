@@ -222,3 +222,79 @@ export function measureCourseShape(
     spread: spread(stops, mappedAreaWithin(terrain, printExtent), profile.spreadTarget),
   }
 }
+
+const ROUTE_SAMPLE_SPACING_METRES = 5
+
+function pointsAlong(
+  route: readonly LocalPoint[],
+  lengthMetres: number,
+  fromEnd: boolean,
+): LocalPoint[] {
+  const path = fromEnd ? [...route].reverse() : route
+  const samples: LocalPoint[] = path.length > 0 ? [path[0]!] : []
+  let travelled = 0
+  for (let i = 1; i < path.length && travelled < lengthMetres; i++) {
+    const [ax, ay] = path[i - 1]!
+    const [bx, by] = path[i]!
+    const segment = Math.hypot(bx - ax, by - ay)
+    for (
+      let along = ROUTE_SAMPLE_SPACING_METRES;
+      along <= segment;
+      along += ROUTE_SAMPLE_SPACING_METRES
+    ) {
+      if (travelled + along > lengthMetres) break
+      const t = along / segment
+      samples.push([ax + (bx - ax) * t, ay + (by - ay) * t] as const as LocalPoint)
+    }
+    travelled += segment
+  }
+  return samples
+}
+
+function distanceToPolyline(point: LocalPoint, line: readonly LocalPoint[]): number {
+  let best = Number.POSITIVE_INFINITY
+  for (let i = 1; i < line.length; i++) {
+    const [ax, ay] = line[i - 1]!
+    const [bx, by] = line[i]!
+    const dx = bx - ax
+    const dy = by - ay
+    const lengthSquared = dx * dx + dy * dy
+    const t =
+      lengthSquared === 0
+        ? 0
+        : Math.max(0, Math.min(1, ((point[0] - ax) * dx + (point[1] - ay) * dy) / lengthSquared))
+    best = Math.min(best, Math.hypot(point[0] - (ax + t * dx), point[1] - (ay + t * dy)))
+  }
+  return best
+}
+
+// Share of the start of each outgoing route that runs back along the end of the incoming one.
+export function routeDoglegOverlaps(legRoutes: readonly (readonly LocalPoint[])[]): number[] {
+  const { doglegLengthMetres, doglegWidthMetres } = COURSE_SHAPE
+  return legRoutes.slice(1).map((outgoing, i) => {
+    const incomingEnd = pointsAlong(legRoutes[i]!, doglegLengthMetres, true)
+    const control = outgoing[0]
+    const outgoingStart = pointsAlong(outgoing, doglegLengthMetres, false).filter(
+      point => !control || distance(point, control) > doglegWidthMetres,
+    )
+    if (incomingEnd.length < 2 || outgoingStart.length === 0) return 0
+    const alongIncoming = outgoingStart.filter(
+      point => distanceToPolyline(point, incomingEnd) <= doglegWidthMetres,
+    )
+    return alongIncoming.length / outgoingStart.length
+  })
+}
+
+export function routeDoglegs(legRoutes: readonly (readonly LocalPoint[])[]): Metric {
+  const overlaps = routeDoglegOverlaps(legRoutes)
+  const doglegs = overlaps.flatMap((overlap, i) =>
+    overlap > 0 ? [{ control: i + 1, overlap }] : [],
+  )
+  return {
+    value: overlaps.reduce((sum, overlap) => sum + overlap, 0),
+    note:
+      doglegs.length === 0
+        ? 'no doglegs'
+        : `routes double back at ${doglegs.map(d => `${controlName(d.control)} (${Math.round(d.overlap * 100)}%)`).join(', ')}`,
+  }
+}

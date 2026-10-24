@@ -10,6 +10,8 @@ import {
   legLengths,
   mappedAreaWithin,
   measureCourseShape,
+  findRoute,
+  routeDoglegOverlaps,
   setCourseOnPaper,
   signedTurns,
   type Terrain,
@@ -162,6 +164,7 @@ function table(rows: readonly Row[], terrain: Terrain): string {
     'reversals',
     'monotonous',
     'spread',
+    'doglegs',
     'long fit',
     'middle fit',
     'time err',
@@ -187,6 +190,7 @@ function table(rows: readonly Row[], terrain: Terrain): string {
       long.reversals.value.toFixed(2),
       percent(long.alternation.value),
       percent(usable > 0 ? convexHullArea(row.stops) / usable : 0),
+      doglegs(row.stops, terrain),
       long.legLengths.value.toFixed(2),
       metricsFor('middle').legLengths.value.toFixed(2),
       row.timeErrorPercent === null ? '' : `${row.timeErrorPercent.toFixed(1)}%`,
@@ -199,6 +203,15 @@ function table(rows: readonly Row[], terrain: Terrain): string {
     .join('\n')
 }
 
+function doglegs(stops: readonly LocalPoint[], terrain: Terrain): string {
+  const routes = stops
+    .slice(1)
+    .map((stop, i) => findRoute(terrain.grid, stops[i]!, stop)?.points ?? [stops[i]!, stop])
+  const overlaps = routeDoglegOverlaps(routes)
+  const hard = overlaps.filter(overlap => overlap > COURSE_SHAPE.doglegHardOverlap).length
+  return `${hard} (max ${percent(Math.max(0, ...overlaps))})`
+}
+
 function legend(): string {
   const edges = FORMAT_QUALITY.long.legLengths.binEdgesMetres
   return [
@@ -206,6 +219,7 @@ function legend(): string {
     'Same-way turning: share of turning in one direction (100% is a ring).',
     `Reversals: turns over ${COURSE_SHAPE.reversalDegrees}°, weighted by the shorter leg.`,
     'Monotonous: share of legs in runs of similar length. Spread: course hull / mapped area on the paper.',
+    `Doglegs: controls where the next route runs back along the incoming one by more than ${COURSE_SHAPE.doglegHardOverlap * 100}% (worst overlap in brackets).`,
     'Long/middle fit: distance from the leg-length target of that format (0 is a perfect match).',
   ].join('\n')
 }

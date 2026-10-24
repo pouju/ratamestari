@@ -71,6 +71,8 @@ export {
   measureCourseShape,
   reversals,
   ring,
+  routeDoglegOverlaps,
+  routeDoglegs,
   signedTurns,
   spread,
   type Metric,

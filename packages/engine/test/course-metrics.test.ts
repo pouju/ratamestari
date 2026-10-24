@@ -9,6 +9,7 @@ import {
   legLengthDistribution,
   reversals,
   ring,
+  routeDoglegs,
   signedTurns,
   spread,
 } from '../src/course-metrics'
@@ -72,5 +73,14 @@ describe('course metrics', () => {
     expect(convexHullArea(square)).toBeCloseTo(1_000_000, -3)
     expect(spread(square, 2_000_000, 0.5).value).toBe(0)
     expect(spread(square, 8_000_000, 0.5).value).toBeCloseTo(0.75, 1)
+  })
+
+  it('finds a dogleg where the next route runs back along the incoming one', () => {
+    const along = course([0, 0], [100, 0], [200, 0], [300, 0])
+    const back = course([300, 0], [200, 5], [150, 5], [100, 300])
+    const away = course([300, 0], [300, 200], [300, 400])
+    expect(routeDoglegs([along, back]).value).toBeGreaterThan(0.5)
+    expect(routeDoglegs([along, back]).note).toMatch(/^routes double back at control 1/)
+    expect(routeDoglegs([along, away]).value).toBe(0)
   })
 })
