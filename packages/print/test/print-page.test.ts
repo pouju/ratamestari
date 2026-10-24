@@ -51,6 +51,7 @@ const course: Course = {
     extent: localExtent(0, 0, 2000, 2870),
     descriptionBox: localExtent(1520, 0, 2000, 1560),
   },
+  findings: [],
   score: 0,
 }
 

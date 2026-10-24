@@ -28,6 +28,7 @@ export {
   type Course,
   type CourseProblems,
   type CourseSpec,
+  type Finding,
 } from './course-search'
 export { mappedAreaMask } from './mapped-area'
 export {
@@ -38,7 +39,8 @@ export {
 } from './course-length'
 export { siteAreaQuality } from './site-quality'
 export { difficultyInCourse, flagSideFor, type FlagSide } from './flag-side'
-export { setCourseOnPaper, type PaperChoice } from './course-on-paper'
+export { fitCourseToPaper, papersFor, setCourseOnPaper, type PaperChoice } from './course-on-paper'
+export { fixControl, moveControl, nearestSite, recheckCourse } from './course-editing'
 export {
   descriptionBoxGroundSize,
   fitPrintAreaToCourse,

@@ -30,6 +30,7 @@ const course: Course = {
     finalLegTooLong: false,
   },
   printArea: null,
+  findings: [],
   score: 0,
 }
 

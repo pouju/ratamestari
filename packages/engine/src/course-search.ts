@@ -29,6 +29,11 @@ export interface CourseSpec {
   readonly printArea?: PrintArea
 }
 
+export interface Finding {
+  readonly kind: keyof CourseProblems
+  readonly stops: readonly number[]
+}
+
 export interface CourseProblems {
   readonly spacing: number
   readonly acuteAngleWarnings: number
@@ -56,6 +61,7 @@ export interface Course {
   readonly climbMeters: number | null
   readonly printArea: PrintArea | null
   readonly problems: CourseProblems
+  readonly findings: readonly Finding[]
   readonly score: number
 }
 
@@ -189,26 +195,16 @@ export function searchCourse(
     return timesFrom(from)[to]!
   }
 
-  const staysOnMap = (from: LocalPoint, to: LocalPoint) =>
-    courseLineStaysOnMap(grid, terrain.mappedArea, from, to)
-  const clearOfDescriptions = (from: LocalPoint, to: LocalPoint) =>
-    !printArea || !lineCrossesExtent(from, to, printArea.descriptionBox)
-  const isAllowedCourseLine = (from: LocalPoint, to: LocalPoint) =>
-    staysOnMap(from, to) && clearOfDescriptions(from, to)
-  const routeChoiceValue = (from: LocalPoint, to: LocalPoint, fastestSeconds: number) =>
-    routeChoiceValueOf(straightLineSeconds(grid, from, to, pace), fastestSeconds)
-  const evaluation = createEvaluation(
-    pool,
+  const { evaluation, isAllowedCourseLine, routeChoiceValue } = evaluationFor(
+    terrain,
     spec,
+    pool,
     finish,
     toFinish,
     legSeconds,
-    targetSeconds,
-    staysOnMap,
-    clearOfDescriptions,
     quality,
-    routeChoiceValue,
   )
+  const context: CourseContext = { terrain, spec, pool, finish, targetSeconds, evaluation }
   let startIndex = NO_SITE
   let order: number[] = []
   let best: ScoredCourse | null = null
@@ -255,26 +251,82 @@ export function searchCourse(
   return toCourse(best, true)
 
   function toCourse(scored: ScoredCourse, withLength = false): Course {
-    const stops = [startIndex, ...scored.order].map(i => pool[i]!.position)
-    const measured = withLength ? measureCourse(terrain, [...stops, finish]) : null
-    const controls = scored.order.map(i => pool[i]!)
-    const maxDifficulty = spec.target.siteDifficulty[1]
-    return {
-      seed: spec.seed,
-      start: pool[startIndex]!,
-      controls,
-      controlDifficulties: controls.map(site => difficultyInCourse(site, maxDifficulty)),
-      flagSides: controls.map((site, i) => flagSideFor(site, stops[i]!, maxDifficulty)),
-      finish,
-      legSeconds: scored.legSeconds,
-      estimatedSeconds: scored.estimatedSeconds,
-      targetSeconds,
-      lengthMeters: measured?.lengthMeters ?? null,
-      climbMeters: measured?.climbMeters ?? null,
-      printArea: printArea ?? null,
-      problems: scored.problems,
-      score: scored.score,
-    }
+    return assembleCourse(context, startIndex, scored.order, withLength)
+  }
+}
+
+export interface CourseContext {
+  readonly terrain: Terrain
+  readonly spec: CourseSpec
+  readonly pool: readonly ControlSiteCandidate[]
+  readonly finish: LocalPoint
+  readonly targetSeconds: number
+  readonly evaluation: ReturnType<typeof createEvaluation>
+}
+
+export function evaluationFor(
+  terrain: Terrain,
+  spec: CourseSpec,
+  pool: readonly ControlSiteCandidate[],
+  finish: LocalPoint,
+  toFinish: Float32Array,
+  legSeconds: (from: number, to: number) => number,
+  quality: Float32Array,
+) {
+  const { grid } = terrain
+  const { printArea } = spec
+  const pace = spec.paceSecondsPerKm ?? REFERENCE_PACE_SECONDS_PER_KM.value
+  const staysOnMap = (from: LocalPoint, to: LocalPoint) =>
+    courseLineStaysOnMap(grid, terrain.mappedArea, from, to)
+  const clearOfDescriptions = (from: LocalPoint, to: LocalPoint) =>
+    !printArea || !lineCrossesExtent(from, to, printArea.descriptionBox)
+  const isAllowedCourseLine = (from: LocalPoint, to: LocalPoint) =>
+    staysOnMap(from, to) && clearOfDescriptions(from, to)
+  const routeChoiceValue = (from: LocalPoint, to: LocalPoint, fastestSeconds: number) =>
+    routeChoiceValueOf(straightLineSeconds(grid, from, to, pace), fastestSeconds)
+  const evaluation = createEvaluation(
+    pool,
+    spec,
+    finish,
+    toFinish,
+    legSeconds,
+    spec.target.winningTime.targetMinutes * 60,
+    staysOnMap,
+    clearOfDescriptions,
+    quality,
+    routeChoiceValue,
+  )
+  return { evaluation, isAllowedCourseLine, routeChoiceValue }
+}
+
+export function assembleCourse(
+  { terrain, spec, pool, finish, targetSeconds, evaluation }: CourseContext,
+  startIndex: number,
+  order: readonly number[],
+  withLength: boolean,
+): Course {
+  const findings: Finding[] = []
+  const scored = evaluation.score(startIndex, order, findings)
+  const stops = [startIndex, ...order].map(i => pool[i]!.position)
+  const measured = withLength ? measureCourse(terrain, [...stops, finish]) : null
+  const controls = order.map(i => pool[i]!)
+  const maxDifficulty = spec.target.siteDifficulty[1]
+  return {
+    seed: spec.seed,
+    start: pool[startIndex]!,
+    controls,
+    controlDifficulties: controls.map(site => difficultyInCourse(site, maxDifficulty)),
+    flagSides: controls.map((site, i) => flagSideFor(site, stops[i]!, maxDifficulty)),
+    finish,
+    legSeconds: scored.legSeconds,
+    estimatedSeconds: scored.estimatedSeconds,
+    targetSeconds,
+    lengthMeters: measured?.lengthMeters ?? null,
+    climbMeters: measured?.climbMeters ?? null,
+    printArea: spec.printArea ?? null,
+    problems: scored.problems,
+    findings,
+    score: scored.score,
   }
 }
 
@@ -302,7 +354,12 @@ function createEvaluation(
   const spacing = controlSpacingForScale(spec.printScale)
   const [minDifficulty, maxDifficulty] = spec.target.siteDifficulty
 
-  const score = (startIndex: number, order: readonly number[]): ScoredCourse => {
+  const score = (
+    startIndex: number,
+    order: readonly number[],
+    findings?: Finding[],
+  ): ScoredCourse => {
+    const found = (kind: Finding['kind'], ...stops: number[]) => findings?.push({ kind, stops })
     const sequence = [startIndex, ...order]
     const legSeconds = [
       ...order.map((site, i) => legSecondsBetween(sequence[i]!, site)),
@@ -320,7 +377,10 @@ function createEvaluation(
           siteA.isomCode === siteB.isomCode
             ? spacing.minStraightMetersForSimilarSites
             : spacing.minStraightMeters
-        if (distance < minimum) spacingProblems++
+        if (distance < minimum) {
+          spacingProblems++
+          found('spacing', a, b)
+        }
       }
     }
 
@@ -330,8 +390,13 @@ function createEvaluation(
     const stops = [...sequence.map(i => pool[i]!.position), finish]
     for (let i = 1; i + 1 < stops.length; i++) {
       const angle = angleAt(stops[i - 1]!, stops[i]!, stops[i + 1]!)
-      if (angle < ACUTE_ANGLE.warningBelowDegrees) acuteAngleWarnings++
-      else if (angle < ACUTE_ANGLE.noteBelowDegrees) acuteAngleNotes++
+      if (angle < ACUTE_ANGLE.warningBelowDegrees) {
+        acuteAngleWarnings++
+        found('acuteAngleWarnings', i)
+      } else if (angle < ACUTE_ANGLE.noteBelowDegrees) {
+        acuteAngleNotes++
+        found('acuteAngleNotes', i)
+      }
       if (angle > STRAIGHT_ON_ANGLE_DEGREES) straightOnTurns++
     }
 
@@ -346,36 +411,52 @@ function createEvaluation(
     const routeChoiceTotal = keyLegValues.reduce((sum, value) => sum + value, 0)
     const meanQuality =
       order.length === 0 ? 0 : order.reduce((sum, i) => sum + quality[i]!, 0) / order.length
-    const difficultyOutsideRange = order.filter(i => {
-      const difficulty = difficultyInCourse(pool[i]!, maxDifficulty)
-      return difficulty < minDifficulty || difficulty > maxDifficulty
-    }).length
+    let difficultyOutsideRange = 0
+    order.forEach((site, i) => {
+      const difficulty = difficultyInCourse(pool[site]!, maxDifficulty)
+      if (difficulty < minDifficulty || difficulty > maxDifficulty) {
+        difficultyOutsideRange++
+        found('difficultyOutsideRange', i + 1)
+      }
+    })
 
-    const courseLineCrossings = countCourseLineCrossings(stops)
-    const overlappingCircles = countOverlappingCircles(stops)
+    const crossingLegs = courseLineCrossings(stops)
+    crossingLegs.forEach(([a, b]) => found('courseLineCrossings', a, a + 1, b, b + 1))
+    const overlapping = overlappingCircles(stops)
+    overlapping.forEach(([a, b]) => found('overlappingCircles', a, b))
     let courseLinesOutsideMap = 0
     let courseLinesOverDescriptions = 0
     for (let i = 0; i + 1 < stops.length; i++) {
-      if (!staysOnMap(stops[i]!, stops[i + 1]!)) courseLinesOutsideMap++
-      if (!clearOfDescriptions(stops[i]!, stops[i + 1]!)) courseLinesOverDescriptions++
+      if (!staysOnMap(stops[i]!, stops[i + 1]!)) {
+        courseLinesOutsideMap++
+        found('courseLinesOutsideMap', i, i + 1)
+      }
+      if (!clearOfDescriptions(stops[i]!, stops[i + 1]!)) {
+        courseLinesOverDescriptions++
+        found('courseLinesOverDescriptions', i, i + 1)
+      }
     }
-    const courseLinesThroughControls = countCourseLinesThroughControls(stops)
+    const linesThroughControls = courseLinesThroughControls(stops)
+    linesThroughControls.forEach(([leg, control]) =>
+      found('courseLinesThroughControls', leg, leg + 1, control),
+    )
     const finalLegShare = legSeconds[legSeconds.length - 1]! / targetSeconds
     const finalLegPercentOverLimit = Math.max(
       0,
       100 * (finalLegShare - FINAL_LEG_MAX_SHARE_OF_TARGET),
     )
+    if (finalLegPercentOverLimit > 0) found('finalLegTooLong', stops.length - 2, stops.length - 1)
 
     const problems = {
       spacing: spacingProblems,
       acuteAngleWarnings,
       acuteAngleNotes,
       difficultyOutsideRange,
-      courseLineCrossings,
-      courseLinesThroughControls,
+      courseLineCrossings: crossingLegs.length,
+      courseLinesThroughControls: linesThroughControls.length,
       courseLinesOutsideMap,
       courseLinesOverDescriptions,
-      overlappingCircles,
+      overlappingCircles: overlapping.length,
       finalLegTooLong: finalLegPercentOverLimit > 0,
     }
     const timeErrorPercent = (100 * Math.abs(estimatedSeconds - targetSeconds)) / targetSeconds
@@ -393,12 +474,12 @@ function createEvaluation(
           PENALTY.acuteAngleWarning * acuteAngleWarnings +
           PENALTY.acuteAngleNote * acuteAngleNotes +
           PENALTY.difficultyOutsideRange * difficultyOutsideRange +
-          PENALTY.courseLineCrossing * courseLineCrossings +
-          PENALTY.courseLineThroughControl * courseLinesThroughControls +
+          PENALTY.courseLineCrossing * crossingLegs.length +
+          PENALTY.courseLineThroughControl * linesThroughControls.length +
           PENALTY.finalLegPerPercentOverLimit * finalLegPercentOverLimit +
           PENALTY.courseLineOutsideMap * courseLinesOutsideMap +
           PENALTY.courseLineOverDescriptions * courseLinesOverDescriptions +
-          PENALTY.overlappingCircles * overlappingCircles -
+          PENALTY.overlappingCircles * overlapping.length -
           QUALITY_REWARD[spec.format] * meanQuality +
           STRAIGHT_ON_PENALTY[spec.format] * straightOnTurns -
           (spec.format === 'long' ? ROUTE_CHOICE_REWARD_PER_KEY_LEG * routeChoiceTotal : 0),
@@ -749,40 +830,43 @@ function angleAt(previous: LocalPoint, vertex: LocalPoint, next: LocalPoint): nu
   return (Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / lengths))) * 180) / Math.PI
 }
 
-function countCourseLineCrossings(stops: readonly LocalPoint[]): number {
-  let crossings = 0
+type Pair = [number, number]
+
+function courseLineCrossings(stops: readonly LocalPoint[]): Pair[] {
+  const crossings: Pair[] = []
   for (let a = 0; a + 1 < stops.length; a++) {
     for (let b = a + 2; b + 1 < stops.length; b++) {
-      if (segmentsCross(stops[a]!, stops[a + 1]!, stops[b]!, stops[b + 1]!)) crossings++
+      if (segmentsCross(stops[a]!, stops[a + 1]!, stops[b]!, stops[b + 1]!)) crossings.push([a, b])
     }
   }
   return crossings
 }
 
-function countCourseLinesThroughControls(stops: readonly LocalPoint[]): number {
-  let count = 0
+function courseLinesThroughControls(stops: readonly LocalPoint[]): Pair[] {
+  const throughControls: Pair[] = []
   for (let leg = 0; leg + 1 < stops.length; leg++) {
     for (let control = 1; control < stops.length - 1; control++) {
       if (control === leg || control === leg + 1) continue
       const distance = distanceToSegment(stops[control]!, stops[leg]!, stops[leg + 1]!)
-      if (distance < CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS) count++
+      if (distance < CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS) throughControls.push([leg, control])
     }
   }
-  return count
+  return throughControls
 }
 
-function countOverlappingCircles(stops: readonly LocalPoint[]): number {
+function overlappingCircles(stops: readonly LocalPoint[]): Pair[] {
   const radiusOf = (i: number) =>
     i === stops.length - 1
       ? FINISH_OUTER_CIRCLE_FOOTPRINT_RADIUS_METERS
       : CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS
-  let count = 0
+  const overlapping: Pair[] = []
   for (let a = 0; a < stops.length; a++) {
     for (let b = a + 1; b < stops.length; b++) {
-      if (distanceBetween(stops[a]!, stops[b]!) < radiusOf(a) + radiusOf(b)) count++
+      if (distanceBetween(stops[a]!, stops[b]!) < radiusOf(a) + radiusOf(b))
+        overlapping.push([a, b])
     }
   }
-  return count
+  return overlapping
 }
 
 function courseLineStaysOnMap(

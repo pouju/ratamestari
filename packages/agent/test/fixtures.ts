@@ -53,6 +53,7 @@ export const COURSE: Course = {
   climbMeters: 42,
   problems: { ...NO_PROBLEMS, spacing: 1 },
   printArea: null,
+  findings: [],
   score: 0,
 }
 

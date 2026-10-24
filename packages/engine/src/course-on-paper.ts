@@ -16,6 +16,9 @@ const fitsOnPaper = (course: Course) =>
   timeError(course) <= FITS_WITHIN_SHARE_OF_TARGET &&
   course.problems.courseLinesOverDescriptions === 0
 
+export const papersFor = (paper: PaperChoice): readonly PaperSize[] =>
+  paper === 'auto' ? PAPER.preferenceOrder : [paper]
+
 export function setCourseOnPaper(
   terrain: Terrain,
   sites: readonly ControlSiteCandidate[],
@@ -23,7 +26,7 @@ export function setCourseOnPaper(
   paper: PaperChoice,
   onProgress: (course: Course) => void = () => {},
 ): Course | null {
-  const papers = paper === 'auto' ? PAPER.preferenceOrder : [paper]
+  const papers = papersFor(paper)
   const attempt = (size: PaperSize, report: (course: Course) => void) => {
     const printArea = planPrintArea(terrain, sites, {
       paper: size,
@@ -49,6 +52,15 @@ export function setCourseOnPaper(
   }
   if (!course) return null
 
+  return fitCourseToPaper(terrain, course, papers, spec.printScale)
+}
+
+export function fitCourseToPaper(
+  terrain: Terrain,
+  course: Course,
+  papers: readonly PaperSize[],
+  printScale: number,
+): Course {
   const stops = [
     course.start.position,
     ...course.controls.map(site => site.position),
@@ -56,14 +68,14 @@ export function setCourseOnPaper(
   ]
   const fitted = fitPrintAreaToCourse(terrain, stops, {
     papers,
-    printScale: spec.printScale,
+    printScale,
     descriptionRows: course.controls.length + DESCRIPTION_BOX.rowsBesidesControls,
   })
-  return fitted
-    ? {
-        ...course,
-        printArea: fitted,
-        problems: { ...course.problems, courseLinesOverDescriptions: 0 },
-      }
-    : course
+  if (!fitted) return course
+  return {
+    ...course,
+    printArea: fitted,
+    problems: { ...course.problems, courseLinesOverDescriptions: 0 },
+    findings: course.findings.filter(finding => finding.kind !== 'courseLinesOverDescriptions'),
+  }
 }
