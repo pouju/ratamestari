@@ -13,6 +13,7 @@ import {
   type Course,
 } from '@ratamestari/engine'
 import {
+  courseDataXml,
   describeControl,
   descriptionSheet,
   descriptionText,
@@ -41,6 +42,7 @@ const { values } = parseArgs({
     centre: { type: 'string' },
     out: { type: 'string' },
     legs: { type: 'boolean', default: false },
+    xml: { type: 'string' },
   },
 })
 
@@ -84,6 +86,21 @@ const sheet = descriptionSheet(course, {
   courseName: `${values.class}${values.letter}`,
 })
 printDescriptions()
+if (values.xml) {
+  const className = `${values.class}${values.letter === 'A' ? '' : values.letter}`
+  writeFileSync(
+    values.xml,
+    courseDataXml({
+      eventName: sheet.title,
+      className,
+      course,
+      sheet,
+      map: map.info,
+      createdAt: new Date(),
+    }),
+  )
+  console.log(`Wrote ${values.xml}`)
+}
 
 const outPath =
   values.out ??

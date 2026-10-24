@@ -8,6 +8,7 @@ import { renderCostMap, type CostMapImage } from './cost-map-image'
 import { ChatPanel } from './ChatPanel'
 import { CoursePanel } from './CoursePanel'
 import { descriptionBoxFor } from './description-box'
+import { downloadCourseXml } from './export-xml'
 import { createEngine, progressCallback } from './engine'
 import { formatDuration, parsePace } from './format'
 import { LegDetails } from './LegDetails'
@@ -262,6 +263,11 @@ export function App() {
             onGenerate={nextSeed => void generateCourse(request, nextSeed, paceSecondsPerKm)}
             course={course}
             descriptionBox={descriptionBox}
+            onExportXml={() => {
+              if (course && descriptionBox && mapInfo) {
+                downloadCourseXml(course, descriptionBox.sheet, request, mapInfo)
+              }
+            }}
           />
         )}
 

@@ -28,6 +28,7 @@ interface Props {
   onGenerate: (seed: number) => void
   course: Course | null
   descriptionBox: DescriptionBox | null
+  onExportXml: () => void
 }
 
 export function CoursePanel({
@@ -45,6 +46,7 @@ export function CoursePanel({
   onGenerate,
   course,
   descriptionBox,
+  onExportXml,
 }: Props) {
   const change = (fields: Partial<CourseRequest>) => onRequestChange({ ...request, ...fields })
   return (
@@ -129,6 +131,18 @@ export function CoursePanel({
       )}
       {course && <CourseSummary course={course} />}
       {descriptionBox && <DescriptionList sheet={descriptionBox.sheet} />}
+      {course && (
+        <div className="buttons">
+          <button type="button" disabled={course.lengthMeters === null} onClick={onExportXml}>
+            Export IOF XML
+          </button>
+        </div>
+      )}
+      {course && (
+        <p className="note">
+          IOF XML 3.0 opens in OCAD, Condes and Purple Pen. The file is saved on this computer.
+        </p>
+      )}
     </section>
   )
 }
