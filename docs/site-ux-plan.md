@@ -54,7 +54,7 @@ Sections, top to bottom (see the "Landing page" and "Phone · landing" artboards
 
 ## Sample map
 
-- A small area (about 1 km², a few hundred kB at most) cut from a Vehkalahden Veikot map in OCAD, saved as `.ocd`.
+- A small area (about 1 km², a few hundred kB at most) cut from a Vehkalahden Veikot map in OCAD, saved as `.ocd`: the open rock area of Leirikangas.
 - Lives in `apps/web/public/sample/` with a `README.md` stating: © Vehkalahden Veikot, for trying Ratamestari only, not covered by the AGPL. This is a deliberate exception to "club maps go in git-ignored `maps/`"; D14 records it.
 - Shown with its copyright: on the map in the app ("© Vehkalahden Veikot · sample map"), in the PDF footer, and in the landing page credits.
 - Bonus: map-dependent tests can use it, so they run in CI instead of skipping.
@@ -237,9 +237,9 @@ The demo is tomorrow. The course setter tools come first, in today's UI, because
 11. Landing page as the second Vite entry with the recorded hero demo, status list and credits; GitHub Pages deploy.
 12. After the demo: centre suggestions, Finnish catalogue, guide pages.
 
-## Open questions
+## Answered questions
 
-1. **Credits text:** the one line about you, and whether to show "Pouju" only or also your full name.
-2. **Sample map:** which area to cut out.
-3. **Name in the UI:** "Ratamestari" only, or with a subtitle like "course setter"?
-4. **Language detection:** pick Finnish automatically from the browser once it exists, or always start in English?
+1. **Credits text:** "Pouju" only.
+2. **Sample map:** the open rock area of Leirikangas (about 1 km × 0.8 km, the bare-rock hills between the power line and the road), with a simple course in it.
+3. **Name in the UI:** "Ratamestari" alone; the other texts explain what it is.
+4. **Language detection:** decided when the Finnish catalogue exists (after the demo); until then the app is English only.
