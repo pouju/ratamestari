@@ -10,7 +10,7 @@ import {
 } from './course-search'
 import { difficultyInCourse } from './flag-side'
 import { isUsableInPrintArea } from './print-area'
-import { cellIndexOf } from './raster'
+import { routableCellOf } from './cost-grid'
 import { findRoute } from './router'
 import { siteAreaQualityOf } from './site-quality'
 import type { Terrain } from './terrain'
@@ -32,7 +32,7 @@ function editingContext(
   const pace = spec.paceSecondsPerKm ?? REFERENCE_PACE_SECONDS_PER_KM.value
   const toFinishGrid = secondsFrom(grid, finish, pace, Number.POSITIVE_INFINITY)
   const toFinish = Float32Array.from(pool, site => {
-    const cell = cellIndexOf(grid, site.position)
+    const cell = routableCellOf(grid, site.position)
     return cell === null ? Number.POSITIVE_INFINITY : toFinishGrid[cell]!
   })
   const quality = Float32Array.from(pool, siteAreaQualityOf(sites))
@@ -65,11 +65,10 @@ export function recheckCourse(
   terrain: Terrain,
   sites: readonly ControlSiteCandidate[],
   spec: CourseSpec,
-  course: Course,
+  { start, controls, finish }: Pick<Course, 'start' | 'controls' | 'finish'>,
 ): Course {
-  const pool = [course.start, ...course.controls]
-  const context = editingContext(terrain, sites, spec, course.finish, pool)
-  return assembleCourse(context, 0, controlOrder(course.controls.length), true)
+  const context = editingContext(terrain, sites, spec, finish, [start, ...controls])
+  return assembleCourse(context, 0, controlOrder(controls.length), true)
 }
 
 export function nearestSite(

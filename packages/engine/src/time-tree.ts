@@ -1,5 +1,5 @@
 import type { LocalPoint } from '@ratamestari/core'
-import { BLOCKED, type CostGrid } from './cost-grid'
+import { BLOCKED, routableCellOf, type CostGrid } from './cost-grid'
 import { MinHeap } from './min-heap'
 import { cellIndexOf } from './raster'
 
@@ -21,8 +21,8 @@ export function secondsFrom(
   maxSeconds: number,
 ): Float32Array {
   const seconds = new Float32Array(grid.columns * grid.rows).fill(Number.POSITIVE_INFINITY)
-  const start = cellIndexOf(grid, source)
-  if (start === null || grid.speed[start] === BLOCKED) return seconds
+  const start = routableCellOf(grid, source)
+  if (start === null) return seconds
 
   const secondsPerMeterAtFullSpeed = paceSecondsPerKm / 1000
   const done = new Uint8Array(seconds.length)

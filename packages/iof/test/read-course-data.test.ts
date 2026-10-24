@@ -67,6 +67,7 @@ describe('readCourseData', () => {
         overlappingCircles: 0,
         finalLegTooLong: false,
         winningTimeOutsideRange: false,
+        controlsWithoutFeature: 0,
       },
       printArea: null,
       findings: [],

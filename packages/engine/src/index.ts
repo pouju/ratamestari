@@ -40,6 +40,7 @@ export {
 export { siteAreaQuality, siteAreaQualityOf, type SiteQualityOf } from './site-quality'
 export { difficultyInCourse, flagSideFor, type FlagSide } from './flag-side'
 export { fitCourseToPaper, papersFor, setCourseOnPaper, type PaperChoice } from './course-on-paper'
+export { checkSetCourse, CONTROL_FEATURE_MATCH_METRES, type SetCourseStops } from './course-check'
 export {
   fixControl,
   moveControl,

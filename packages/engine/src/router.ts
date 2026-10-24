@@ -1,6 +1,6 @@
 import type { LocalPoint } from '@ratamestari/core'
 import { REFERENCE_PACE_SECONDS_PER_KM } from '@ratamestari/rules'
-import { BLOCKED, type CostGrid } from './cost-grid'
+import { BLOCKED, routableCellOf, type CostGrid } from './cost-grid'
 import { MinHeap } from './min-heap'
 import { polylineLength } from './polyline'
 import { cellCenterOf, cellIndexOf } from './raster'
@@ -33,10 +33,9 @@ export function findRoute(
   to: LocalPoint,
   { paceSecondsPerKm = REFERENCE_PACE_SECONDS_PER_KM.value }: RouteOptions = {},
 ): Route | null {
-  const start = cellIndexOf(grid, from)
-  const goal = cellIndexOf(grid, to)
+  const start = routableCellOf(grid, from)
+  const goal = routableCellOf(grid, to)
   if (start === null || goal === null) return null
-  if (grid.speed[start] === BLOCKED || grid.speed[goal] === BLOCKED) return null
 
   const secondsPerMeterAtFullSpeed = paceSecondsPerKm / 1000
   const cellCount = grid.columns * grid.rows

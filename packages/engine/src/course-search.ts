@@ -42,7 +42,7 @@ import {
 } from './print-area'
 import { siteAreaQualityOf, type SiteQualityOf } from './site-quality'
 import { distanceToSegment, segmentsCross } from './polyline'
-import { BLOCKED, type CostGrid } from './cost-grid'
+import { BLOCKED, routableCellOf, type CostGrid } from './cost-grid'
 import { seededRandom, type Random } from './random'
 import { cellCenterOf, cellIndexOf } from './raster'
 import type { Terrain } from './terrain'
@@ -77,6 +77,7 @@ export interface CourseProblems {
   readonly overlappingCircles: number
   readonly finalLegTooLong: boolean
   readonly winningTimeOutsideRange: boolean
+  readonly controlsWithoutFeature: number
 }
 
 export interface Course {
@@ -176,7 +177,7 @@ export function searchCourse(
   const toFinishGrid = secondsFrom(grid, finish, pace, Number.POSITIVE_INFINITY)
   const qualityOf = siteAreaQualityOf(sites)
   const secondsToFinish = (site: ControlSiteCandidate) => {
-    const index = cellIndexOf(grid, site.position)
+    const index = routableCellOf(grid, site.position)
     return index === null ? Number.POSITIVE_INFINITY : toFinishGrid[index]!
   }
   const { printArea } = spec
@@ -206,8 +207,10 @@ export function searchCourse(
           secondsToFinish(site) <= FINAL_LEG_MAX_SHARE_OF_TARGET * targetSeconds,
       )
   if (pool.length === 0) return null
-  const poolCells = pool.map(site => cellIndexOf(grid, site.position)!)
-  const toFinish = Float32Array.from(poolCells, cell => toFinishGrid[cell]!)
+  const poolCells = pool.map(site => routableCellOf(grid, site.position))
+  const toFinish = Float32Array.from(poolCells, cell =>
+    cell === null ? Number.POSITIVE_INFINITY : toFinishGrid[cell]!,
+  )
   const quality = Float32Array.from(pool, qualityOf)
 
   const treeLimit = targetSeconds * TREE_LIMIT_SHARE_OF_TARGET
@@ -216,7 +219,9 @@ export function searchCourse(
     const cached = timesCache.get(poolIndex)
     if (cached) return cached
     const tree = secondsFrom(grid, pool[poolIndex]!.position, pace, treeLimit)
-    const times = Float32Array.from(poolCells, cell => tree[cell]!)
+    const times = Float32Array.from(poolCells, cell =>
+      cell === null ? Number.POSITIVE_INFINITY : tree[cell]!,
+    )
     timesCache.set(poolIndex, times)
     return times
   }
@@ -541,6 +546,7 @@ function createEvaluation(
       overlappingCircles: overlapping.length,
       finalLegTooLong: finalLegPercentOverLimit > 0,
       winningTimeOutsideRange: outsideRangePercent > 0,
+      controlsWithoutFeature: 0,
     }
     const timeErrorPercent = (100 * Math.abs(estimatedSeconds - targetSeconds)) / targetSeconds
     const isUnreachable = !Number.isFinite(estimatedSeconds)

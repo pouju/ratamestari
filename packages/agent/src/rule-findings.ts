@@ -1,4 +1,4 @@
-import type { Finding } from '@ratamestari/engine'
+import { CONTROL_FEATURE_MATCH_METRES, type Finding } from '@ratamestari/engine'
 import {
   ACUTE_ANGLE,
   CONTROL_CIRCLE,
@@ -87,6 +87,12 @@ export function describeFinding(finding: Finding, controlCount: number): Finding
         'error',
         "the course cannot reach the class's winning-time range; the terrain within reach of the competition centre may be too small for this class",
         citations(WINNING_TIME_SOURCES),
+      )
+    case 'controlsWithoutFeature':
+      return describe(
+        'warning',
+        `no map feature found within ${CONTROL_FEATURE_MATCH_METRES} m of ${name(a)}; check the position`,
+        OUR_CHECK,
       )
     case 'finalLegTooLong':
       return describe('note', `the last leg into the finish is long`, OUR_CHECK)

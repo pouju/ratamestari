@@ -165,3 +165,28 @@ function levelCrossings(
   }
   return crossings
 }
+
+const ROUTABLE_WITHIN_METERS = 10
+
+// A control drawn on a cliff foot or a building corner can fall on a blocked cell; the runner
+// reaches it from the nearest open ground.
+export function routableCellOf(grid: CostGrid, point: LocalPoint): number | null {
+  const center = cellIndexOf(grid, point)
+  if (center === null || grid.speed[center] !== BLOCKED) return center
+  const column = center % grid.columns
+  const row = Math.floor(center / grid.columns)
+  const reach = Math.ceil(ROUTABLE_WITHIN_METERS / grid.cellSizeMeters)
+  let best: { index: number; distance: number } | null = null
+  for (let dr = -reach; dr <= reach; dr++) {
+    for (let dc = -reach; dc <= reach; dc++) {
+      const c = column + dc
+      const r = row + dr
+      if (c < 0 || r < 0 || c >= grid.columns || r >= grid.rows) continue
+      const index = r * grid.columns + c
+      const distance = Math.hypot(dc, dr) * grid.cellSizeMeters
+      if (grid.speed[index] === BLOCKED || distance > ROUTABLE_WITHIN_METERS) continue
+      if (!best || distance < best.distance) best = { index, distance }
+    }
+  }
+  return best?.index ?? null
+}
