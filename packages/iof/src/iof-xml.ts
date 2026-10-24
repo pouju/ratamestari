@@ -40,9 +40,10 @@ export function courseDataXml({
 }: CourseDataOptions): string {
   const toMapMillimetres = (metres: number) =>
     ((metres * MILLIMETRES_PER_METRE) / map.scale).toFixed(MAP_DECIMALS)
-  // IOF MapPosition y grows downwards; the local frame's y grows north.
+  // The schema text says y grows downwards, but OCAD writes and reads paper coordinates with
+  // y growing upwards (checked against OCAD 2020 exports), so we follow OCAD.
   const mapPosition = ([x, y]: LocalPoint, element = 'MapPosition') =>
-    `<${element} x="${toMapMillimetres(x)}" y="${toMapMillimetres(-y)}" unit="mm"/>`
+    `<${element} x="${toMapMillimetres(x)}" y="${toMapMillimetres(y)}" unit="mm"/>`
   const geoPosition = (point: LocalPoint) => {
     if (!map.georef) return ''
     const geographic = projectedToGeographic(localToProjected(point, map.georef), map.georef.epsg)

@@ -64,13 +64,13 @@ describe('courseDataXml', () => {
     expect(xml).toContain('<Name>Club night &amp; test</Name>')
   })
 
-  it('gives map positions in millimetres with y growing downwards', () => {
+  it('gives map positions in millimetres on the OCAD paper, y growing upwards', () => {
     const xml = xmlFor()
     expect(xml).toContain('<Scale>10000</Scale>')
-    expect(xml).toContain('<MapPositionTopLeft x="0.00" y="-80.00" unit="mm"/>')
+    expect(xml).toContain('<MapPositionTopLeft x="0.00" y="80.00" unit="mm"/>')
     expect(xml).toContain('<MapPositionBottomRight x="100.00" y="0.00" unit="mm"/>')
     expect(xml).toContain(
-      '<Id>31</Id><Position lng="27.0071725" lat="60.0053874"/><MapPosition x="40.00" y="-60.00" unit="mm"/>',
+      '<Id>31</Id><Position lng="27.0071725" lat="60.0053874"/><MapPosition x="40.00" y="60.00" unit="mm"/>',
     )
   })
 
