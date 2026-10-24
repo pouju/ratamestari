@@ -24,10 +24,12 @@ export { seededRandom, type Random } from './random'
 export { secondsFrom } from './time-tree'
 export {
   expectedControlCount,
+  planCourse,
   runSearch,
   searchCourse,
   searchCourseSteps,
   type Course,
+  type CoursePlan,
   type CourseProblems,
   type CourseSpec,
   type Finding,
@@ -36,6 +38,7 @@ export {
 } from './course-search'
 export { mappedAreaMask } from './mapped-area'
 export { findTechnicalAreas, type TechnicalArea } from './areas'
+export { type ConnectingLeg, type Skeleton, type SkeletonSection } from './skeleton'
 export {
   courseLengthMeters,
   measureCourse,

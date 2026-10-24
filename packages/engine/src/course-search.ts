@@ -5,6 +5,7 @@ import {
   COURSE_SHAPE,
   CROWDING,
   FOREST_CONTROL_SPACING,
+  TECHNICAL_AREAS,
   FORMAT_QUALITY,
   SCORE_WEIGHTS,
   controlSpacingForScale,
@@ -45,6 +46,8 @@ import {
   type PrintArea,
   type PrintFrame,
 } from './print-area'
+import { findTechnicalAreas, type TechnicalArea } from './areas'
+import { planSkeleton, type Skeleton } from './skeleton'
 import { siteAreaQualityOf, type SiteQualityOf } from './site-quality'
 import { distanceToSegment, segmentsCross } from './polyline'
 import { BLOCKED, routableCellOf, type CostGrid } from './cost-grid'
@@ -364,7 +367,8 @@ export interface PlanningContext {
   readonly paceSecondsPerKm: number
   readonly toFinish: Float32Array
   readonly quality: Float32Array
-  readonly timesFrom: (poolIndex: number) => Float32Array
+  // Bounded trees are much cheaper; a full tree, when there is one, serves every bound.
+  readonly timesFrom: (poolIndex: number, limitSeconds?: number) => Float32Array
   readonly legSeconds: (from: number, to: number) => number
   readonly straightSeconds: (from: LocalPoint, to: LocalPoint) => number
   readonly routeChoiceValue: (from: LocalPoint, to: LocalPoint, fastestSeconds: number) => number
@@ -391,14 +395,26 @@ function planningContextFor(
   const quality = Float32Array.from(pool, qualityOf)
   const treeLimit = targetSeconds * TREE_LIMIT_SHARE_OF_TARGET
   const timesCache = new Map<number, Float32Array>()
-  const timesFrom = (poolIndex: number): Float32Array => {
-    const cached = timesCache.get(poolIndex)
-    if (cached) return cached
-    const tree = secondsFrom(grid, pool[poolIndex]!.position, paceSecondsPerKm, treeLimit)
-    const times = Float32Array.from(poolCells, cell =>
+  const boundedCache = new Map<string, Float32Array>()
+  const treeFrom = (poolIndex: number, limit: number) => {
+    const tree = secondsFrom(grid, pool[poolIndex]!.position, paceSecondsPerKm, limit)
+    return Float32Array.from(poolCells, cell =>
       cell === null ? Number.POSITIVE_INFINITY : tree[cell]!,
     )
-    timesCache.set(poolIndex, times)
+  }
+  const timesFrom = (poolIndex: number, limitSeconds = treeLimit): Float32Array => {
+    const cached = timesCache.get(poolIndex)
+    if (cached) return cached
+    if (limitSeconds >= treeLimit) {
+      const times = treeFrom(poolIndex, treeLimit)
+      timesCache.set(poolIndex, times)
+      return times
+    }
+    const key = `${poolIndex}:${limitSeconds}`
+    const bounded = boundedCache.get(key)
+    if (bounded) return bounded
+    const times = treeFrom(poolIndex, limitSeconds)
+    boundedCache.set(key, times)
     return times
   }
   // Costs are symmetric. When neither end has a tree yet, build it from the later stop: that is
@@ -444,6 +460,39 @@ function planningContextFor(
         excluded,
       ),
   }
+}
+
+export interface CoursePlan {
+  readonly context: PlanningContext
+  readonly areas: readonly TechnicalArea[]
+  readonly skeleton: Skeleton | null
+}
+
+// The section planner's view of a course (D19): technical areas and the skeleton joining them.
+export function planCourse(
+  terrain: Terrain,
+  sites: readonly ControlSiteCandidate[],
+  spec: CourseSpec,
+): CoursePlan | null {
+  const prepared = prepareSearch(terrain, sites, spec)
+  if (!prepared) return null
+  const { qualityOf, secondsToFinish, targetSeconds } = prepared
+  const pool = prepared.reachable.filter(
+    site =>
+      qualityOf(site) >= LONG_MIN_AREA_QUALITY ||
+      secondsToFinish(site) <= FINAL_LEG_MAX_SHARE_OF_TARGET * targetSeconds,
+  )
+  if (pool.length === 0) return null
+  const context = planningContextFor(terrain, spec, prepared, pool)
+  const areas = findTechnicalAreas(
+    pool,
+    context.quality,
+    TECHNICAL_AREAS[spec.format],
+    terrain.grid,
+    context.paceSecondsPerKm,
+  )
+  const usable = mappedAreaWithin(terrain, spec.printArea?.extent ?? null)
+  return { context, areas, skeleton: planSkeleton(context, areas, usable, seededRandom(spec.seed)) }
 }
 
 export interface CourseContext {

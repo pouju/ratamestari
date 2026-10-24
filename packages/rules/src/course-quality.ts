@@ -182,6 +182,93 @@ export const TECHNICAL_AREAS: Readonly<Record<Format, TechnicalAreaRule>> = {
   },
 }
 
+const rangeSchema = z.tuple([z.number().nonnegative(), z.number().nonnegative()])
+const countRangeSchema = z.tuple([z.int().min(0), z.int().min(0)])
+
+export const formatTemplateSchema = citedSchema.extend({
+  technicalSections: countRangeSchema,
+  // Share of the winning time each connecting leg takes, and its straight length.
+  connectingLegShare: rangeSchema,
+  connectingLegMetres: rangeSchema,
+  connectingTotalShare: rangeSchema,
+  technicalLegMetres: rangeSchema,
+  runInMaxShare: z.number().positive(),
+  // Middle distance: the main section's least share of the free time, and how far from the
+  // finish (share of the winning time) its area may start.
+  mainSectionMinShare: z.number().min(0).max(1),
+  mainAreaReachShare: z.number().positive(),
+  // An area holding less course than this share of the winning time is not worth a section.
+  minAreaCapacityShare: z.number().min(0).max(1),
+})
+
+export type FormatTemplate = z.infer<typeof formatTemplateSchema>
+
+// How a course of each format is built from technical sections and the legs that join them
+// (D19, section-planning-spec 5.2). Ranges; the skeleton search picks inside them.
+export const FORMAT_TEMPLATES: Readonly<Record<Format, FormatTemplate>> = {
+  long: {
+    technicalSections: [3, 5],
+    connectingLegShare: [0.06, 0.12],
+    connectingLegMetres: [800, 2500],
+    connectingTotalShare: [0.3, 0.5],
+    technicalLegMetres: [150, 800],
+    runInMaxShare: 0.08,
+    mainSectionMinShare: 0,
+    mainAreaReachShare: 0.5,
+    minAreaCapacityShare: 0.08,
+    sources: [ratamestarikirja('1.2.6.S'), ratamestarikirja('2.S.1'), iofRules('App. 2 §3.4.1')],
+    interpretation: true,
+  },
+  middle: {
+    technicalSections: [1, 2],
+    connectingLegShare: [0.06, 0.1],
+    connectingLegMetres: [500, 1200],
+    connectingTotalShare: [0, 0.1],
+    technicalLegMetres: [60, 500],
+    runInMaxShare: 0.08,
+    mainSectionMinShare: 0.5,
+    mainAreaReachShare: 0.4,
+    minAreaCapacityShare: 0.15,
+    sources: [ratamestarikirja('2.S.2')],
+    interpretation: true,
+  },
+}
+
+export const skeletonSearchSchema = citedSchema.extend({
+  beamWidth: z.int().min(1),
+  refined: z.int().min(1),
+  endpointCandidates: z.int().min(1),
+  // Weights of the skeleton score; lower scores are better.
+  weights: z.object({
+    timeShortfallPerPercent: z.number().nonnegative(),
+    areaQuality: z.number().nonnegative(),
+    connectingLegOutOfBand: z.number().nonnegative(),
+    connectingShareOutOfRange: z.number().nonnegative(),
+    sharpTurn: z.number().nonnegative(),
+    crossing: z.number().nonnegative(),
+    spread: z.number().nonnegative(),
+    routeChoice: z.number().nonnegative(),
+  }),
+})
+
+export const SKELETON_SEARCH: z.infer<typeof skeletonSearchSchema> = {
+  beamWidth: 40,
+  refined: 5,
+  endpointCandidates: 8,
+  weights: {
+    timeShortfallPerPercent: 2,
+    areaQuality: 20,
+    connectingLegOutOfBand: 10,
+    connectingShareOutOfRange: 1,
+    sharpTurn: 15,
+    crossing: 30,
+    spread: 20,
+    routeChoice: 8,
+  },
+  sources: [ratamestarikirja('1.2.6.S'), iofRules('App. 2 §3.4.1')],
+  interpretation: true,
+}
+
 export const scoreWeightsSchema = citedSchema.extend({
   timeErrorPerPercent: z.number().nonnegative(),
   timeOutsideRangePerPercent: z.number().nonnegative(),

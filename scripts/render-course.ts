@@ -12,6 +12,7 @@ import {
   findPeripheralInformation,
   findTechnicalAreas,
   isUsableInPrintArea,
+  planCourse,
   siteAreaQuality,
   isInPeripheralBlock,
   peripheralLayout,
@@ -52,6 +53,7 @@ const { values } = parseArgs({
     paper: { type: 'string', default: 'auto' },
     scale: { type: 'string', default: 'auto' },
     areas: { type: 'boolean', default: false },
+    skeleton: { type: 'boolean', default: false },
   },
 })
 
@@ -218,9 +220,8 @@ function renderPng(c: Course): Buffer {
   })
   if (!page) throw new Error('The course has no print area')
   const closing = page.svg.lastIndexOf('</svg>')
-  const svg = values.areas
-    ? `${page.svg.slice(0, closing)}${areaOverlay(c)}${page.svg.slice(closing)}`
-    : page.svg
+  const overlays = `${values.areas ? areaOverlay(c) : ''}${values.skeleton ? skeletonOverlay(c) : ''}`
+  const svg = `${page.svg.slice(0, closing)}${overlays}${page.svg.slice(closing)}`
   return new Resvg(svg, {
     fitTo: { mode: 'width', value: IMAGE_WIDTH_PIXELS },
     background: 'white',
@@ -262,4 +263,67 @@ function areaOverlay(c: Course): string {
       )
     })
     .join('')
+}
+
+// The skeleton (D19) planned on the same paper: visited areas, connecting legs, section budgets.
+function skeletonOverlay(c: Course): string {
+  const area = c.printArea
+  if (!area) return ''
+  const planStarted = performance.now()
+  const plan = planCourse(terrain, sites, {
+    target: target!,
+    format: request.format,
+    printScale: area.scale,
+    competitionCentre: centre,
+    seed,
+    paceSecondsPerKm,
+    printArea: area,
+  })
+  const skeleton = plan?.skeleton
+  if (!plan || !skeleton) {
+    console.log('skeleton: none')
+    return ''
+  }
+  const { pool } = plan.context
+  const minutes = (seconds: number) => Math.round(seconds / 60)
+  console.log(
+    `skeleton: ${skeleton.sections.length} sections, ${skeleton.connectingLegs.length} connecting legs, ` +
+      `estimated ${minutes(skeleton.estimatedSeconds)} min, score ${skeleton.score.toFixed(1)}, ` +
+      `planned in ${((performance.now() - planStarted) / 1000).toFixed(1)} s`,
+  )
+  for (const leg of skeleton.connectingLegs) {
+    const [from, to] = [pool[leg.from]!.position, pool[leg.to]!.position]
+    console.log(
+      `  connecting leg ${Math.round(Math.hypot(to[0] - from[0], to[1] - from[1]))} m, ` +
+        `${minutes(leg.seconds)} min, route choice ${leg.routeChoice.toFixed(2)}`,
+    )
+  }
+  const margin = PAPER.printMarginMillimetres
+  const [minX, , , maxY] = area.extent
+  const toPage = ([x, y]: LocalPoint): [number, number] => [
+    margin + ((x - minX) * 1000) / area.scale,
+    margin + ((maxY - y) * 1000) / area.scale,
+  ]
+  const label = (point: LocalPoint, text: string) => {
+    const [x, y] = toPage(point)
+    return `<text x="${x}" y="${y}" font-size="5" font-family="sans-serif" font-weight="bold" fill="rgb(200,80,0)" text-anchor="middle">${text}</text>`
+  }
+  const hulls = skeleton.sections.flatMap((section, k) => {
+    if (section.area === null) {
+      return [label(pool[section.entry]!.position, `run-in ${minutes(section.budgetSeconds)} min`)]
+    }
+    const technical = plan.areas[section.area]!
+    return [
+      `<polygon points="${technical.hull.map(p => toPage(p).join(',')).join(' ')}" fill="rgb(255,140,0)" fill-opacity="0.12" stroke="rgb(220,100,0)" stroke-width="0.6"/>`,
+      label(technical.centre, `S${k + 1} ${minutes(section.budgetSeconds)} min`),
+    ]
+  })
+  const legs = skeleton.connectingLegs.map(leg => {
+    const [x1, y1] = toPage(pool[leg.from]!.position)
+    const [x2, y2] = toPage(pool[leg.to]!.position)
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="rgb(220,100,0)" stroke-width="1.2" stroke-dasharray="3,2"/>`
+  })
+  const [sx, sy] = toPage(pool[skeleton.start]!.position)
+  const start = `<circle cx="${sx}" cy="${sy}" r="3" fill="none" stroke="rgb(220,100,0)" stroke-width="1"/>`
+  return [...hulls, ...legs, start].join('')
 }
