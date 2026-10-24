@@ -142,6 +142,36 @@ export const en = {
     fixRefused: 'The control could not be fixed.',
     pdfFailed: (reason: string) => `The PDF could not be made: ${reason}`,
   },
+  check: {
+    entry: 'Or check a course you set in OCAD or Purple Pen:',
+    openFile: 'open its IOF XML file',
+    fileLine: 'Course file',
+    close: 'Close',
+    coursesLabel: 'Courses in the file',
+    checking: 'Checking the course…',
+    notOnMap: 'The controls in this file are not on this map.',
+    noCourses: 'The file has no courses.',
+    readFailed: (reason: string) => `The course file could not be read: ${reason}`,
+    openMapFirst: 'Open the map the course was set on first, then the course file.',
+    checkedAs: 'Checked as',
+    classGuessed: 'The class is read from the course name. Check the level and distance.',
+    noClass: (name: string) =>
+      `The class could not be read from “${name}”. Choose it in the sentence above.`,
+    yourFile: 'Your file',
+    measured: 'Measured',
+    notGiven: 'not given',
+    mismatch: (distance: string) =>
+      `The file's ground positions are ${distance} from where its map positions put them on this map. Was the course set on another version of the map?`,
+    descriptionsNote:
+      'The control descriptions on the map are proposed from the map. IOF XML files carry none.',
+    suggest: 'Suggest',
+    suggestControl: (control: number) => `Suggest a better spot for control ${control}`,
+    suggestion: (control: number) =>
+      `A better spot for control ${control} is shown dashed on the map.`,
+    noSuggestion: (control: number) => `No better spot was found for control ${control}.`,
+    moveHere: 'Move here',
+    keepMine: 'Keep mine',
+  },
   chat: {
     title: 'Assistant',
     empty:

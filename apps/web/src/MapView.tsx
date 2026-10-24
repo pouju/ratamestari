@@ -70,6 +70,15 @@ const centreStyle = [
     }),
   }),
 ]
+const SUGGESTION_DASH_PIXELS = [6, 5]
+const suggestionStyle = new Style({
+  stroke: new Stroke({
+    color: COURSE_OVERPRINT_PURPLE,
+    width: 2.5,
+    lineDash: SUGGESTION_DASH_PIXELS,
+  }),
+})
+
 export const DIFFICULTY_COLOURS: Readonly<Record<TechnicalDifficulty, string>> = {
   1: '#2e7d32',
   2: '#7cb342',
@@ -190,6 +199,7 @@ interface Props {
   canEditCourse: boolean
   tools: ReactNode
   footer: ReactNode
+  suggestedMove: { readonly from: LocalPoint; readonly to: LocalPoint } | null
 }
 
 const ZOOM_STEP = 1
@@ -214,6 +224,7 @@ export function MapView({
   canEditCourse,
   tools,
   footer,
+  suggestedMove,
 }: Props) {
   const target = useRef<HTMLDivElement>(null)
   const mapRef = useRef<OlMap | null>(null)
@@ -250,6 +261,7 @@ export function MapView({
   const onStopMovedRef = useRef(onStopMoved)
   onStopMovedRef.current = onStopMoved
   const [centreSource] = useState(() => new VectorSource())
+  const [suggestionSource] = useState(() => new VectorSource())
   const [legToolLayer] = useState(() => new VectorLayer({ source: new VectorSource() }))
   const [plannedLegFeatures] = useState(() => ({
     from: new Feature<Circle>(),
@@ -299,6 +311,7 @@ export function MapView({
         descriptionLayer,
         legToolLayer,
         new VectorLayer({ source: centreSource, style: centreStyle }),
+        new VectorLayer({ source: suggestionSource, style: suggestionStyle }),
       ],
       controls: [],
       view: new View({ projection: localFrame, extent, constrainOnlyCenter: true }),
@@ -386,6 +399,7 @@ export function MapView({
     siteSource,
     courseSource,
     centreSource,
+    suggestionSource,
     legToolLayer,
     legToolTranslate,
     plannedLegFeatures,
@@ -432,6 +446,16 @@ export function MapView({
     courseSource.clear()
     if (course) courseSource.addFeatures(courseOverprintFeatures(course))
   }, [course, courseSource])
+
+  useEffect(() => {
+    suggestionSource.clear()
+    if (!suggestedMove) return
+    const radius = paperMmToGroundMeters(CONTROL_CIRCLE_DIAMETER_MM, info.scale) / 2
+    suggestionSource.addFeatures([
+      new Feature(new Circle([...suggestedMove.to], radius)),
+      new Feature(new LineString([[...suggestedMove.from], [...suggestedMove.to]])),
+    ])
+  }, [suggestedMove, info, suggestionSource])
 
   useEffect(() => {
     centreSource.clear()

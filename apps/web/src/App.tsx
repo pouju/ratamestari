@@ -28,6 +28,9 @@ import {
 } from './symbol-corrections'
 import { courseNameOf } from './course-labels'
 import { createEngine, progressCallback } from './engine'
+import type { CheckedCourse, ImportedCourseSummary } from './engine.worker'
+import type { CourseFileCheck } from './CheckPanel'
+import { withOfferedClass } from './class-choice'
 import { formatDuration, parsePace } from './format'
 import { LegRoutesPanel, PlanLegPanel, type LegRoutesState } from './LegRoutesPanel'
 import { EMPTY_PLANNED_LEG, legEnds, plannedEnds, type PlannedLeg } from './leg-routes'
@@ -87,6 +90,19 @@ export function App() {
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const assistantKey = useAssistantKey()
   const fileInput = useRef<HTMLInputElement>(null)
+  const courseFileInput = useRef<HTMLInputElement>(null)
+  const [courseFile, setCourseFile] = useState<{
+    fileName: string
+    courses: readonly ImportedCourseSummary[]
+    selected: number
+    status: CourseFileCheck['status']
+    checked: CheckedCourse | null
+  } | null>(null)
+  const latestCheck = useRef(0)
+  const [suggestion, setSuggestion] = useState<{
+    controlNumber: number
+    course: Course | null
+  } | null>(null)
   const sheet = useRef<HTMLElement>(null)
   const [sheetSize, setSheetSize] = useState<SheetSize>('peek')
   const [paper, setPaper] = useState<PaperChoice>('auto')
@@ -103,6 +119,8 @@ export function App() {
   winnerPaceRef.current = winnerPace
 
   async function openFile(file: File) {
+    setCourseFile(null)
+    setSuggestion(null)
     setState({ status: 'loading', fileName: file.name })
     setEngineState('loading')
     setCostMap(null)
@@ -263,6 +281,7 @@ export function App() {
   async function editCourse(edit: (current: Course) => Promise<Course | null>, refused: string) {
     if (!course || isEditing) return
     setIsEditing(true)
+    setSuggestion(null)
     setEditMessage(null)
     const before = course
     try {
@@ -322,8 +341,101 @@ export function App() {
     e.preventDefault()
     setIsDraggingOver(false)
     const file = e.dataTransfer.files[0]
-    if (file) void openFile(file)
+    if (!file) return
+    if (file.name.toLowerCase().endsWith('.xml')) void openCourseFile(file)
+    else void openFile(file)
   }
+
+  async function openCourseFile(file: File) {
+    if (state.status !== 'ready' || engineState !== 'ready') {
+      setEditMessage(messages.check.openMapFirst)
+      return
+    }
+    setEditMessage(null)
+    try {
+      const courses = await engine.importCourses(await file.text())
+      if (courses.length === 0) {
+        setEditMessage(messages.check.noCourses)
+        return
+      }
+      setPlannedLeg(null)
+      setIsPickingCentre(false)
+      setCourseFile({
+        fileName: file.name,
+        courses,
+        selected: 0,
+        status: 'checking',
+        checked: null,
+      })
+      await checkCourse(courses, 0, request, true)
+    } catch (e) {
+      setEditMessage(messages.check.readFailed(errorMessage(e)))
+    }
+  }
+
+  async function checkCourse(
+    courses: readonly ImportedCourseSummary[],
+    index: number,
+    baseRequest: CourseRequest,
+    takeClassFromFile: boolean,
+  ) {
+    const guessed = takeClassFromFile ? courses[index]?.guessedClass : null
+    const nextRequest = withOfferedClass({ ...baseRequest, ...guessed }).request
+    const check = ++latestCheck.current
+    setRequest(nextRequest)
+    setSuggestion(null)
+    setSelectedLeg(null)
+    setCourseFile(file => file && { ...file, selected: index, status: 'checking' })
+    const checked = await engine.checkImportedCourse(
+      index,
+      nextRequest,
+      winnerPace,
+      paper,
+      printScale,
+    )
+    if (check !== latestCheck.current) return
+    setCourseFile(
+      file =>
+        file && { ...file, selected: index, status: checked ? 'checked' : 'notOnMap', checked },
+    )
+    setCourse(checked?.course ?? null)
+    if (checked) setCompetitionCentre(checked.course.finish)
+  }
+
+  function closeCourseFile() {
+    latestCheck.current++
+    setCourseFile(null)
+    setSuggestion(null)
+    setSelectedLeg(null)
+    setCourse(null)
+    setCompetitionCentre(null)
+  }
+
+  async function suggestFix(controlNumber: number) {
+    if (!course) return
+    const suggested = await engine.fixControl(course, controlNumber)
+    setSuggestion({ controlNumber, course: suggested })
+  }
+
+  const fileCheck: CourseFileCheck | null = courseFile && {
+    fileName: courseFile.fileName,
+    courseNames: courseFile.courses.map(c => c.name),
+    selected: courseFile.selected,
+    hasGuessedClass: courseFile.courses[courseFile.selected]?.guessedClass != null,
+    status: courseFile.status,
+    fileLengthMeters:
+      courseFile.checked?.fileLengthMeters ??
+      courseFile.courses[courseFile.selected]?.lengthMeters ??
+      null,
+    fileControlCount: courseFile.courses[courseFile.selected]?.controlCount ?? 0,
+    groundMismatchMetres: courseFile.checked?.groundMismatchMetres ?? null,
+  }
+  const suggestedControl = suggestion?.course?.controls[suggestion.controlNumber - 1]
+  const currentControl = suggestion && course?.controls[suggestion.controlNumber - 1]
+  const suggestedMove =
+    suggestedControl && currentControl
+      ? { from: currentControl.position, to: suggestedControl.position }
+      : null
 
   const chooseMapFile = () => fileInput.current?.click()
 
@@ -350,6 +462,17 @@ export function App() {
       }}
       onDrop={onDrop}
     >
+      <input
+        ref={courseFileInput}
+        type="file"
+        accept=".xml"
+        hidden
+        onChange={e => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (file) void openCourseFile(file)
+        }}
+      />
       <input
         ref={fileInput}
         type="file"
@@ -406,6 +529,7 @@ export function App() {
                 />
               </>
             }
+            suggestedMove={suggestedMove}
             footer={
               <PrintLabel
                 course={course}
@@ -478,7 +602,11 @@ export function App() {
         {state.status === 'ready' && (
           <CoursePanel
             request={request}
-            onRequestChange={setRequest}
+            onRequestChange={next =>
+              courseFile
+                ? void checkCourse(courseFile.courses, courseFile.selected, next, false)
+                : setRequest(next)
+            }
             isAssistantOn={assistantKey.apiKey !== ''}
             hasCentre={competitionCentre !== null}
             isPickingCentre={isChoosingCentre}
@@ -496,11 +624,30 @@ export function App() {
             course={course}
             isEditing={isEditing || isGenerating}
             isPreparingPdf={isPreparingPdf}
+            check={fileCheck}
+            onOpenCourseFile={() => courseFileInput.current?.click()}
+            onSelectCheckedCourse={index =>
+              courseFile && void checkCourse(courseFile.courses, index, request, true)
+            }
+            onCloseCheck={closeCourseFile}
+            suggestion={
+              suggestion && {
+                controlNumber: suggestion.controlNumber,
+                isFound: suggestion.course !== null,
+              }
+            }
+            onAcceptSuggestion={() => {
+              if (suggestion?.course) setCourse(suggestion.course)
+              setSuggestion(null)
+            }}
+            onDismissSuggestion={() => setSuggestion(null)}
             onFixControl={controlNumber =>
-              void editCourse(
-                current => engine.fixControl(current, controlNumber),
-                messages.course.fixRefused,
-              )
+              courseFile
+                ? void suggestFix(controlNumber)
+                : void editCourse(
+                    current => engine.fixControl(current, controlNumber),
+                    messages.course.fixRefused,
+                  )
             }
             onDownloadPdf={() => {
               if (!course || !descriptionBox || state.status !== 'ready') return

@@ -11,6 +11,7 @@ import {
 import { useState } from 'react'
 import { offeredAgeClasses, withOfferedClass } from './class-choice'
 import { useFormat, useMessages } from './i18n'
+import { CheckComparison, CheckHeader, SuggestionBar, type CourseFileCheck } from './CheckPanel'
 import { ScoreBreakdown } from './ScoreBreakdown'
 import { PanelLine } from './WorkspaceStart'
 
@@ -32,12 +33,64 @@ interface Props {
   onDownloadPdf: () => void
   onDownloadXml: () => void
   onFixControl: (controlNumber: number) => void
+  check: CourseFileCheck | null
+  onOpenCourseFile: () => void
+  onSelectCheckedCourse: (index: number) => void
+  onCloseCheck: () => void
+  suggestion: { readonly controlNumber: number; readonly isFound: boolean } | null
+  onAcceptSuggestion: () => void
+  onDismissSuggestion: () => void
 }
 
 export function CoursePanel(props: Props) {
-  const { hasCentre, isPickingCentre, onMoveCentre, course } = props
+  const { hasCentre, isPickingCentre, onMoveCentre, course, check } = props
   const m = useMessages()
   const isMeasured = course !== null && course.lengthMeters !== null
+
+  if (check) {
+    const courseName = check.courseNames[check.selected] ?? ''
+    return (
+      <>
+        <CheckHeader
+          check={check}
+          onSelect={props.onSelectCheckedCourse}
+          onClose={props.onCloseCheck}
+        />
+        {check.status !== 'notOnMap' && (
+          <RequestSentence
+            request={props.request}
+            onRequestChange={props.onRequestChange}
+            label={m.check.checkedAs}
+            note={check.hasGuessedClass ? m.check.classGuessed : m.check.noClass(courseName)}
+          />
+        )}
+        {course && check.status === 'checked' && (
+          <>
+            <CheckComparison check={check} course={course} />
+            {isMeasured && (
+              <Findings
+                course={course}
+                isEditing={props.isEditing}
+                onFix={props.onFixControl}
+                fixLabel={m.check.suggest}
+                fixLabelFor={m.check.suggestControl}
+              />
+            )}
+            {props.suggestion && (
+              <SuggestionBar
+                controlNumber={props.suggestion.controlNumber}
+                isFound={props.suggestion.isFound}
+                onAccept={props.onAcceptSuggestion}
+                onDismiss={props.onDismissSuggestion}
+              />
+            )}
+            {isMeasured && <ScoreBreakdown course={course} />}
+            <CourseActions {...props} isMeasured={isMeasured} />
+          </>
+        )}
+      </>
+    )
+  }
 
   return (
     <>
@@ -52,6 +105,12 @@ export function CoursePanel(props: Props) {
           <span className="panel-line-label">{m.course.centreLine}</span>
           <h2 id="centre-step-title">{m.course.centreQuestion}</h2>
           <p>{m.course.centreHint}</p>
+          <p className="check-entry">
+            {m.check.entry}{' '}
+            <button type="button" className="panel-line-action" onClick={props.onOpenCourseFile}>
+              {m.check.openFile}
+            </button>
+          </p>
         </section>
       )}
 
@@ -60,7 +119,13 @@ export function CoursePanel(props: Props) {
           <RequestSentence request={props.request} onRequestChange={props.onRequestChange} />
           {course && <CourseFigures course={course} />}
           {course && isMeasured && (
-            <Findings course={course} isEditing={props.isEditing} onFix={props.onFixControl} />
+            <Findings
+              course={course}
+              isEditing={props.isEditing}
+              onFix={props.onFixControl}
+              fixLabel={m.course.fix}
+              fixLabelFor={m.course.fixControl}
+            />
           )}
           {course && isMeasured && <ScoreBreakdown course={course} />}
           <CourseActions {...props} isMeasured={isMeasured} />
@@ -75,7 +140,12 @@ const hasCoarsePointer = () =>
 
 const classValue = (sex: CourseRequest['sex'], age: CourseRequest['ageClass']) => `${sex}${age}`
 
-function RequestSentence({ request, onRequestChange }: Pick<Props, 'request' | 'onRequestChange'>) {
+function RequestSentence({
+  request,
+  onRequestChange,
+  label,
+  note,
+}: Pick<Props, 'request' | 'onRequestChange'> & { label?: string; note?: string }) {
   const m = useMessages().course
   const [replacedClass, setReplacedClass] = useState<string | null>(null)
   const change = (fields: Partial<CourseRequest>) => {
@@ -97,7 +167,7 @@ function RequestSentence({ request, onRequestChange }: Pick<Props, 'request' | '
   return (
     <section className="request" aria-labelledby="request-title">
       <span id="request-title" className="panel-line-label">
-        {m.courseLine}
+        {label ?? m.courseLine}
       </span>
       <p className="request-sentence">
         <select
@@ -159,6 +229,7 @@ function RequestSentence({ request, onRequestChange }: Pick<Props, 'request' | '
         </select>
       </p>
       <p className="request-note">{m.skillLevels[request.skillLetter]}</p>
+      {note && <p className="request-note">{note}</p>}
       {replacedClass && (
         <p className="request-note" role="status">
           {replacedClass}
@@ -202,10 +273,14 @@ function Findings({
   course,
   isEditing,
   onFix,
+  fixLabel,
+  fixLabelFor,
 }: {
   course: Course
   isEditing: boolean
   onFix: (controlNumber: number) => void
+  fixLabel: string
+  fixLabelFor: (controlNumber: number) => string
 }) {
   const m = useMessages().course
   const findings = course.findings.map(finding => describeFinding(finding, course.controls.length))
@@ -229,10 +304,10 @@ function Findings({
                   type="button"
                   className="findings-fix"
                   disabled={isEditing}
-                  aria-label={m.fixControl(fixableControl)}
+                  aria-label={fixLabelFor(fixableControl)}
                   onClick={() => onFix(fixableControl)}
                 >
-                  {m.fix}
+                  {fixLabel}
                 </button>
               )}
             </li>
@@ -275,6 +350,7 @@ function CourseActions({
   onTryAnother,
   onDownloadPdf,
   onDownloadXml,
+  check,
 }: Props & { isMeasured: boolean }) {
   const m = useMessages().course
 
@@ -328,14 +404,16 @@ function CourseActions({
         >
           {m.downloadXml}
         </button>
-        <button
-          type="button"
-          className="course-secondary course-another"
-          disabled={!canSetCourse || isEditing}
-          onClick={onTryAnother}
-        >
-          {m.tryAnother}
-        </button>
+        {!check && (
+          <button
+            type="button"
+            className="course-secondary course-another"
+            disabled={!canSetCourse || isEditing}
+            onClick={onTryAnother}
+          >
+            {m.tryAnother}
+          </button>
+        )}
       </div>
       <p className="course-actions-note">{m.exportNote}</p>
     </div>

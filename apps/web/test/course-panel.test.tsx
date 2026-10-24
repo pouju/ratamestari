@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { CourseRequest } from '@ratamestari/rules'
+import type { CourseFileCheck } from '../src/CheckPanel'
 import { CoursePanel } from '../src/CoursePanel'
 
 const REQUEST: CourseRequest = {
@@ -13,7 +14,7 @@ const REQUEST: CourseRequest = {
 
 const ignore = () => {}
 
-const render = (hasCentre: boolean) =>
+const render = (hasCentre: boolean, check: CourseFileCheck | null = null) =>
   renderToStaticMarkup(
     <CoursePanel
       request={REQUEST}
@@ -33,6 +34,13 @@ const render = (hasCentre: boolean) =>
       onDownloadPdf={ignore}
       onDownloadXml={ignore}
       onFixControl={ignore}
+      check={check}
+      onOpenCourseFile={ignore}
+      onSelectCheckedCourse={ignore}
+      onCloseCheck={ignore}
+      suggestion={null}
+      onAcceptSuggestion={ignore}
+      onDismissSuggestion={ignore}
     />,
   )
 
@@ -48,5 +56,26 @@ describe('CoursePanel', () => {
     expect(html).toContain('SM level')
     expect(html).toContain('Set course')
     expect(html).toContain('skill level A')
+  })
+
+  it('offers to check a course file while asking for the centre', () => {
+    expect(render(false)).toContain('open its IOF XML file')
+  })
+
+  it('shows the file, its courses and the sentence it was checked as', () => {
+    const html = render(true, {
+      fileName: 'Kevätkisa.xml',
+      courseNames: ['H21', 'D21'],
+      selected: 0,
+      hasGuessedClass: true,
+      status: 'checking',
+      fileLengthMeters: 11200,
+      fileControlCount: 18,
+      groundMismatchMetres: null,
+    })
+    expect(html).toContain('Kevätkisa.xml')
+    expect(html).toContain('D21')
+    expect(html).toContain('Checked as')
+    expect(html).not.toContain('Set course')
   })
 })
