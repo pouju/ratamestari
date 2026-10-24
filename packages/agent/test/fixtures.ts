@@ -46,6 +46,7 @@ export const COURSE: Course = {
   estimatedSeconds: 420,
   targetSeconds: 450,
   lengthMeters: 1234,
+  climbMeters: 42,
   problems: { ...NO_PROBLEMS, spacing: 1 },
   score: 0,
 }

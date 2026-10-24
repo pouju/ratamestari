@@ -23,5 +23,10 @@ export { seededRandom, type Random } from './random'
 export { secondsFrom } from './time-tree'
 export { searchCourse, type Course, type CourseProblems, type CourseSpec } from './course-search'
 export { mappedAreaMask } from './mapped-area'
-export { courseLengthMeters, shortestPassableMeters } from './course-length'
+export {
+  courseLengthMeters,
+  measureCourse,
+  shortestPassableMeters,
+  type CourseMeasurements,
+} from './course-length'
 export { siteAreaQuality } from './site-quality'

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { localPoint } from '@ratamestari/core'
-import { courseLengthMeters, shortestPassableMeters } from '../src/course-length'
+import { courseLengthMeters, measureCourse, shortestPassableMeters } from '../src/course-length'
 import { buildCostGrid } from '../src/cost-grid'
+import { buildTerrain } from '../src/terrain'
 import { feature, line, rectangle, SQUARE_KILOMETRE } from './fixtures'
 
 describe('course length (Lajisäännöt 11.22)', () => {
@@ -26,5 +27,17 @@ describe('course length (Lajisäännöt 11.22)', () => {
     const grid = buildCostGrid([], SQUARE_KILOMETRE)
     const stops = [localPoint(100, 100), localPoint(100, 500), localPoint(500, 500)]
     expect(courseLengthMeters(grid, stops)).toBeCloseTo(800, -1)
+  })
+
+  it('measures climb along the legs from the contours crossed uphill', () => {
+    const water = feature('301', rectangle(0, 0, 1000, 50))
+    const contours = [300, 500, 700].map(y => feature('101', line([0, y], [1000, y])))
+    const terrain = buildTerrain([water, ...contours], SQUARE_KILOMETRE, {
+      restrictToMappedArea: false,
+    })
+    const stops = [localPoint(500, 100), localPoint(500, 900), localPoint(600, 100)]
+    const measured = measureCourse(terrain, stops)
+    expect(measured.climbMeters).toBe(15)
+    expect(measured.lengthMeters).toBeGreaterThan(1600)
   })
 })
