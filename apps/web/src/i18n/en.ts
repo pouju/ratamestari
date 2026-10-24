@@ -489,6 +489,7 @@ export const en = {
       spread: 'Use of terrain',
       parallelLegs: 'Legs side by side',
       closeness: 'Passing close again',
+      crowding: 'Crowded controls',
       legCount: 'Number of legs',
     } satisfies Record<keyof Course['breakdown']['terms'], string>,
   },

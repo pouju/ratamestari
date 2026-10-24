@@ -121,6 +121,30 @@ export const FORMAT_QUALITY: Readonly<Record<Format, FormatQualityProfile>> = {
   },
 }
 
+export const crowdingRuleSchema = citedSchema.extend({
+  radiusMetres: z.number().positive(),
+  maxControls: z.int().min(1),
+})
+
+export type CrowdingRule = z.infer<typeof crowdingRuleSchema>
+
+// Pairwise spacing allows ten controls 80 m apart. A course setter spreads controls over the
+// terrain instead, and a cluster is hard to read on the map (RMK 1.4.3, RMK 2.S.1, RMK 2.S.2).
+export const CROWDING: Readonly<Record<Format, CrowdingRule>> = {
+  long: {
+    radiusMetres: 300,
+    maxControls: 3,
+    sources: [ratamestarikirja('1.4.3'), ratamestarikirja('2.S.1')],
+    interpretation: true,
+  },
+  middle: {
+    radiusMetres: 150,
+    maxControls: 3,
+    sources: [ratamestarikirja('1.4.3'), ratamestarikirja('2.S.2')],
+    interpretation: true,
+  },
+}
+
 export const scoreWeightsSchema = citedSchema.extend({
   timeErrorPerPercent: z.number().nonnegative(),
   timeOutsideRangePerPercent: z.number().nonnegative(),
@@ -145,6 +169,7 @@ export const scoreWeightsSchema = citedSchema.extend({
   spread: z.number().nonnegative(),
   parallelLegs: z.number().nonnegative(),
   closeness: z.number().nonnegative(),
+  crowding: z.number().nonnegative(),
   legCount: z.number().nonnegative(),
 })
 
@@ -189,6 +214,7 @@ export const SCORE_WEIGHTS: Readonly<Record<Format, ScoreWeights>> = {
     spread: 20,
     parallelLegs: 30,
     closeness: 20,
+    crowding: 40,
     legCount: 40,
     sources: WEIGHT_SOURCES,
     interpretation: true,
@@ -207,6 +233,7 @@ export const SCORE_WEIGHTS: Readonly<Record<Format, ScoreWeights>> = {
     parallelLegs: 20,
     // Middle distance is compact by nature (RMK 2.S.2), so coming back near a control is common.
     closeness: 5,
+    crowding: 40,
     legCount: 30,
     sources: WEIGHT_SOURCES,
     interpretation: true,

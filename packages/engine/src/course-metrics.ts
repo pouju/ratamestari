@@ -431,6 +431,33 @@ export function closeness(stops: readonly LocalPoint[]): Metric {
   }
 }
 
+// For each control, how many controls (itself included) lie within the radius. The start and
+// finish are not controls.
+export function crowdingCounts(stops: readonly LocalPoint[], radiusMetres: number): number[] {
+  const controls = stops.slice(1, -1)
+  return controls.map(
+    control => controls.filter(other => distance(control, other) <= radiusMetres).length,
+  )
+}
+
+export function crowding(
+  stops: readonly LocalPoint[],
+  radiusMetres: number,
+  maxControls: number,
+): Metric {
+  const counts = crowdingCounts(stops, radiusMetres)
+  const crowded = counts.flatMap((count, i) => (count > maxControls ? [i + 1] : []))
+  return {
+    value: counts.reduce((sum, count) => sum + Math.max(0, count - maxControls), 0),
+    note:
+      crowded.length === 0
+        ? `at most ${maxControls} controls within ${radiusMetres} m`
+        : `more than ${maxControls} controls within ${radiusMetres} m around ${crowded
+            .map(controlName)
+            .join(', ')}`,
+  }
+}
+
 // Nearly every other term adds up per control, so without this a course with a few very long
 // legs would score best. The target leg mix says how many legs a course of this length needs.
 export function legCount(stops: readonly LocalPoint[], target: LegLengthTarget): Metric {

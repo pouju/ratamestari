@@ -112,6 +112,8 @@ export {
 export {
   alternation,
   closeness,
+  crowding,
+  crowdingCounts,
   convexHullArea,
   crossingSeverity,
   directionChanges,

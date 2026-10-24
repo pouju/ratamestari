@@ -4,6 +4,8 @@ import { FORMAT_QUALITY } from '@ratamestari/rules'
 import {
   alternation,
   closeness,
+  crowding,
+  crowdingCounts,
   legCount,
   parallelLegs,
   convexHullArea,
@@ -141,6 +143,25 @@ describe('course metrics', () => {
     expect(result.value).toBeGreaterThan(0.5)
     expect(result.note).toMatch(/control 1/)
     expect(closeness(square).value).toBe(0)
+  })
+
+  it('counts how many controls crowd around each control', () => {
+    // Five controls within 100 m of each other, then one far away; start and finish don't count.
+    const cluster = course(
+      [0, 0],
+      [1000, 1000],
+      [1060, 1000],
+      [1000, 1060],
+      [1060, 1060],
+      [1030, 1030],
+      [3000, 3000],
+      [1000, 1000],
+    )
+    expect(crowdingCounts(cluster, 150)).toEqual([5, 5, 5, 5, 5, 1])
+    const result = crowding(cluster, 150, 3)
+    expect(result.value).toBe(10)
+    expect(result.note).toMatch(/control 1, control 2/)
+    expect(crowding(square, 300, 3).value).toBe(0)
   })
 
   it('compares the number of legs with what the leg mix suggests', () => {

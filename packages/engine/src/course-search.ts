@@ -3,6 +3,7 @@ import {
   ACUTE_ANGLE,
   COURSE_LINE_CROSSING,
   COURSE_SHAPE,
+  CROWDING,
   FOREST_CONTROL_SPACING,
   FORMAT_QUALITY,
   SCORE_WEIGHTS,
@@ -21,6 +22,8 @@ import {
   alternation,
   closeness,
   crossingSeverity,
+  crowding,
+  crowdingCounts,
   legCount,
   parallelLegs,
   routeDoglegOverlaps,
@@ -158,7 +161,6 @@ const MAX_KEY_LEGS = 4
 const MIDDLE_CORE_RADIUS_METERS = 750
 const LONG_MIN_AREA_QUALITY = 0.3
 const MAX_DRAFTS = 3
-const GOOD_DRAFT_SHARE_OF_TARGET = 0.85
 const MIDDLE_CORE_REACH_SHARE_OF_TARGET = 0.4
 const BRING_LAST_CONTROL_HOME_CHANCE = 0.5
 const WAYPOINT_PREFERENCE = 2
@@ -317,7 +319,6 @@ export function* searchCourseSteps(
       startIndex = draftStart
       order = draftOrder
     }
-    if (scored.estimatedSeconds >= GOOD_DRAFT_SHARE_OF_TARGET * targetSeconds) break
     if (yield null) break
   }
   if (!best) return null
@@ -696,6 +697,10 @@ function createEvaluation(
       legCount: asTerm('legCount', legCount(stops, profile.legLengths)),
       parallelLegs: asTerm('parallelLegs', parallelLegs(stops)),
       closeness: asTerm('closeness', closeness(stops)),
+      crowding: asTerm(
+        'crowding',
+        crowding(stops, CROWDING[spec.format].radiusMetres, CROWDING[spec.format].maxControls),
+      ),
       reversals: asTerm('reversals', reversals(stops)),
       ring: asTerm('ring', ring(stops)),
       legLengths: asTerm('legLengths', legLengthDistribution(stops, profile.legLengths)),
@@ -822,6 +827,12 @@ function buildGreedy(
     )
   }
   let nextWaypoint = 0
+  const crowdingRule = CROWDING[spec.format]
+  const wouldCrowd = (candidate: LocalPoint) =>
+    crowdingCounts(
+      [pool[startIndex]!.position, ...order.map(u => pool[u]!.position), candidate, finish],
+      crowdingRule.radiusMetres,
+    ).some(count => count > crowdingRule.maxControls)
   const [minDifficulty, maxDifficulty] = spec.target.siteDifficulty
   const spacing = controlSpacingForScale(spec.printScale)
   const order: number[] = []
@@ -901,6 +912,7 @@ function buildGreedy(
         return distanceBetween(other.position, site.position) < Math.max(minimum, circlesApart)
       })
       if (tooClose) return false
+      if (wouldCrowd(site.position)) return false
       if (!staysOnMap(pool[current]!.position, site.position)) return false
       if (previous !== NO_SITE) {
         const angle = angleAt(pool[previous]!.position, pool[current]!.position, site.position)
