@@ -18,6 +18,7 @@ const render = (hasCentre: boolean) =>
     <CoursePanel
       request={REQUEST}
       onRequestChange={ignore}
+      isAssistantOn={false}
       hasCentre={hasCentre}
       isPickingCentre={false}
       onMoveCentre={ignore}

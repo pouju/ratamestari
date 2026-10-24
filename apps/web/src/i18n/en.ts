@@ -140,6 +140,15 @@ export const en = {
     fixRefused: 'The control could not be fixed.',
     pdfFailed: (reason: string) => `The PDF could not be made: ${reason}`,
   },
+  chat: {
+    title: 'Assistant',
+    empty:
+      'Ask for a course or a change in your own words, like “SM middle distance for D16” or “make leg 5 harder”.',
+    inputLabel: 'Message to the assistant',
+    placeholder: 'Ask for a course or a change…',
+    send: 'Send',
+    stop: 'Stop the reply',
+  },
   map: {
     toolbar: 'Map tools',
     zoomIn: 'Zoom in',

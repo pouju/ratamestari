@@ -17,6 +17,7 @@ import { PanelLine } from './WorkspaceStart'
 interface Props {
   request: CourseRequest
   onRequestChange: (request: CourseRequest) => void
+  isAssistantOn: boolean
   hasCentre: boolean
   isPickingCentre: boolean
   onMoveCentre: () => void
@@ -267,6 +268,7 @@ function CourseActions({
   isEditing,
   isPreparingPdf,
   isMeasured,
+  isAssistantOn,
   onSetCourse,
   onTryAnother,
   onDownloadPdf,
@@ -276,7 +278,7 @@ function CourseActions({
 
   if (!course || isGenerating) {
     return (
-      <div className="course-actions">
+      <div className={isAssistantOn ? 'course-actions is-quiet' : 'course-actions'}>
         <button
           type="button"
           className="course-primary"
@@ -290,7 +292,7 @@ function CourseActions({
   }
 
   return (
-    <div className="course-actions">
+    <div className={isAssistantOn ? 'course-actions is-quiet' : 'course-actions'}>
       <div className="course-actions-row">
         <button
           type="button"

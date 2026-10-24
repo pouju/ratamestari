@@ -4,6 +4,7 @@ import {
   createClaudeProvider,
   type AgentTool,
 } from '@ratamestari/agent'
+import { useMessages } from './i18n'
 
 interface ChatMessage {
   readonly role: 'user' | 'assistant' | 'error'
@@ -11,6 +12,7 @@ interface ChatMessage {
 }
 
 export function ChatPanel({ apiKey, tools }: { apiKey: string; tools: readonly AgentTool[] }) {
+  const m = useMessages().chat
   const [messages, setMessages] = useState<readonly ChatMessage[]>([])
   const [draft, setDraft] = useState('')
   const [isReplying, setIsReplying] = useState(false)
@@ -57,23 +59,24 @@ export function ChatPanel({ apiKey, tools }: { apiKey: string; tools: readonly A
   if (!chat) return null
 
   return (
-    <section className="chat">
-      <h2>Assistant</h2>
-      <div className="messages">
-        {messages.length === 0 && (
-          <p className="note">Ask for a course, e.g. “SM-tason pitkä matka H21”.</p>
-        )}
+    <section className="chat" aria-label={m.title}>
+      <div className="chat-messages" aria-live="polite">
+        {messages.length === 0 && <p className="chat-empty">{m.empty}</p>}
         {messages.map((message, i) => (
-          <p key={i} className={`message ${message.role}`}>
+          <p key={i} className={`chat-message chat-${message.role}`}>
             {message.text || '…'}
           </p>
         ))}
       </div>
-      <form className="chat-input" onSubmit={send}>
+      <form className="chat-composer" onSubmit={send}>
+        <label htmlFor="chat-draft" className="visually-hidden">
+          {m.inputLabel}
+        </label>
         <textarea
+          id="chat-draft"
           value={draft}
           rows={2}
-          placeholder="Message the assistant"
+          placeholder={m.placeholder}
           onChange={e => setDraft(e.target.value)}
           onKeyDown={e => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -83,12 +86,31 @@ export function ChatPanel({ apiKey, tools }: { apiKey: string; tools: readonly A
           }}
         />
         {isReplying ? (
-          <button type="button" onClick={() => abortController.current?.abort()}>
-            Stop
+          <button
+            type="button"
+            className="chat-send"
+            aria-label={m.stop}
+            onClick={() => abortController.current?.abort()}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+              <rect width="14" height="14" rx="2" fill="currentColor" />
+            </svg>
           </button>
         ) : (
-          <button type="submit" disabled={!draft.trim()}>
-            Send
+          <button type="submit" className="chat-send" aria-label={m.send} disabled={!draft.trim()}>
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 19V5M5 12l7-7 7 7" />
+            </svg>
           </button>
         )}
       </form>

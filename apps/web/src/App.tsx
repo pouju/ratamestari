@@ -475,12 +475,11 @@ export function App() {
           </>
         )}
 
-        {assistantKey.apiKey && <ChatPanel apiKey={assistantKey.apiKey} tools={chatTools} />}
-
         {state.status === 'ready' && (
           <CoursePanel
             request={request}
             onRequestChange={setRequest}
+            isAssistantOn={assistantKey.apiKey !== ''}
             hasCentre={competitionCentre !== null}
             isPickingCentre={isChoosingCentre}
             onMoveCentre={() => setIsPickingCentre(true)}
@@ -534,6 +533,8 @@ export function App() {
             }}
           />
         )}
+
+        {assistantKey.apiKey && <ChatPanel apiKey={assistantKey.apiKey} tools={chatTools} />}
 
         {course && selectedLeg === null && <p className="note">{messages.leg.selectHint}</p>}
 
