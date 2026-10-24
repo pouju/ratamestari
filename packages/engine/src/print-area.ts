@@ -14,6 +14,12 @@ export interface PrintArea {
   readonly orientation: Orientation
   readonly extent: LocalExtent
   readonly descriptionBox: LocalExtent
+  readonly peripheralBox: LocalExtent | null
+}
+
+export interface PaperBoxSize {
+  readonly widthMillimetres: number
+  readonly heightMillimetres: number
 }
 
 export interface PrintAreaRequest {
@@ -21,9 +27,12 @@ export interface PrintAreaRequest {
   readonly printScale: number
   readonly competitionCentre: LocalPoint
   readonly descriptionRows: number
+  readonly peripheralSize?: PaperBoxSize | null
 }
 
 const QUALITY_CELL_METERS = 25
+// Any print area with room for the peripheral information beats every one without it.
+const MISSING_PERIPHERAL_PENALTY = 1e9
 const POSITION_STEP_METERS = 50
 const CIRCLE_RADIUS_METERS = CONTROL_CIRCLE.footprintMeters / 2
 const FINISH_CLEARANCE_METERS = CONTROL_CIRCLE.footprintMeters
@@ -58,10 +67,37 @@ export function printableGroundSize(
 const contains = ([minX, minY, maxX, maxY]: LocalExtent, [x, y]: LocalPoint, inset = 0) =>
   x >= minX + inset && x <= maxX - inset && y >= minY + inset && y <= maxY - inset
 
+export const reservedBoxesOf = (area: PrintArea): LocalExtent[] =>
+  area.peripheralBox ? [area.descriptionBox, area.peripheralBox] : [area.descriptionBox]
+
 export function isUsableInPrintArea(position: LocalPoint, area: PrintArea): boolean {
   return (
     contains(area.extent, position, CIRCLE_RADIUS_METERS) &&
-    !contains(area.descriptionBox, position, -CIRCLE_RADIUS_METERS)
+    reservedBoxesOf(area).every(box => !contains(box, position, -CIRCLE_RADIUS_METERS))
+  )
+}
+
+const overlaps = (a: LocalExtent, b: LocalExtent) =>
+  a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]
+
+const peripheralGroundSize = (size: PaperBoxSize, printScale: number) => ({
+  width: paperToGround(size.widthMillimetres, printScale),
+  height: paperToGround(size.heightMillimetres, printScale),
+})
+
+// The peripheral information takes the cheapest free corner left by the description box.
+function placePeripheralBox(
+  extent: LocalExtent,
+  descriptionBox: LocalExtent,
+  size: { width: number; height: number } | null,
+  isAllowed: (box: LocalExtent) => boolean,
+  cost: (box: LocalExtent) => number,
+): LocalExtent | null {
+  if (!size) return null
+  return (
+    cornerBoxes(extent, size.width, size.height)
+      .filter(box => !overlaps(box, descriptionBox) && isAllowed(box))
+      .sort((a, b) => cost(a) - cost(b))[0] ?? null
   )
 }
 
@@ -84,6 +120,13 @@ export function planPrintArea(
 ): PrintArea | null {
   const quality = summedQuality(terrain, sites)
   const box = descriptionBoxGroundSize(request.descriptionRows, request.printScale)
+  const peripheral = request.peripheralSize
+    ? peripheralGroundSize(request.peripheralSize, request.printScale)
+    : null
+  const clearOfCentre = (reserved: LocalExtent) =>
+    !contains(reserved, request.competitionCentre, -FINISH_CLEARANCE_METERS)
+  const reservedQuality = (reserved: LocalExtent) =>
+    quality.sum(shrunk(reserved, -CIRCLE_RADIUS_METERS))
   const [cx, cy] = request.competitionCentre
   let best: { area: PrintArea; score: number } | null = null
 
@@ -103,9 +146,22 @@ export function planPrintArea(
         const extent = localExtent(left, bottom, left + width, bottom + height)
         const usable = quality.sum(shrunk(extent, CIRCLE_RADIUS_METERS))
         for (const descriptionBox of cornerBoxes(extent, box.width, box.height)) {
-          if (contains(descriptionBox, request.competitionCentre, -FINISH_CLEARANCE_METERS))
-            continue
-          const score = usable - quality.sum(shrunk(descriptionBox, -CIRCLE_RADIUS_METERS))
+          if (!clearOfCentre(descriptionBox)) continue
+          const peripheralBox = placePeripheralBox(
+            extent,
+            descriptionBox,
+            peripheral,
+            clearOfCentre,
+            reservedQuality,
+          )
+          const score =
+            usable -
+            reservedQuality(descriptionBox) -
+            (peripheralBox
+              ? reservedQuality(peripheralBox)
+              : peripheral
+                ? MISSING_PERIPHERAL_PENALTY
+                : 0)
           if (!best || score > best.score) {
             best = {
               area: {
@@ -114,6 +170,7 @@ export function planPrintArea(
                 orientation,
                 extent,
                 descriptionBox,
+                peripheralBox,
               },
               score,
             }
@@ -201,6 +258,7 @@ export interface CourseFitRequest {
   readonly papers: readonly PaperSize[]
   readonly printScale: number
   readonly descriptionRows: number
+  readonly peripheralSize?: PaperBoxSize | null
 }
 
 const FIT_STEP_METERS = 25
@@ -213,6 +271,9 @@ export function fitPrintAreaToCourse(
   if (stops.length === 0) return null
   const mapped = summedMappedArea(terrain)
   const box = descriptionBoxGroundSize(request.descriptionRows, request.printScale)
+  const peripheral = request.peripheralSize
+    ? peripheralGroundSize(request.peripheralSize, request.printScale)
+    : null
   const xs = stops.map(([x]) => x)
   const ys = stops.map(([, y]) => y)
   const needed = localExtent(
@@ -240,14 +301,31 @@ export function fitPrintAreaToCourse(
           const offCentreShare =
             Math.hypot(left + width / 2 - courseCentreX, bottom + height / 2 - courseCentreY) /
             Math.hypot(width / 2, height / 2)
-          const score = coverageShare - offCentreShare
-          if (best && score <= best.score) continue
+          const placementScore = coverageShare - offCentreShare
+          if (best && placementScore <= best.score) continue
           const descriptionBox = cornerBoxes(extent, box.width, box.height)
             .filter(isClearOfCourse)
             .sort((a, b) => mapped.sum(a) - mapped.sum(b))[0]
-          if (descriptionBox) {
+          if (!descriptionBox) continue
+          const peripheralBox = placePeripheralBox(
+            extent,
+            descriptionBox,
+            peripheral,
+            isClearOfCourse,
+            reserved => mapped.sum(reserved),
+          )
+          const score =
+            placementScore - (peripheral && !peripheralBox ? MISSING_PERIPHERAL_PENALTY : 0)
+          if (!best || score > best.score) {
             best = {
-              area: { paper, scale: request.printScale, orientation, extent, descriptionBox },
+              area: {
+                paper,
+                scale: request.printScale,
+                orientation,
+                extent,
+                descriptionBox,
+                peripheralBox,
+              },
               score,
             }
           }

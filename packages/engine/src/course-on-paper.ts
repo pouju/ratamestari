@@ -1,7 +1,7 @@
 import { DESCRIPTION_BOX, PAPER, type PaperSize } from '@ratamestari/rules'
 import type { ControlSiteCandidate } from './control-sites'
 import { expectedControlCount, searchCourse, type Course, type CourseSpec } from './course-search'
-import { fitPrintAreaToCourse, planPrintArea } from './print-area'
+import { fitPrintAreaToCourse, planPrintArea, type PaperBoxSize } from './print-area'
 import type { Terrain } from './terrain'
 
 export type PaperChoice = PaperSize | 'auto'
@@ -33,6 +33,7 @@ export function setCourseOnPaper(
       printScale: spec.printScale,
       competitionCentre: spec.competitionCentre,
       descriptionRows: expectedControlCount(spec.format) + DESCRIPTION_BOX.rowsBesidesControls,
+      peripheralSize: spec.peripheralSize ?? null,
     })
     return printArea ? searchCourse(terrain, sites, { ...spec, printArea }, report) : null
   }
@@ -52,7 +53,7 @@ export function setCourseOnPaper(
   }
   if (!course) return null
 
-  return fitCourseToPaper(terrain, course, papers, spec.printScale)
+  return fitCourseToPaper(terrain, course, papers, spec.printScale, spec.peripheralSize)
 }
 
 export function fitCourseToPaper(
@@ -60,6 +61,7 @@ export function fitCourseToPaper(
   course: Course,
   papers: readonly PaperSize[],
   printScale: number,
+  peripheralSize: PaperBoxSize | null = null,
 ): Course {
   const stops = [
     course.start.position,
@@ -70,6 +72,7 @@ export function fitCourseToPaper(
     papers,
     printScale,
     descriptionRows: course.controls.length + DESCRIPTION_BOX.rowsBesidesControls,
+    peripheralSize,
   })
   if (!fitted) return course
   return {

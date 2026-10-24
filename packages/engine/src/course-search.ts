@@ -33,7 +33,13 @@ import {
   spread,
   type Metric,
 } from './course-metrics'
-import { isUsableInPrintArea, lineCrossesExtent, type PrintArea } from './print-area'
+import {
+  isUsableInPrintArea,
+  lineCrossesExtent,
+  reservedBoxesOf,
+  type PaperBoxSize,
+  type PrintArea,
+} from './print-area'
 import { siteAreaQualityOf, type SiteQualityOf } from './site-quality'
 import { distanceToSegment, segmentsCross } from './polyline'
 import { BLOCKED, type CostGrid } from './cost-grid'
@@ -51,6 +57,7 @@ export interface CourseSpec {
   readonly paceSecondsPerKm?: number
   readonly improvementSteps?: number
   readonly printArea?: PrintArea
+  readonly peripheralSize?: PaperBoxSize | null
 }
 
 export interface Finding {
@@ -327,7 +334,7 @@ export function evaluationFor(
   const staysOnMap = (from: LocalPoint, to: LocalPoint) =>
     courseLineStaysOnMap(grid, terrain.mappedArea, from, to)
   const clearOfDescriptions = (from: LocalPoint, to: LocalPoint) =>
-    !printArea || !lineCrossesExtent(from, to, printArea.descriptionBox)
+    !printArea || reservedBoxesOf(printArea).every(box => !lineCrossesExtent(from, to, box))
   const isAllowedCourseLine = (from: LocalPoint, to: LocalPoint) =>
     staysOnMap(from, to) && clearOfDescriptions(from, to)
   const routeChoiceValue = (from: LocalPoint, to: LocalPoint, fastestSeconds: number) =>

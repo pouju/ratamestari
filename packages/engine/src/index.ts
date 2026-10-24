@@ -48,6 +48,14 @@ export {
   type ReplacementPreference,
 } from './course-editing'
 export {
+  findPeripheralInformation,
+  peripheralLayout,
+  type PeripheralBlock,
+  type PeripheralBlockKind,
+  type PeripheralInformation,
+  type PeripheralLayout,
+} from './peripheral'
+export {
   descriptionBoxGroundSize,
   fitPrintAreaToCourse,
   isUsableInPrintArea,
@@ -55,7 +63,9 @@ export {
   placeDescriptionBox,
   planPrintArea,
   printableGroundSize,
+  reservedBoxesOf,
   type Orientation,
+  type PaperBoxSize,
   type PrintArea,
   type PrintAreaRequest,
   type CourseFitRequest,

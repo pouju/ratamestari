@@ -89,6 +89,7 @@ describe('placeDescriptionBox', () => {
       orientation: 'portrait',
       extent: localExtent(0, 0, 400, 600),
       descriptionBox: localExtent(300, 0, 400, 300),
+      peripheralBox: null,
     } as const
     expect(placeDescriptionBox(area, 100, 200)).toEqual([300, 0, 400, 200])
   })
@@ -113,6 +114,20 @@ describe('fitPrintAreaToCourse', () => {
     const area = fitPrintAreaToCourse(terrain, stops, request)!
     stops.forEach((stop, i) => {
       if (i > 0) expect(lineCrossesExtent(stops[i - 1]!, stop, area.descriptionBox)).toBe(false)
+    })
+  })
+
+  it('reserves a free corner for the peripheral information, clear of the course', () => {
+    const peripheralSize = { widthMillimetres: 45, heightMillimetres: 30 }
+    const area = fitPrintAreaToCourse(terrain, stops, { ...request, peripheralSize })!
+    const box = area.peripheralBox!
+    expect(box[2] - box[0]).toBeCloseTo(90)
+    expect(box[3] - box[1]).toBeCloseTo(60)
+    const [dx0, dy0, dx1, dy1] = area.descriptionBox
+    expect(box[0] < dx1 && dx0 < box[2] && box[1] < dy1 && dy0 < box[3]).toBe(false)
+    expect(stops.every(stop => isUsableInPrintArea(stop, area))).toBe(true)
+    stops.forEach((stop, i) => {
+      if (i > 0) expect(lineCrossesExtent(stops[i - 1]!, stop, box)).toBe(false)
     })
   })
 

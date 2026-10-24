@@ -9,6 +9,8 @@ import {
   cellCenterOf,
   evaluateLeg,
   findControlSites,
+  findPeripheralInformation,
+  peripheralLayout,
   setCourseOnPaper,
   type PaperChoice,
   type Course,
@@ -63,6 +65,7 @@ const map = await loadOcadMap(new Uint8Array(readFileSync(mapPath)))
 const features = map.features()
 const terrain = buildTerrain(features, map.info.extent)
 const sites = findControlSites(features, terrain).filter(site => describeControl(site) !== null)
+const peripheral = findPeripheralInformation(map.annotations(), terrain, map.info.scale)
 const target = courseTargetFor(request)
 if (!target) throw new Error('No winning time for this class and event')
 
@@ -81,6 +84,7 @@ const course = setCourseOnPaper(
     competitionCentre: centre,
     seed,
     paceSecondsPerKm,
+    peripheralSize: peripheralLayout(peripheral.blocks),
   },
   values.paper as PaperChoice,
 )
@@ -182,8 +186,27 @@ function printLegs(c: Course) {
 
 function renderPng(c: Course): Buffer {
   const doc = new DOMImplementation().createDocument(null, 'svg', null) as unknown as Document
-  const mapSvg = new XMLSerializer().serializeToString(map.renderSvg(doc) as unknown as Node)
-  const page = printPageSvg({ mapSvg, mapScale: map.info.scale, course: c, sheet })
+  const mapSvg = new XMLSerializer().serializeToString(
+    map.renderSvg(doc, i => !peripheral.marginObjectIndices.has(i)) as unknown as Node,
+  )
+  const blocks = peripheral.blocks.map(block => ({
+    block,
+    svg: new XMLSerializer().serializeToString(
+      map.renderSvg(doc, i => block.objectIndices.includes(i)) as unknown as Node,
+    ),
+  }))
+  const scale = c.printArea?.scale ?? map.info.scale
+  const contours = peripheral.contourIntervalMetres
+  const scaleLine =
+    `1:${scale.toLocaleString('fi-FI')}` +
+    (contours === null ? '' : ` · contour interval ${contours} m`)
+  const page = printPageSvg({
+    mapSvg,
+    mapScale: map.info.scale,
+    course: c,
+    sheet,
+    peripheral: { blocks, scaleLine },
+  })
   if (!page) throw new Error('The course has no print area')
   return new Resvg(page.svg, {
     fitTo: { mode: 'width', value: IMAGE_WIDTH_PIXELS },

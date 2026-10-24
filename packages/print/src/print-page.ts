@@ -1,13 +1,31 @@
-import { localPoint, type LocalPoint } from '@ratamestari/core'
-import { placeDescriptionBox, type Course, type PrintArea } from '@ratamestari/engine'
+import { localPoint, type LocalExtent, type LocalPoint } from '@ratamestari/core'
+import {
+  peripheralLayout,
+  placeDescriptionBox,
+  type Course,
+  type PeripheralBlock,
+  type PrintArea,
+} from '@ratamestari/engine'
 import { renderDescriptionSheet, type DescriptionSheet } from '@ratamestari/iof'
-import { COURSE_OVERPRINT, PAPER, overprintMillimetresAt } from '@ratamestari/rules'
+import {
+  COURSE_OVERPRINT,
+  PAPER,
+  PERIPHERAL_INFORMATION,
+  overprintMillimetresAt,
+} from '@ratamestari/rules'
 
 export interface PrintPageInput {
   readonly mapSvg: string
   readonly mapScale: number
   readonly course: Course
   readonly sheet: DescriptionSheet
+  readonly peripheral?: PrintPeripheral
+}
+
+export interface PrintPeripheral {
+  readonly blocks: readonly { readonly block: PeripheralBlock; readonly svg: string }[]
+  // Already in the reader's language, e.g. "1:15 000 · contour interval 5 m".
+  readonly scaleLine: string
 }
 
 export interface PrintPage {
@@ -21,6 +39,8 @@ const MILLIMETRES_PER_METRE = 1000
 const ROOT_SVG_TAG = /<svg\b[^>]*>/
 const SIZE_ATTRIBUTES = /\s(?:width|height|viewBox|x|y|preserveAspectRatio)="[^"]*"/g
 
+const SCALE_LINE_FONT_SHARE = 0.65
+
 const round = (value: number) => Math.round(value * 1000) / 1000
 
 export function printPageSvg({
@@ -28,6 +48,7 @@ export function printPageSvg({
   mapScale,
   course,
   sheet,
+  peripheral,
 }: PrintPageInput): PrintPage | null {
   const area = course.printArea
   if (!area) return null
@@ -41,7 +62,12 @@ export function printPageSvg({
     margin + ((maxY - y) * MILLIMETRES_PER_METRE) / area.scale,
   ]
 
-  const map = clippedMap(mapSvg, mapScale, area, margin)
+  const map = mapWindow(mapSvg, mapScale, area.extent, [
+    margin,
+    margin,
+    ((maxX - minX) * MILLIMETRES_PER_METRE) / area.scale,
+    ((maxY - minY) * MILLIMETRES_PER_METRE) / area.scale,
+  ])
   const overprint = courseOverprint(course, area.scale, toPage)
   const descriptions = descriptionBox(sheet, area, toPage)
   const svg =
@@ -51,11 +77,18 @@ export function printPageSvg({
     map +
     overprint +
     descriptions +
+    (peripheral ? peripheralInformation(peripheral, mapScale, area, toPage) : '') +
     `</svg>`
   return { svg, widthMillimetres: pageWidth, heightMillimetres: pageHeight }
 }
 
-function clippedMap(mapSvg: string, mapScale: number, area: PrintArea, margin: number): string {
+// Shows the given ground extent of the map SVG in a box on the page, in millimetres.
+function mapWindow(
+  mapSvg: string,
+  mapScale: number,
+  [minX, minY, maxX, maxY]: LocalExtent,
+  [x, y, width, height]: readonly [number, number, number, number],
+): string {
   const rootTag = ROOT_SVG_TAG.exec(mapSvg)?.[0]
   if (!rootTag) throw new Error('The map is not an SVG document')
   const viewBox =
@@ -67,17 +100,58 @@ function clippedMap(mapSvg: string, mapScale: number, area: PrintArea, margin: n
   // The map SVG flips OCAD paper y so that it grows downwards.
   const flipOffset = 2 * viewMinY + viewHeight
   const unitsPerMetre = MAP_SVG_UNITS_PER_METRE_AT_SCALE_1 / mapScale
-  const [minX, minY, maxX, maxY] = area.extent
-  const printWidth = ((maxX - minX) * MILLIMETRES_PER_METRE) / area.scale
-  const printHeight = ((maxY - minY) * MILLIMETRES_PER_METRE) / area.scale
   const placedTag =
     rootTag.replace(SIZE_ATTRIBUTES, '').replace(/\/?>$/, '') +
-    ` x="${margin}" y="${margin}" width="${round(printWidth)}" height="${round(printHeight)}"` +
+    ` x="${round(x)}" y="${round(y)}" width="${round(width)}" height="${round(height)}"` +
     ` viewBox="${round(minX * unitsPerMetre)} ${round(flipOffset - maxY * unitsPerMetre)}` +
     ` ${round((maxX - minX) * unitsPerMetre)} ${round((maxY - minY) * unitsPerMetre)}"` +
     ` preserveAspectRatio="none">`
   return mapSvg.replace(rootTag, placedTag).replace(/^<\?xml[^>]*>\s*/, '')
 }
+
+// Logo and copyright keep their size on the map's paper; the column hugs the page edge.
+function peripheralInformation(
+  { blocks, scaleLine }: PrintPeripheral,
+  mapScale: number,
+  area: PrintArea,
+  toPage: (point: LocalPoint) => [number, number],
+): string {
+  if (!area.peripheralBox) return ''
+  const [boxMinX, boxMinY, boxMaxX, boxMaxY] = area.peripheralBox
+  const [left, top] = toPage(localPoint(boxMinX, boxMaxY))
+  const [right] = toPage(localPoint(boxMaxX, boxMinY))
+  const onRight = boxMinX - area.extent[0] > area.extent[2] - boxMaxX
+  const layout = peripheralLayout(blocks.map(({ block }) => block))
+  const [, bottom] = toPage(localPoint(boxMinX, boxMinY))
+  const parts = [
+    `<rect x="${round(left)}" y="${round(top)}" width="${round(right - left)}"` +
+      ` height="${round(bottom - top)}" fill="white"/>`,
+  ]
+  blocks.forEach(({ block, svg }, i) => {
+    const [offsetX, offsetY] = layout.blockOffsetsMillimetres[i]!
+    const x = onRight ? right - offsetX - block.widthMillimetres : left + offsetX
+    parts.push(
+      mapWindow(svg, mapScale, block.extent, [
+        x,
+        top + offsetY,
+        block.widthMillimetres,
+        block.heightMillimetres,
+      ]),
+    )
+  })
+  const fontSize = PERIPHERAL_INFORMATION.scaleLineMillimetres * SCALE_LINE_FONT_SHARE
+  const baseline =
+    top + layout.scaleLineTopMillimetres + PERIPHERAL_INFORMATION.scaleLineMillimetres * 0.75
+  parts.push(
+    `<text x="${round(onRight ? right : left)}" y="${round(baseline)}"` +
+      ` font-family="Arial, Helvetica, sans-serif" font-size="${round(fontSize)}"` +
+      ` text-anchor="${onRight ? 'end' : 'start'}" fill="black">${escapeXml(scaleLine)}</text>`,
+  )
+  return `<g>${parts.join('')}</g>`
+}
+
+const escapeXml = (text: string) =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 function courseOverprint(
   course: Course,

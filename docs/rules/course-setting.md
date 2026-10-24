@@ -180,6 +180,8 @@ SSL's colour scale for forest orienteering (RMK 11, also the separate SSL diffic
 - Avoid oversized map sheets; children may benefit from smaller sheets (RMK 6.8.2.S).
 - Always show control descriptions on the map too, even when loose descriptions are given (RMK 6.6).
 - **Interpretation:** the course is planned on A4 by default and on A3 only when it does not fit, with a 5 mm print margin. The print scale defaults to 1:15 000 for long distance and 1:10 000 for middle distance (RMK 6.8.1); the user can choose another. The description box (6 mm boxes, IOF CD p. 3) takes a corner of the paper that holds the fewest good control sites, and course lines must not pass under it (D7).
+- The front of the map shall give the map scale and the contour interval. Often also included: map name, issuer, date, specification, mappers, print shop and copyright (ISOM 2017-2 §2.13).
+- **Interpretation:** the map's own margin (titles, credits, logo, copyright) is left out of the printed map, since it seldom fits the print area and its scale text may be wrong for the print scale. The club logo and the copyright notice are carried over at their size on the map's paper, into a free corner that course lines do not cross, with a line stating the print scale and the contour interval read from the map's texts.
 
 ### Course overprint
 

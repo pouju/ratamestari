@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { citedSchema, iofDescriptions, lajisaannot, ratamestarikirja } from './source'
+import { citedSchema, iofDescriptions, isom, lajisaannot, ratamestarikirja } from './source'
 import { formatSchema, type Format } from './winning-time'
 
 export const paperSizeSchema = z.enum(['A4', 'A3'])
@@ -31,6 +31,36 @@ export const DESCRIPTION_BOX: z.infer<typeof descriptionBoxRuleSchema> = {
   rowsBesidesControls: 4,
   sources: [iofDescriptions('p. 3')],
   interpretation: false,
+}
+
+export const peripheralInformationRuleSchema = citedSchema.extend({
+  groupingGapMillimetres: z.number().positive(),
+  captionGapMillimetres: z.number().nonnegative(),
+  paddingMillimetres: z.number().nonnegative(),
+  textSlackShare: z.number().nonnegative(),
+  gapMillimetres: z.number().nonnegative(),
+  scaleLineMillimetres: z.number().positive(),
+  scaleLineWidthMillimetres: z.number().positive(),
+  copyrightPattern: z.instanceof(RegExp),
+  contourIntervalPattern: z.instanceof(RegExp),
+})
+
+// ISOM requires the scale and contour interval on the front of the map. The map's own scale text
+// may be wrong for the print scale, so the print states both itself, and carries over the club's
+// logo and copyright notice from the map's margin.
+export const PERIPHERAL_INFORMATION: z.infer<typeof peripheralInformationRuleSchema> = {
+  groupingGapMillimetres: 3,
+  captionGapMillimetres: 1,
+  paddingMillimetres: 0.5,
+  textSlackShare: 0.15,
+  gapMillimetres: 2,
+  scaleLineMillimetres: 4,
+  scaleLineWidthMillimetres: 45,
+  copyrightPattern: /©|\(c\)|copyright|kopiointi|kopioiminen|tekijänoikeu|upphovsr|all rights/i,
+  contourIntervalPattern:
+    /(?:käyräväli|contour interval|ekvidistans|equidistance)\D{0,10}(\d+(?:[.,]\d+)?)\s*m\b/i,
+  sources: [isom('2.13')],
+  interpretation: true,
 }
 
 export const printScaleSchema = z.literal([15000, 10000, 7500, 5000, 4000])
