@@ -1,7 +1,9 @@
 import type { LocalPoint, MapFeature } from '@ratamestari/core'
 import {
   CONTOUR_FEATURE_SITES,
+  CONTROL_CIRCLE,
   CONTROL_SITE_DIFFICULTY,
+  isomDescription,
   isomSymbolRule,
   LEADING_FEATURES,
   LINE_FEATURE_SITES,
@@ -19,6 +21,17 @@ export type ContourForm = 'knoll' | 'depression' | 'spur' | 'reEntrant'
 export type LeadingFeatureDistance = 'on' | 'near' | 'far'
 export type TechnicalDifficulty = 1 | 2 | 3 | 4 | 5
 
+export type SiteOrientation =
+  | { readonly kind: 'end'; readonly pointingRadians: number }
+  | {
+      readonly kind: 'corner'
+      readonly pointingRadians: number
+      readonly turnDegrees: number
+      readonly isConvex: boolean
+    }
+
+export type Offset = readonly [dx: number, dy: number]
+
 export interface ControlSiteCandidate {
   readonly id: number
   readonly position: LocalPoint
@@ -30,6 +43,8 @@ export interface ControlSiteCandidate {
   readonly leadingFeatureDistance: LeadingFeatureDistance
   readonly inSlowTerrain: boolean
   readonly technicalDifficulty: TechnicalDifficulty
+  readonly orientation: SiteOrientation | null
+  readonly similarFeatureOffsets: readonly Offset[]
 }
 
 const MERGE_DISTANCE_METERS = 10
@@ -80,6 +95,7 @@ interface RawSite {
   readonly feature: MapFeature
   readonly placement: SitePlacement
   readonly contourForm: ContourForm | null
+  readonly orientation: SiteOrientation | null
 }
 
 export function findControlSites(
@@ -92,9 +108,12 @@ export function findControlSites(
   const nearForbidden = nearForbiddenMask(features, grid)
   const visibleArea = visibleAreaCodes(features, grid)
   const accepted: ControlSiteCandidate[] = []
+  const acceptedRaw: RawSite[] = []
   const occupied = new Map<string, LocalPoint[]>()
+  const similarityPool = new SimilarityPool()
 
   for (const raw of rawSites(features, terrain, visibleArea)) {
+    similarityPool.add(raw)
     const index = cellIndexOf(grid, raw.position)
     if (index === null || !terrain.mappedArea[index] || avoided[index]) continue
     if (nearForbidden[index]) continue
@@ -123,9 +142,67 @@ export function findControlSites(
         5,
         isLeadingLineEnd(raw) ? 1 : BASE_DIFFICULTY[raw.placement] + DISTANCE_DIFFICULTY[band],
       ) as TechnicalDifficulty,
+      orientation: raw.orientation,
+      similarFeatureOffsets: [],
     })
+    acceptedRaw.push(raw)
   }
-  return accepted
+  return accepted.map((site, i) => ({
+    ...site,
+    similarFeatureOffsets: similarityPool.offsetsAround(acceptedRaw[i]!),
+  }))
+}
+
+const SIMILARITY_RADIUS_METERS = CONTROL_CIRCLE.footprintMeters / 2
+const SAME_FEATURE_METERS = 0.5
+
+function similarityKey(raw: RawSite): string | null {
+  if (raw.placement === 'contourKnoll') return raw.contourForm && `contour:${raw.contourForm}`
+  if (raw.placement !== 'point' && raw.placement !== 'smallArea') return null
+  const code = raw.feature.isomCode!
+  return `feature:${isomDescription(code)?.feature ?? code}`
+}
+
+class SimilarityPool {
+  private readonly byKey = new Map<string, Map<string, LocalPoint[]>>()
+
+  add(raw: RawSite) {
+    const key = similarityKey(raw)
+    if (key === null) return
+    let buckets = this.byKey.get(key)
+    if (!buckets) this.byKey.set(key, (buckets = new Map()))
+    const bucketKey = this.bucketKeyOf(raw.position).join(',')
+    const bucket = buckets.get(bucketKey)
+    if (bucket) bucket.push(raw.position)
+    else buckets.set(bucketKey, [raw.position])
+  }
+
+  offsetsAround(raw: RawSite): Offset[] {
+    const key = similarityKey(raw)
+    const buckets = key === null ? undefined : this.byKey.get(key)
+    if (!buckets) return []
+    const [bx, by] = this.bucketKeyOf(raw.position)
+    const offsets: Offset[] = []
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        for (const other of buckets.get(`${bx + dx},${by + dy}`) ?? []) {
+          const offset = [other[0] - raw.position[0], other[1] - raw.position[1]] as const
+          const distance = Math.hypot(...offset)
+          if (distance > SAME_FEATURE_METERS && distance <= SIMILARITY_RADIUS_METERS) {
+            offsets.push(offset)
+          }
+        }
+      }
+    }
+    return offsets
+  }
+
+  private bucketKeyOf([x, y]: LocalPoint) {
+    return [
+      Math.floor(x / SIMILARITY_RADIUS_METERS),
+      Math.floor(y / SIMILARITY_RADIUS_METERS),
+    ] as const
+  }
 }
 
 function* rawSites(
@@ -142,7 +219,8 @@ function* rawSites(
     feature: MapFeature,
     placement: SitePlacement,
     contourForm: ContourForm | null = null,
-  ): RawSite => ({ position, feature, placement, contourForm })
+    orientation: SiteOrientation | null = null,
+  ): RawSite => ({ position, feature, placement, contourForm, orientation })
 
   for (const { feature, controlSite } of withRule) {
     if (controlSite === 'yes' && feature.geometry.type === 'Point') {
@@ -166,8 +244,9 @@ function* rawSites(
     const { geometry } = feature
     if (controlSite !== 'yes' || geometry.type !== 'LineString') continue
     const points = geometry.coordinates
-    yield site(points[0]!, feature, 'lineEnd')
-    yield site(points[points.length - 1]!, feature, 'lineEnd')
+    const last = points.length - 1
+    yield site(points[0]!, feature, 'lineEnd', null, endOrientation(points, 0, 1))
+    yield site(points[last]!, feature, 'lineEnd', null, endOrientation(points, last, -1))
   }
   yield* contourBends(features, terrain)
   for (const { feature, controlSite } of withRule) {
@@ -184,7 +263,8 @@ function* rawSites(
     for (const ring of geometry.coordinates) {
       for (const corner of corners(ring)) {
         if (isVisibleCorner(corner, geometry.coordinates, feature.isomCode!, visibleArea)) {
-          yield site(corner.position, feature, 'areaCorner')
+          const orientation = cornerOrientation(corner, geometry.coordinates)
+          yield site(corner.position, feature, 'areaCorner', null, orientation)
         }
       }
     }
@@ -197,7 +277,13 @@ function* contourSymbolPoints(features: readonly MapFeature[]): Generator<RawSit
     const { isomCode, geometry } = feature
     if (isomCode === null || !CONTOUR_SYMBOL_ISOM_CODES.has(isomCode)) continue
     if (geometry.type !== 'Point' || isNearContourLine(geometry.coordinates)) continue
-    yield { position: geometry.coordinates, feature, placement: 'point', contourForm: null }
+    yield {
+      position: geometry.coordinates,
+      feature,
+      placement: 'point',
+      contourForm: null,
+      orientation: null,
+    }
   }
 }
 
@@ -271,6 +357,7 @@ function* contourKnolls(features: readonly MapFeature[], terrain: Terrain): Gene
       position: centroid(ring.points),
       feature: ring.feature,
       placement: 'contourKnoll',
+      orientation: null,
       contourForm:
         lineId === undefined ? null : closedContourForm(lines[lineId], uphillSides[lineId]),
     }
@@ -298,6 +385,7 @@ function* contourBends(features: readonly MapFeature[], terrain: Terrain): Gener
         position: bend.position,
         feature,
         placement: 'contourBend',
+        orientation: null,
         contourForm: insideIsUphill === null ? null : insideIsUphill ? 'spur' : 'reEntrant',
       }
     }
@@ -394,6 +482,48 @@ function signedTurnDegrees(before: LocalPoint, vertex: LocalPoint, after: LocalP
   const outX = after[0] - vertex[0]
   const outY = after[1] - vertex[1]
   return (Math.atan2(inX * outY - inY * outX, inX * outX + inY * outY) * 180) / Math.PI
+}
+
+const END_DIRECTION_MEASURING_METERS = 10
+
+function endOrientation(
+  points: readonly LocalPoint[],
+  end: number,
+  inward: 1 | -1,
+): SiteOrientation | null {
+  const inside =
+    pointAtDistanceAlong(points, end, inward, END_DIRECTION_MEASURING_METERS) ??
+    points[end + inward]
+  if (!inside) return null
+  const tip = points[end]!
+  return { kind: 'end', pointingRadians: Math.atan2(tip[1] - inside[1], tip[0] - inside[0]) }
+}
+
+function cornerOrientation(
+  corner: Corner,
+  rings: readonly (readonly LocalPoint[])[],
+): SiteOrientation | null {
+  const unit = (to: LocalPoint) => {
+    const dx = to[0] - corner.position[0]
+    const dy = to[1] - corner.position[1]
+    const length = Math.hypot(dx, dy) || 1
+    return [dx / length, dy / length] as const
+  }
+  const [bx, by] = unit(corner.before)
+  const [ax, ay] = unit(corner.after)
+  const length = Math.hypot(bx + ax, by + ay)
+  if (length === 0) return null
+  const intoAngle = [(bx + ax) / length, (by + ay) / length] as const
+  const sample = [
+    corner.position[0] + intoAngle[0] * CORNER_SIDE_SAMPLE_METERS,
+    corner.position[1] + intoAngle[1] * CORNER_SIDE_SAMPLE_METERS,
+  ] as const as LocalPoint
+  return {
+    kind: 'corner',
+    pointingRadians: Math.atan2(-intoAngle[1], -intoAngle[0]),
+    turnDegrees: Math.abs(signedTurnDegrees(corner.before, corner.position, corner.after)),
+    isConvex: isInsideRings(sample, rings),
+  }
 }
 
 interface Corner {

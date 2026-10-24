@@ -99,6 +99,40 @@ describe('findControlSites', () => {
     ])
   })
 
+  it('tells which way each end of a line points', () => {
+    const sites = sitesOf([feature('202', line([300, 300], [400, 300]))])
+    const endAt = (x: number) =>
+      sites.find(s => s.placement === 'lineEnd' && s.position[0] === x)!.orientation
+    expect(endAt(300)).toEqual({ kind: 'end', pointingRadians: Math.PI })
+    expect(endAt(400)).toEqual({ kind: 'end', pointingRadians: 0 })
+  })
+
+  it('tells which way an area corner points and whether it is convex', () => {
+    const lShape = feature(
+      '401',
+      polygon([200, 200], [400, 200], [400, 300], [300, 300], [300, 400], [200, 400], [200, 200]),
+    )
+    const cornerAt = (x: number, y: number) =>
+      sitesOf([lShape]).find(s => s.position[0] === x && s.position[1] === y)?.orientation
+    const northEast = cornerAt(400, 300)
+    expect(northEast).toMatchObject({ kind: 'corner', turnDegrees: 90, isConvex: true })
+    expect(northEast?.kind === 'corner' && northEast.pointingRadians).toBeCloseTo(Math.PI / 4)
+    const notch = cornerAt(300, 300)
+    expect(notch).toMatchObject({ kind: 'corner', isConvex: false })
+    expect(notch?.kind === 'corner' && notch.pointingRadians).toBeCloseTo((-3 * Math.PI) / 4)
+  })
+
+  it('lists similar features within the control circle', () => {
+    const sites = sitesOf([
+      feature('204', point(300, 300)),
+      feature('205', point(320, 300)),
+      feature('204', point(300, 360)),
+      feature('418', point(300, 290)),
+    ])
+    const at300 = sites.find(s => s.position[0] === 300 && s.position[1] === 300)!
+    expect(at300.similarFeatureOffsets).toEqual([[20, 0]])
+  })
+
   it('keeps one site where features are closer than 10 m', () => {
     expect(
       sitesOf([feature('204', point(300, 300)), feature('204', point(305, 300))]),

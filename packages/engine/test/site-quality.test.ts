@@ -18,6 +18,8 @@ const site = (
   leadingFeatureDistance: 'far',
   inSlowTerrain: false,
   technicalDifficulty: 4,
+  orientation: null,
+  similarFeatureOffsets: [],
   ...overrides,
 })
 

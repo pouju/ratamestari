@@ -14,6 +14,8 @@ export {
   type ContourForm,
   type ControlSiteCandidate,
   type LeadingFeatureDistance,
+  type Offset,
+  type SiteOrientation,
   type SitePlacement,
   type TechnicalDifficulty,
 } from './control-sites'
