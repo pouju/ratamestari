@@ -55,6 +55,7 @@ import { SetByHandPanel } from './SetByHandPanel'
 import { handEditFor, isControlStop, withUndoStep } from './set-by-hand'
 import type { CourseHit } from './course-overprint'
 import { rasterizeSvg, type MapImage } from './rasterize'
+import type { SearchStatus } from './search-progress'
 import {
   APP_VERSION,
   OCAD2GEOJSON_URL,
@@ -107,6 +108,9 @@ function frameFor(
   return printFrameAround(placed.centre, paper, placed.orientation, scale)
 }
 
+// Only the final course is shown, revealed when the search ends.
+const ignoreIntermediateCourse = () => {}
+
 export function App() {
   const [engine] = useState(createEngine)
   const [state, setState] = useState<LoadState>({ status: 'empty' })
@@ -136,7 +140,8 @@ export function App() {
   const [request, setRequest] = useState<CourseRequest>(DEFAULT_REQUEST)
   const [seed, setSeed] = useState(1)
   const [course, setCourse] = useState<Course | null>(null)
-  const [isGenerating, setIsGenerating] = useState(false)
+  const [search, setSearch] = useState<SearchStatus | null>(null)
+  const isGenerating = search !== null
   const [paceText, setPaceText] = useState(DEFAULT_WINNER_PACE)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isDraggingOver, setIsDraggingOver] = useState(false)
@@ -299,7 +304,8 @@ export function App() {
     }
     setRequest(nextRequest)
     setSeed(nextSeed)
-    setIsGenerating(true)
+    setCourse(null)
+    setSearch({ startedAt: Date.now() })
     setPlannedLeg(null)
     setSelectedLeg(null)
     setEditMessage(null)
@@ -314,7 +320,7 @@ export function App() {
         paper,
         printScale,
         frame,
-        progressCallback<Course>(setCourse),
+        progressCallback<Course>(ignoreIntermediateCourse),
         wish,
       )
       setCourse(result)
@@ -325,7 +331,7 @@ export function App() {
       setEditMessage(messages.course.generationFailed(errorMessage(e)))
       return null
     } finally {
-      setIsGenerating(false)
+      setSearch(null)
     }
   }
 
@@ -1003,7 +1009,7 @@ export function App() {
               paceSecondsPerKm !== null &&
               !isGenerating
             }
-            isGenerating={isGenerating}
+            search={search}
             onSetCourse={() => void generateCourse(request, seed, paceSecondsPerKm)}
             onSetByHand={startSettingByHand}
             onStop={() => void engine.stopSearch()}

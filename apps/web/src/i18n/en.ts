@@ -1,4 +1,5 @@
 import type { Course } from '@ratamestari/engine'
+import type { SearchPhase } from '../search-progress'
 
 export type StopName = number | 'start' | 'finish'
 
@@ -132,6 +133,13 @@ export const en = {
     setting: 'Setting the course…',
     stop: 'Stop',
     stopHint: 'Stop keeps the best course found so far.',
+    searchPhases: {
+      areas: 'Finding technical areas…',
+      skeleton: 'Planning the course…',
+      sections: 'Setting sections…',
+      improving: 'Improving…',
+      checking: 'Checking rules…',
+    } satisfies Record<SearchPhase, string>,
     downloadPdf: 'Download PDF',
     preparingPdf: 'Preparing the PDF…',
     downloadXml: 'IOF XML',

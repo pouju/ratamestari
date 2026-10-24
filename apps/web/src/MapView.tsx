@@ -52,6 +52,7 @@ import {
 } from './leg-routes'
 import type { CostMapImage } from './cost-map-image'
 import type { DescriptionBox } from './description-box'
+import { drawnLegsAt, revealedDescriptionExtent, revealPlan } from './course-reveal'
 import type { MapImage } from './rasterize'
 import 'ol/ol.css'
 
@@ -218,12 +219,9 @@ interface Props {
   tools: ReactNode
   footer: ReactNode
   suggestedMove: { readonly from: LocalPoint; readonly to: LocalPoint } | null
-  // Changes when a new course should be drawn leg by leg, as when a search finishes.
+  // Changes when a new course should be revealed leg by leg, as when a search finishes.
   drawCourseKey: number
 }
-
-const DRAW_MS_PER_LEG = 220
-const LONGEST_DRAW_MS = 3500
 
 const ZOOM_STEP = 1
 const ZOOM_ANIMATION_MS = 200
@@ -461,34 +459,57 @@ export function MapView({
     courseTranslate.setActive(canEditCourse)
   }, [canEditCourse, courseTranslate])
 
+  const revealingCourse = useRef<Course | null>(null)
+  const endReveal = useRef<() => void>(() => {})
   useEffect(() => {
+    if (revealingCourse.current) return
     courseLayer.setStyle(courseOverprintStyle(selectedLeg, null, selectedStop))
   }, [selectedLeg, selectedStop, courseLayer])
 
-  const legCountRef = useRef(0)
-  legCountRef.current = course ? course.controls.length + 1 : 0
+  const courseRef = useRef(course)
+  courseRef.current = course
+  const descriptionBoxRef = useRef(descriptionBox)
+  descriptionBoxRef.current = descriptionBox
   useEffect(() => {
-    const legs = legCountRef.current
-    if (drawCourseKey === 0 || legs === 0) return
+    const revealed = courseRef.current
+    if (drawCourseKey === 0 || !revealed) return
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const msPerLeg = Math.min(DRAW_MS_PER_LEG, LONGEST_DRAW_MS / legs)
+    const plan = revealPlan([
+      revealed.start.position,
+      ...revealed.controls.map(control => control.position),
+      revealed.finish,
+    ])
     const started = performance.now()
     let frame = 0
+    const showStill = () => {
+      cancelAnimationFrame(frame)
+      revealingCourse.current = null
+      courseLayer.setStyle(overprintStyle())
+      descriptionLayer.setExtent(undefined)
+    }
     const draw = (now: number) => {
-      const drawnLegs = (now - started) / msPerLeg
-      if (drawnLegs >= legs) {
-        courseLayer.setStyle(overprintStyle())
+      const drawnLegs = drawnLegsAt(plan, now - started)
+      if (drawnLegs === null) {
+        showStill()
         return
       }
-      courseLayer.setStyle(overprintStyle(drawnLegs))
+      showDrawn(drawnLegs)
       frame = requestAnimationFrame(draw)
     }
-    frame = requestAnimationFrame(draw)
-    return () => {
-      cancelAnimationFrame(frame)
-      courseLayer.setStyle(overprintStyle())
+    const showDrawn = (drawnLegs: number) => {
+      courseLayer.setStyle(overprintStyle(drawnLegs))
+      const box = descriptionBoxRef.current
+      if (box)
+        descriptionLayer.setExtent([
+          ...revealedDescriptionExtent(box.extent, box.sheet.controls.length, drawnLegs),
+        ])
     }
-  }, [drawCourseKey, courseLayer])
+    revealingCourse.current = revealed
+    endReveal.current = showStill
+    showDrawn(0)
+    frame = requestAnimationFrame(draw)
+    return showStill
+  }, [drawCourseKey, courseLayer, descriptionLayer])
 
   useEffect(() => {
     const source = legToolLayer.getSource()!
@@ -518,6 +539,7 @@ export function MapView({
   }, [plannedLeg, info, legToolLayer, legToolTranslate, plannedLegFeatures])
 
   useEffect(() => {
+    if (revealingCourse.current && course !== revealingCourse.current) endReveal.current()
     courseSource.clear()
     if (course) courseSource.addFeatures(courseOverprintFeatures(course))
   }, [course, courseSource])

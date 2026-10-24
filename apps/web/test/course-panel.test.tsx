@@ -4,6 +4,7 @@ import type { CourseRequest } from '@ratamestari/rules'
 import type { CourseFileCheck } from '../src/CheckPanel'
 import { CoursePanel } from '../src/CoursePanel'
 import { deduceClass } from '../src/course-fit'
+import type { SearchStatus } from '../src/search-progress'
 
 const REQUEST: CourseRequest = {
   eventLevel: 'finnishChampionship',
@@ -15,7 +16,11 @@ const REQUEST: CourseRequest = {
 
 const ignore = () => {}
 
-const render = (hasCentre: boolean, check: CourseFileCheck | null = null) =>
+const render = (
+  hasCentre: boolean,
+  check: CourseFileCheck | null = null,
+  search: SearchStatus | null = null,
+) =>
   renderToStaticMarkup(
     <CoursePanel
       request={REQUEST}
@@ -25,7 +30,7 @@ const render = (hasCentre: boolean, check: CourseFileCheck | null = null) =>
       isPickingCentre={false}
       onMoveCentre={ignore}
       canSetCourse={hasCentre}
-      isGenerating={false}
+      search={search}
       onSetCourse={ignore}
       onSetByHand={ignore}
       onStop={ignore}
@@ -104,5 +109,19 @@ describe('CoursePanel', () => {
     expect(html).toContain('middle distance for H21')
     expect(html).toContain('within the 30–35 min of this class')
     expect(html).toContain('Check as another class')
+  })
+
+  it('shows that the course is being set, with Stop, while searching', () => {
+    const html = render(true, null, { startedAt: Date.now() })
+    expect(html).toContain('Setting the course…')
+    expect(html).toContain('0:00')
+    expect(html).toContain('Stop')
+    expect(html).not.toContain('Set course')
+  })
+
+  it('names the search phase when one is given', () => {
+    const html = render(true, null, { startedAt: 0, phase: 'sections' })
+    expect(html).toContain('Setting sections…')
+    expect(html).toContain('Stop keeps the best course found so far.')
   })
 })

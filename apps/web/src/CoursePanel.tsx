@@ -8,7 +8,7 @@ import {
   skillLetterSchema,
   type CourseRequest,
 } from '@ratamestari/rules'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { offeredAgeClasses, withOfferedClass } from './class-choice'
 import { useFormat, useMessages } from './i18n'
 import {
@@ -20,6 +20,7 @@ import {
 } from './CheckPanel'
 import { ScoreBreakdown } from './ScoreBreakdown'
 import { PanelLine } from './WorkspaceStart'
+import type { SearchStatus } from './search-progress'
 
 interface Props {
   request: CourseRequest
@@ -29,7 +30,7 @@ interface Props {
   isPickingCentre: boolean
   onMoveCentre: () => void
   canSetCourse: boolean
-  isGenerating: boolean
+  search: SearchStatus | null
   onSetCourse: () => void
   onSetByHand: () => void
   onStop: () => void
@@ -371,7 +372,7 @@ function SeverityMark({ severity, label }: { severity: Severity; label: string }
 function CourseActions({
   course,
   canSetCourse,
-  isGenerating,
+  search,
   isEditing,
   isPreparingPdf,
   isMeasured,
@@ -386,16 +387,14 @@ function CourseActions({
 }: Props & { isMeasured: boolean }) {
   const { course: m, setByHand } = useMessages()
 
-  if (isGenerating) {
+  if (search) {
     return (
       <div className={isAssistantOn ? 'course-actions is-quiet' : 'course-actions'}>
+        <SearchIndicator search={search} />
         <div className="course-actions-row">
           <button type="button" className="course-primary" onClick={onStop}>
             {m.stop}
           </button>
-          <span className="course-actions-status" role="status">
-            {m.setting}
-          </span>
         </div>
         <p className="course-actions-note">{m.stopHint}</p>
       </div>
@@ -458,6 +457,31 @@ function CourseActions({
         )}
       </div>
       <p className="course-actions-note">{m.exportNote}</p>
+    </div>
+  )
+}
+
+const ELAPSED_TICK_MS = 1000
+
+function SearchIndicator({ search }: { search: SearchStatus }) {
+  const m = useMessages().course
+  const format = useFormat()
+  const [now, setNow] = useState(search.startedAt)
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), ELAPSED_TICK_MS)
+    return () => clearInterval(timer)
+  }, [])
+  const elapsedSeconds = Math.max(0, (now - search.startedAt) / 1000)
+
+  return (
+    <div className="search-progress">
+      <div className="search-progress-line">
+        <span className="search-progress-label" role="status">
+          {search.phase ? m.searchPhases[search.phase] : m.setting}
+        </span>
+        <span className="search-progress-elapsed">{format.duration(elapsedSeconds)}</span>
+      </div>
+      <span className="search-progress-bar" aria-hidden="true" />
     </div>
   )
 }
