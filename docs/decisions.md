@@ -472,3 +472,38 @@ They are built before the new UI (D14), in today's UI.
 
 - Wishes that need the map's content ("start near the road") cannot be met from the chat; the assistant says so and offers a distance, a direction or dragging on the map.
 - Suggestions are tied to the course they were made for; after any other change the assistant asks for new ones.
+
+---
+
+## D18: Set a course by hand: add, insert and delete controls
+
+**Date:** 2026-10-24
+**Status:** Proposed (to be confirmed by the user)
+
+### Decision
+
+Ratamestari also helps a course setter set a course by hand, not only generates one.
+
+- **Set it yourself**, next to Set course once the centre and class are chosen, starts an empty course. The first tap on the map places the start; the finish starts at the competition centre and can be dragged. Each later tap adds the next control.
+- **Edit controls** in the map toolbar does the same on any course: generated, set by hand or opened from an IOF XML file. A tap on a leg line puts a control into that leg. A tap on a control selects it, and it can then be deleted with a button or Delete/Backspace, or dragged (on touch only the selected stop drags).
+- **Placement:** a tapped point snaps to the nearest candidate control site within 60 m, as dragging does. With none near, the control stays where it was tapped and gets the finding "no map feature" (as in Check a course, D15), so it is never refused. Inserting at a tapped point (`insertControlAt`) differs from the assistant's `insertControl`, where the engine picks the best site on the leg (D17).
+- Every edit runs the same rule checks, routing, measurement, descriptions and paper fit as dragging. A course with no or a few controls is a normal state.
+- Edits made on the map can be undone one by one (Undo, Ctrl/Cmd+Z), back to the empty map.
+
+### Why
+
+- Many course setters want to place controls themselves and use Ratamestari for the checks, routes, descriptions, paper fit and export. This widens the product from "generates a course" to "helps you set one", like the checker in D15.
+- The engine already re-checks any course (`recheckCourse`); adding, inserting and deleting are small additions on top of it.
+
+### Alternatives considered
+
+- **Always keep the clicked point:** like Check a course. But on a generated or hand-set course the description comes from a site, and dragging already snaps; two rules for the same gesture would surprise.
+- **Refuse a control with no site near it:** as dragging does. Setters sometimes place controls on features the map reader does not recognise, so a finding is more useful than a refusal.
+- **Undo as a separate history in the engine:** the course is a plain value in the app state, so a list of earlier courses is enough.
+
+### Consequences
+
+- The finish is draggable on every course.
+- Changing the class while setting by hand re-checks the course as the new class.
+- Featureless controls carry their finding through later edits, also on imported courses (`recheckCourse` raises it).
+- The assistant can remove a control (`remove_control`, D17) but cannot add one at a chosen point, since it never sees positions; it points the user to Edit controls.

@@ -148,6 +148,13 @@ The current two-control dev tool becomes a user tool, **Plan a leg**, in the map
 - **Fix only suggests here.** The course is the setter's own, so a suggestion shows the proposed spot on the map with **Move here** and **Keep mine**. Nothing changes without the user's tap.
 - The course file stays on the computer, like the map (D3). Exports work as for generated courses.
 
+### Set a course by hand (D18)
+
+- **Set it yourself** sits next to Set course. Tap the start, then each control in order; the finish is at the competition centre and can be dragged.
+- **Edit controls** in the map toolbar works on any course. Tap a leg line to put a control in it; tap a control to select it, then delete it (button, or Delete/Backspace) or drag it. Undo steps back one edit at a time.
+- A tap snaps to a mapped feature within 60 m. With none near, the control stays where it was tapped and is flagged "no map feature found".
+- Length, climb, findings, descriptions and the print area follow every edit.
+
 ## Localisation
 
 English only for now, built so that Finnish is just a new file.
