@@ -154,9 +154,27 @@ export const en = {
     readFailed: (reason: string) => `The course file could not be read: ${reason}`,
     openMapFirst: 'Open the map the course was set on first, then the course file.',
     checkedAs: 'Checked as',
-    classGuessed: 'The class is read from the course name. Check the level and distance.',
-    noClass: (name: string) =>
-      `The class could not be read from “${name}”. Choose it in the sentence above.`,
+    fitsBest: 'Fits best',
+    classSentence: (level: string, distance: string, courseClass: string, letter: string) =>
+      `${level} ${distance} for ${courseClass}, skill level ${letter}`,
+    timeInside: (estimate: string, range: string) =>
+      `Winning time about ${estimate}, within the ${range} of this class.`,
+    timeOutside: (estimate: string, difference: string, isLonger: boolean, range: string) =>
+      `Winning time about ${estimate}, ${difference} ${isLonger ? 'longer' : 'shorter'} than the ${range} of this class.`,
+    minuteRange: (shortest: number, longest: number) => `${shortest}–${longest} min`,
+    difficultyFits: "Every control is at this class's difficulty.",
+    difficultyMisfits: (count: number) =>
+      count === 1
+        ? "1 control is outside this class's difficulty."
+        : `${count} controls are outside this class's difficulty.`,
+    alsoFits: (classes: readonly string[]) => `Also fits: ${classes.join('; ')}.`,
+    classFromName:
+      'The class comes from the course name. The level and distance are deduced from the winning time and control difficulty.',
+    classFromCourse:
+      "The level, distance and class are deduced from the winning time and control difficulty. The winning time uses the winner's pace in Settings.",
+    checkAsOther: 'Check as another class',
+    chosenByYou: 'Checked as the class you chose.',
+    deduceAgain: 'Deduce the class from the course',
     yourFile: 'Your file',
     measured: 'Measured',
     notGiven: 'not given',

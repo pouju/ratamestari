@@ -31,6 +31,7 @@ import { createEngine, progressCallback } from './engine'
 import type { CheckedCourse, ImportedCourseSummary } from './engine.worker'
 import type { CourseFileCheck } from './CheckPanel'
 import { withOfferedClass } from './class-choice'
+import { deduceClass, type DeducedClass } from './course-fit'
 import { formatDuration, parsePace } from './format'
 import { LegRoutesPanel, PlanLegPanel, type LegRoutesState } from './LegRoutesPanel'
 import { EMPTY_PLANNED_LEG, legEnds, plannedEnds, type PlannedLeg } from './leg-routes'
@@ -57,6 +58,13 @@ const DEFAULT_REQUEST: CourseRequest = {
 }
 
 const DEFAULT_WINNER_PACE = '5:00'
+
+const isSameRequest = (a: CourseRequest, b: CourseRequest) =>
+  a.eventLevel === b.eventLevel &&
+  a.format === b.format &&
+  a.sex === b.sex &&
+  a.ageClass === b.ageClass &&
+  a.skillLetter === b.skillLetter
 
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -97,6 +105,7 @@ export function App() {
     selected: number
     status: CourseFileCheck['status']
     checked: CheckedCourse | null
+    deduced: DeducedClass | null
   } | null>(null)
   const latestCheck = useRef(0)
   const [suggestion, setSuggestion] = useState<{
@@ -366,8 +375,9 @@ export function App() {
         selected: 0,
         status: 'checking',
         checked: null,
+        deduced: null,
       })
-      await checkCourse(courses, 0, request, true)
+      await checkCourse(courses, 0, request, 'deduce')
     } catch (e) {
       setEditMessage(messages.check.readFailed(errorMessage(e)))
     }
@@ -377,26 +387,41 @@ export function App() {
     courses: readonly ImportedCourseSummary[],
     index: number,
     baseRequest: CourseRequest,
-    takeClassFromFile: boolean,
+    classChoice: 'deduce' | 'asGiven',
   ) {
-    const guessed = takeClassFromFile ? courses[index]?.guessedClass : null
-    const nextRequest = withOfferedClass({ ...baseRequest, ...guessed }).request
+    const fromName = courses[index]?.guessedClass ?? null
+    let nextRequest =
+      classChoice === 'deduce'
+        ? withOfferedClass({ ...baseRequest, ...fromName }).request
+        : baseRequest
     const check = ++latestCheck.current
-    setRequest(nextRequest)
     setSuggestion(null)
     setSelectedLeg(null)
     setCourseFile(file => file && { ...file, selected: index, status: 'checking' })
-    const checked = await engine.checkImportedCourse(
-      index,
-      nextRequest,
-      winnerPace,
-      paper,
-      printScale,
-    )
+    const checkAs = (asRequest: CourseRequest) =>
+      engine.checkImportedCourse(index, asRequest, winnerPace, paper, printScale)
+    let checked = await checkAs(nextRequest)
+    // The winning time and control difficulties are measured the same whatever the class, so one
+    // check tells which level, distance and class the course fits; it is then checked as that.
+    const deduced =
+      checked && classChoice === 'deduce'
+        ? deduceClass(checked.course, fromName, nextRequest.sex)
+        : null
+    if (deduced && !isSameRequest(deduced.best.request, nextRequest)) {
+      nextRequest = deduced.best.request
+      checked = await checkAs(nextRequest)
+    }
     if (check !== latestCheck.current) return
+    setRequest(nextRequest)
     setCourseFile(
       file =>
-        file && { ...file, selected: index, status: checked ? 'checked' : 'notOnMap', checked },
+        file && {
+          ...file,
+          selected: index,
+          status: checked ? 'checked' : 'notOnMap',
+          checked,
+          deduced,
+        },
     )
     setCourse(checked?.course ?? null)
     if (checked) setCompetitionCentre(checked.course.finish)
@@ -421,7 +446,8 @@ export function App() {
     fileName: courseFile.fileName,
     courseNames: courseFile.courses.map(c => c.name),
     selected: courseFile.selected,
-    hasGuessedClass: courseFile.courses[courseFile.selected]?.guessedClass != null,
+    classFromName: courseFile.courses[courseFile.selected]?.guessedClass != null,
+    deduced: courseFile.deduced,
     status: courseFile.status,
     fileLengthMeters:
       courseFile.checked?.fileLengthMeters ??
@@ -604,7 +630,7 @@ export function App() {
             request={request}
             onRequestChange={next =>
               courseFile
-                ? void checkCourse(courseFile.courses, courseFile.selected, next, false)
+                ? void checkCourse(courseFile.courses, courseFile.selected, next, 'asGiven')
                 : setRequest(next)
             }
             isAssistantOn={assistantKey.apiKey !== ''}
@@ -627,7 +653,11 @@ export function App() {
             check={fileCheck}
             onOpenCourseFile={() => courseFileInput.current?.click()}
             onSelectCheckedCourse={index =>
-              courseFile && void checkCourse(courseFile.courses, index, request, true)
+              courseFile && void checkCourse(courseFile.courses, index, request, 'deduce')
+            }
+            onDeduceClass={() =>
+              courseFile &&
+              void checkCourse(courseFile.courses, courseFile.selected, request, 'deduce')
             }
             onCloseCheck={closeCourseFile}
             suggestion={

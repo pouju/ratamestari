@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { CourseRequest } from '@ratamestari/rules'
 import type { CourseFileCheck } from '../src/CheckPanel'
 import { CoursePanel } from '../src/CoursePanel'
+import { deduceClass } from '../src/course-fit'
 
 const REQUEST: CourseRequest = {
   eventLevel: 'finnishChampionship',
@@ -38,6 +39,7 @@ const render = (hasCentre: boolean, check: CourseFileCheck | null = null) =>
       onOpenCourseFile={ignore}
       onSelectCheckedCourse={ignore}
       onCloseCheck={ignore}
+      onDeduceClass={ignore}
       suggestion={null}
       onAcceptSuggestion={ignore}
       onDismissSuggestion={ignore}
@@ -67,7 +69,8 @@ describe('CoursePanel', () => {
       fileName: 'Kevätkisa.xml',
       courseNames: ['H21', 'D21'],
       selected: 0,
-      hasGuessedClass: true,
+      classFromName: true,
+      deduced: null,
       status: 'checking',
       fileLengthMeters: 11200,
       fileControlCount: 18,
@@ -75,7 +78,29 @@ describe('CoursePanel', () => {
     })
     expect(html).toContain('Kevätkisa.xml')
     expect(html).toContain('D21')
-    expect(html).toContain('Checked as')
     expect(html).not.toContain('Set course')
+  })
+
+  it('says which level and distance a checked course fits best, and why', () => {
+    const deduced = deduceClass(
+      { estimatedSeconds: 32 * 60, controlDifficulties: [3, 4, 5] },
+      { sex: 'H', ageClass: 21, skillLetter: 'A' },
+      'H',
+    )
+    const html = render(true, {
+      fileName: 'Kevätkisa.xml',
+      courseNames: ['H21'],
+      selected: 0,
+      classFromName: true,
+      status: 'checked',
+      fileLengthMeters: null,
+      fileControlCount: 3,
+      groundMismatchMetres: null,
+      deduced,
+    })
+    expect(html).toContain('Fits best')
+    expect(html).toContain('middle distance for H21')
+    expect(html).toContain('within the 30–35 min of this class')
+    expect(html).toContain('Check as another class')
   })
 })

@@ -11,7 +11,13 @@ import {
 import { useState } from 'react'
 import { offeredAgeClasses, withOfferedClass } from './class-choice'
 import { useFormat, useMessages } from './i18n'
-import { CheckComparison, CheckHeader, SuggestionBar, type CourseFileCheck } from './CheckPanel'
+import {
+  CheckComparison,
+  CheckHeader,
+  DeducedClassView,
+  SuggestionBar,
+  type CourseFileCheck,
+} from './CheckPanel'
 import { ScoreBreakdown } from './ScoreBreakdown'
 import { PanelLine } from './WorkspaceStart'
 
@@ -37,6 +43,7 @@ interface Props {
   onOpenCourseFile: () => void
   onSelectCheckedCourse: (index: number) => void
   onCloseCheck: () => void
+  onDeduceClass: () => void
   suggestion: { readonly controlNumber: number; readonly isFound: boolean } | null
   onAcceptSuggestion: () => void
   onDismissSuggestion: () => void
@@ -48,7 +55,6 @@ export function CoursePanel(props: Props) {
   const isMeasured = course !== null && course.lengthMeters !== null
 
   if (check) {
-    const courseName = check.courseNames[check.selected] ?? ''
     return (
       <>
         <CheckHeader
@@ -56,14 +62,38 @@ export function CoursePanel(props: Props) {
           onSelect={props.onSelectCheckedCourse}
           onClose={props.onCloseCheck}
         />
-        {check.status !== 'notOnMap' && (
-          <RequestSentence
-            request={props.request}
-            onRequestChange={props.onRequestChange}
-            label={m.check.checkedAs}
-            note={check.hasGuessedClass ? m.check.classGuessed : m.check.noClass(courseName)}
-          />
-        )}
+        {check.status !== 'notOnMap' &&
+          (check.deduced ? (
+            <>
+              <DeducedClassView deduced={check.deduced} classFromName={check.classFromName} />
+              <details className="check-override">
+                <summary>{m.check.checkAsOther}</summary>
+                <RequestSentence
+                  request={props.request}
+                  onRequestChange={props.onRequestChange}
+                  label={m.check.checkedAs}
+                />
+              </details>
+            </>
+          ) : (
+            check.status === 'checked' && (
+              <>
+                <RequestSentence
+                  request={props.request}
+                  onRequestChange={props.onRequestChange}
+                  label={m.check.checkedAs}
+                  note={m.check.chosenByYou}
+                />
+                <button
+                  type="button"
+                  className="panel-line-action check-deduce"
+                  onClick={props.onDeduceClass}
+                >
+                  {m.check.deduceAgain}
+                </button>
+              </>
+            )
+          ))}
         {course && check.status === 'checked' && (
           <>
             <CheckComparison check={check} course={course} />

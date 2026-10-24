@@ -1,4 +1,6 @@
 import type { Course } from '@ratamestari/engine'
+import type { CourseRequest } from '@ratamestari/rules'
+import type { CourseFit, DeducedClass } from './course-fit'
 import { useFormat, useMessages } from './i18n'
 import { PanelLine } from './WorkspaceStart'
 
@@ -8,7 +10,8 @@ export interface CourseFileCheck {
   readonly fileName: string
   readonly courseNames: readonly string[]
   readonly selected: number
-  readonly hasGuessedClass: boolean
+  readonly classFromName: boolean
+  readonly deduced: DeducedClass | null
   readonly status: 'checking' | 'checked' | 'notOnMap'
   readonly fileLengthMeters: number | null
   readonly fileControlCount: number
@@ -133,5 +136,58 @@ export function SuggestionBar({ controlNumber, isFound, onAccept, onDismiss }: S
         </button>
       </div>
     </div>
+  )
+}
+
+export function DeducedClassView({
+  deduced,
+  classFromName,
+}: {
+  deduced: DeducedClass
+  classFromName: boolean
+}) {
+  const m = useMessages()
+  const { best, alsoFits } = deduced
+  const minutes = (value: number) => m.course.minutes(Math.round(value))
+  const { minMinutes, maxMinutes } = best.target.winningTime
+  const describe = (fit: CourseFit) => classSentence(m, fit.request)
+  const range = m.check.minuteRange(Math.round(minMinutes), Math.round(maxMinutes))
+  return (
+    <section className="check-fit" aria-labelledby="check-fit-title">
+      <span id="check-fit-title" className="panel-line-label">
+        {m.check.fitsBest}
+      </span>
+      <p className="check-fit-sentence">{describe(best)}</p>
+      <p className="request-note">
+        {best.minutesOutsideRange === 0
+          ? m.check.timeInside(minutes(best.estimatedMinutes), range)
+          : m.check.timeOutside(
+              minutes(best.estimatedMinutes),
+              minutes(best.minutesOutsideRange),
+              best.estimatedMinutes > maxMinutes,
+              range,
+            )}
+      </p>
+      <p className="request-note">
+        {best.controlsOutsideDifficulty === 0
+          ? m.check.difficultyFits
+          : m.check.difficultyMisfits(best.controlsOutsideDifficulty)}
+      </p>
+      {alsoFits.length > 0 && (
+        <p className="request-note">{m.check.alsoFits(alsoFits.map(describe))}</p>
+      )}
+      <p className="request-note">
+        {classFromName ? m.check.classFromName : m.check.classFromCourse}
+      </p>
+    </section>
+  )
+}
+
+function classSentence(m: ReturnType<typeof useMessages>, request: CourseRequest): string {
+  return m.check.classSentence(
+    m.course.eventLevels[request.eventLevel],
+    m.course.formats[request.format],
+    `${request.sex}${request.ageClass}`,
+    request.skillLetter,
   )
 }
