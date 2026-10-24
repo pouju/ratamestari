@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { localExtent, localPoint, type MapFeature } from '@ratamestari/core'
 import { courseTargetFor, FOREST_CONTROL_SPACING, type CourseRequest } from '@ratamestari/rules'
 import { findControlSites } from '../src/control-sites'
-import { searchCourse, type Course, type CourseSpec } from '../src/course-search'
+import { searchCourse, searchCourseSteps, type Course, type CourseSpec } from '../src/course-search'
 import { buildTerrain } from '../src/terrain'
 import { feature, line, point } from './fixtures'
 
@@ -162,5 +162,22 @@ describe('searchCourse', { timeout: SEARCH_TIMEOUT_MS }, () => {
         expect(inGap).toBe(false)
       }
     }
+  })
+})
+
+describe('stopping a search', { timeout: SEARCH_TIMEOUT_MS }, () => {
+  it('returns the best course so far when told to stop', () => {
+    const search = searchCourseSteps(terrain, sites, spec())
+    let latest: Course | null = null
+    let step = search.next()
+    while (!step.done && !latest) {
+      latest = step.value
+      step = search.next()
+    }
+    expect(latest).not.toBeNull()
+    const stopped = search.next(true)
+    expect(stopped.done).toBe(true)
+    expect(stopped.value).not.toBeNull()
+    expect(stopped.value!.controls.length).toBeGreaterThan(0)
   })
 })

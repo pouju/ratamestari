@@ -1,6 +1,13 @@
 import { DESCRIPTION_BOX, PAPER, type PaperSize } from '@ratamestari/rules'
 import type { ControlSiteCandidate } from './control-sites'
-import { expectedControlCount, searchCourse, type Course, type CourseSpec } from './course-search'
+import {
+  expectedControlCount,
+  runSearch,
+  searchCourseSteps,
+  type Course,
+  type CourseSpec,
+  type Search,
+} from './course-search'
 import { fitPrintAreaToCourse, planPrintArea, type PaperBoxSize } from './print-area'
 import type { Terrain } from './terrain'
 
@@ -26,8 +33,18 @@ export function setCourseOnPaper(
   paper: PaperChoice,
   onProgress: (course: Course) => void = () => {},
 ): Course | null {
+  return runSearch(setCourseOnPaperSteps(terrain, sites, spec, paper), onProgress)
+}
+
+export function* setCourseOnPaperSteps(
+  terrain: Terrain,
+  sites: readonly ControlSiteCandidate[],
+  spec: CourseSpec,
+  paper: PaperChoice,
+): Search {
   const papers = papersFor(paper)
-  const attempt = (size: PaperSize, report: (course: Course) => void) => {
+  const state = { stopped: false }
+  const attempt = function* (size: PaperSize, showsProgress: boolean): Search {
     const printArea = planPrintArea(terrain, sites, {
       paper: size,
       printScale: spec.printScale,
@@ -35,15 +52,22 @@ export function setCourseOnPaper(
       descriptionRows: expectedControlCount(spec.format) + DESCRIPTION_BOX.rowsBesidesControls,
       peripheralSize: spec.peripheralSize ?? null,
     })
-    return printArea ? searchCourse(terrain, sites, { ...spec, printArea }, report) : null
+    if (!printArea) return null
+    const search = searchCourseSteps(terrain, sites, { ...spec, printArea })
+    for (let step = search.next(); ;) {
+      if (step.done) return step.value
+      const stop = Boolean(yield showsProgress ? step.value : null)
+      if (stop) state.stopped = true
+      step = search.next(stop)
+    }
   }
 
   const [first, ...larger] = papers
-  let course = first ? attempt(first, onProgress) : null
+  let course = first ? yield* attempt(first, true) : null
   for (const size of larger) {
-    if (course && fitsOnPaper(course)) break
+    if (state.stopped || (course && fitsOnPaper(course))) break
     // A larger sheet helps only when the paper, not the terrain, was the limit.
-    const alternative = attempt(size, () => {})
+    const alternative = yield* attempt(size, false)
     if (
       alternative &&
       (!course || timeError(alternative) < timeError(course) - CLEARLY_BETTER_SHARE_OF_TARGET)

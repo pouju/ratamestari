@@ -24,11 +24,15 @@ export { seededRandom, type Random } from './random'
 export { secondsFrom } from './time-tree'
 export {
   expectedControlCount,
+  runSearch,
   searchCourse,
+  searchCourseSteps,
   type Course,
   type CourseProblems,
   type CourseSpec,
   type Finding,
+  type Search,
+  type SearchStep,
 } from './course-search'
 export { mappedAreaMask } from './mapped-area'
 export {
@@ -39,7 +43,13 @@ export {
 } from './course-length'
 export { siteAreaQuality, siteAreaQualityOf, type SiteQualityOf } from './site-quality'
 export { difficultyInCourse, flagSideFor, type FlagSide } from './flag-side'
-export { fitCourseToPaper, papersFor, setCourseOnPaper, type PaperChoice } from './course-on-paper'
+export {
+  fitCourseToPaper,
+  papersFor,
+  setCourseOnPaper,
+  setCourseOnPaperSteps,
+  type PaperChoice,
+} from './course-on-paper'
 export { checkSetCourse, CONTROL_FEATURE_MATCH_METRES, type SetCourseStops } from './course-check'
 export {
   fixControl,

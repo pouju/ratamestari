@@ -160,12 +160,32 @@ const LONG_LEG_FROM_METRES = 800
 const WIDER_LEG_BAND = 1.5
 const NO_SITE = -1
 
+// A search yields the course so far when it improves, or null at a pause point. Whoever runs it
+// can pause there, and passes true to next() to stop: the search then returns its best course.
+export type SearchStep = Course | null
+export type Search = Generator<SearchStep, Course | null, boolean | undefined>
+
+export function runSearch(search: Search, onProgress: (course: Course) => void = () => {}) {
+  for (let step = search.next(); ; step = search.next()) {
+    if (step.done) return step.value
+    if (step.value) onProgress(step.value)
+  }
+}
+
 export function searchCourse(
   terrain: Terrain,
   sites: readonly ControlSiteCandidate[],
   spec: CourseSpec,
   onProgress: (course: Course) => void = () => {},
 ): Course | null {
+  return runSearch(searchCourseSteps(terrain, sites, spec), onProgress)
+}
+
+export function* searchCourseSteps(
+  terrain: Terrain,
+  sites: readonly ControlSiteCandidate[],
+  spec: CourseSpec,
+): Search {
   const { grid } = terrain
   const random = seededRandom(spec.seed)
   const pace = spec.paceSecondsPerKm ?? REFERENCE_PACE_SECONDS_PER_KM.value
@@ -281,12 +301,13 @@ export function searchCourse(
       order = draftOrder
     }
     if (scored.estimatedSeconds >= GOOD_DRAFT_SHARE_OF_TARGET * targetSeconds) break
+    if (yield null) break
   }
   if (!best) return null
-  onProgress(toCourse(best))
+  let stopped = Boolean(yield toCourse(best))
 
   const steps = spec.improvementSteps ?? DEFAULT_IMPROVEMENT_STEPS[spec.format]
-  for (let step = 0; step < steps; step++) {
+  for (let step = 0; step < steps && !stopped; step++) {
     const candidate = proposeChange(
       startIndex,
       order,
@@ -299,11 +320,12 @@ export function searchCourse(
     )
     if (!candidate) continue
     const scored = evaluation.score(startIndex, candidate)
-    if (scored.score < best.score && !addsLineProblems(best.problems, scored.problems)) {
+    const improves = scored.score < best.score && !addsLineProblems(best.problems, scored.problems)
+    if (improves) {
       order = candidate
       best = scored
-      onProgress(toCourse(best))
     }
+    stopped = Boolean(yield improves ? toCourse(best) : null)
   }
   const cleared = repairHardRules(startIndex, best, pool, evaluation)
   const repaired = repairDoglegs(startIndex, cleared, pool, finish, grid, pace, evaluation)
