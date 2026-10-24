@@ -188,6 +188,7 @@ SSL's colour scale for forest orienteering (RMK 11, also the separate SSL diffic
 - Contours, knolls, re-entrants and area features: circle centred on the part of the feature where the flag is. A small area feature is centred as a whole (RMK 6.1.S).
 - Cut circles and course lines where they hide important features, leaving a lighter gap so the cut is visible (RMK 6.2, RMK 6.3).
 - Course lines stop 0.5–1.5 mm before the circle and are always straight (RMK 6.3).
+- **Interpretation (course setter guidance, 2026-10-24):** crossing course lines are not a problem as such. A crossing is bad near a control or at a shallow angle; far from controls at nearly a right angle it is acceptable and can let a course use good terrain in a small area, or use the best terrain well in long distance. Too many crossings are still bad. The engine weighs each crossing by its distance to the nearest control (fully bad within 75 m, harmless beyond 300 m) and its angle, plus a small base cost (`COURSE_LINE_CROSSING`).
 
 ### Out of bounds
 
