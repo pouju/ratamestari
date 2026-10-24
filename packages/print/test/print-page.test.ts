@@ -43,6 +43,7 @@ const course: Course = {
     courseLinesOverDescriptions: 0,
     overlappingCircles: 0,
     finalLegTooLong: false,
+    winningTimeOutsideRange: false,
   },
   printArea: {
     paper: 'A4',

@@ -4,6 +4,7 @@ import {
   CONTROL_CIRCLE,
   CONTROL_SITE_DIFFICULTY,
   FOREST_CONTROL_SPACING,
+  lajisaannot,
   type Source,
 } from '@ratamestari/rules'
 
@@ -17,6 +18,7 @@ export interface FindingDescription {
 }
 
 const OUR_CHECK = 'our check'
+const WINNING_TIME_SOURCES = [lajisaannot('11.25'), lajisaannot('19.41'), lajisaannot('19.44')]
 const citations = (sources: readonly Source[]) =>
   sources.map(({ document, section }) => `${document} ${section}`).join(', ')
 
@@ -79,6 +81,12 @@ export function describeFinding(finding: Finding, controlCount: number): Finding
         'error',
         `the circles of ${name(a)} and ${name(b)} overlap`,
         citations(CONTROL_CIRCLE.sources),
+      )
+    case 'winningTimeOutsideRange':
+      return describe(
+        'error',
+        "the course cannot reach the class's winning-time range; the terrain within reach of the competition centre may be too small for this class",
+        citations(WINNING_TIME_SOURCES),
       )
     case 'finalLegTooLong':
       return describe('note', `the last leg into the finish is long`, OUR_CHECK)

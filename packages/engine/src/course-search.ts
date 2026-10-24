@@ -2,6 +2,7 @@ import type { LocalPoint } from '@ratamestari/core'
 import {
   ACUTE_ANGLE,
   COURSE_LINE_CROSSING,
+  COURSE_SHAPE,
   FORMAT_QUALITY,
   SCORE_WEIGHTS,
   controlSpacingForScale,
@@ -13,10 +14,12 @@ import {
 import type { ControlSiteCandidate, TechnicalDifficulty } from './control-sites'
 import { difficultyInCourse, flagSideFor, type FlagSide } from './flag-side'
 import { measureCourse } from './course-length'
+import { findRoute } from './router'
 import { planWaypoints } from './waypoints'
 import {
   alternation,
   crossingSeverity,
+  routeDoglegOverlaps,
   directionChanges,
   firstLegTowardsFinish,
   legLengthDistribution,
@@ -62,6 +65,7 @@ export interface CourseProblems {
   readonly courseLinesOverDescriptions: number
   readonly overlappingCircles: number
   readonly finalLegTooLong: boolean
+  readonly winningTimeOutsideRange: boolean
 }
 
 export interface Course {
@@ -116,6 +120,8 @@ const REVERSE_SECTION_CHANCE = 0.25
 const SHIFT_CHANCE = 0.4
 const TARGET_FLAGGED_CONTROL_CHANCE = 0.5
 const SHIFT_RADIUS_METERS = 150
+const MAX_BACKTRACKS = 30
+const DOGLEG_REPAIR_RADIUS_METERS = 250
 const HEADING_HOME_SHARE_OF_TARGET = 0.25
 const QUALITY_PREFERENCE = 2
 const ROUTE_CHOICE_PREFERENCE = 2
@@ -267,12 +273,14 @@ export function searchCourse(
     )
     if (!candidate) continue
     const scored = evaluation.score(startIndex, candidate)
-    if (scored.score < best.score) {
+    if (scored.score < best.score && !addsLineProblems(best.problems, scored.problems)) {
       order = candidate
       best = scored
       onProgress(toCourse(best))
     }
   }
+  const repaired = repairDoglegs(startIndex, best.order, pool, finish, grid, pace, evaluation)
+  if (repaired !== best.order) best = evaluation.score(startIndex, repaired)
   return toCourse(best, true)
 
   function toCourse(scored: ScoredCourse, withLength = false): Course {
@@ -491,6 +499,14 @@ function createEvaluation(
     )
     if (finalLegPercentOverLimit > 0) found('finalLegTooLong', stops.length - 2, stops.length - 1)
 
+    const { minMinutes, maxMinutes } = spec.target.winningTime
+    const outsideRangeSeconds = Math.max(
+      0,
+      minMinutes * 60 - estimatedSeconds,
+      estimatedSeconds - maxMinutes * 60,
+    )
+    const outsideRangePercent = (100 * outsideRangeSeconds) / targetSeconds
+    if (outsideRangePercent > 0) found('winningTimeOutsideRange', 0, sequence.length)
     const problems = {
       spacing: spacingProblems,
       acuteAngleWarnings,
@@ -502,15 +518,9 @@ function createEvaluation(
       courseLinesOverDescriptions,
       overlappingCircles: overlapping.length,
       finalLegTooLong: finalLegPercentOverLimit > 0,
+      winningTimeOutsideRange: outsideRangePercent > 0,
     }
     const timeErrorPercent = (100 * Math.abs(estimatedSeconds - targetSeconds)) / targetSeconds
-    const { minMinutes, maxMinutes } = spec.target.winningTime
-    const outsideRangeSeconds = Math.max(
-      0,
-      minMinutes * 60 - estimatedSeconds,
-      estimatedSeconds - maxMinutes * 60,
-    )
-    const outsideRangePercent = (100 * outsideRangeSeconds) / targetSeconds
     const isUnreachable = !Number.isFinite(estimatedSeconds)
     const term = (name: ScoreTermName, value: number, note: string): ScoreTerm => ({
       value,
@@ -736,6 +746,9 @@ function buildGreedy(
   let current = startIndex
   let previous = NO_SITE
   let elapsed = 0
+  const banned = new Set<number>()
+  let backtracks = 0
+  const legSecondsAt = (k: number) => timesFrom(k === 0 ? startIndex : order[k - 1]!)[order[k]!]!
 
   for (;;) {
     const remaining = targetSeconds - elapsed
@@ -751,7 +764,7 @@ function buildGreedy(
     const from = pool[current]!.position
     const waypoint = waypoints[nextWaypoint] ?? null
     const toWaypoint = waypoint ? distanceBetween(from, waypoint) : 0
-    const used = new Set([startIndex, ...order])
+    const used = new Set([startIndex, ...order, ...banned])
     const anyLength: readonly [number, number] = [edges[0]!, edges[edges.length - 1]!]
     const fits = (
       i: number,
@@ -847,7 +860,20 @@ function buildGreedy(
       candidates = fitting(anyLength, false, false)
       if (waypoint) nextWaypoint++
     }
-    if (candidates.length === 0) break
+    if (candidates.length === 0) {
+      // Dead end: take back the last control, never use it again, and carry on from before it.
+      if (backtracks >= MAX_BACKTRACKS || order.length === 0) break
+      backtracks++
+      const last = order.pop()!
+      banned.add(last)
+      const lastFrom = order.length === 0 ? startIndex : order[order.length - 1]!
+      legCounts[binOf(distanceBetween(pool[lastFrom]!.position, pool[last]!.position))]!--
+      elapsed = order.reduce((sum, _, k) => sum + legSecondsAt(k), 0)
+      current = lastFrom
+      previous =
+        order.length >= 2 ? order[order.length - 2]! : order.length === 1 ? startIndex : NO_SITE
+      continue
+    }
 
     const isHeadingHome = remaining < HEADING_HOME_SHARE_OF_TARGET * targetSeconds
     const preference = (i: number) => {
@@ -1077,6 +1103,62 @@ function proposeChange(
   const changed = [...order]
   changed[position] = replacement
   return changed
+}
+
+// Moves are not all checked for geometry, so never accept one that makes the course harder to read.
+const addsLineProblems = (before: CourseProblems, after: CourseProblems) =>
+  after.courseLineCrossings > before.courseLineCrossings ||
+  after.courseLinesThroughControls > before.courseLinesThroughControls ||
+  after.acuteAngleWarnings > before.acuteAngleWarnings
+
+// Doglegs need the actual routes, which are too slow to compute at every search step, so the
+// finished course is checked once and each doubling-back control moved to a nearby site.
+function repairDoglegs(
+  startIndex: number,
+  order: readonly number[],
+  pool: readonly ControlSiteCandidate[],
+  finish: LocalPoint,
+  grid: CostGrid,
+  paceSecondsPerKm: number,
+  evaluation: ReturnType<typeof createEvaluation>,
+): readonly number[] {
+  const routes = new Map<string, readonly LocalPoint[]>()
+  const routeBetween = (from: LocalPoint, to: LocalPoint): readonly LocalPoint[] => {
+    const key = `${from[0]},${from[1]},${to[0]},${to[1]}`
+    const cached = routes.get(key)
+    if (cached) return cached
+    const route = findRoute(grid, from, to, { paceSecondsPerKm })?.points ?? [from, to]
+    routes.set(key, route)
+    return route
+  }
+  const doublesBack = (before: LocalPoint, at: LocalPoint, after: LocalPoint) =>
+    routeDoglegOverlaps([routeBetween(before, at), routeBetween(at, after)])[0]! >
+    COURSE_SHAPE.doglegHardOverlap
+
+  let current = order
+  for (let position = 0; position < current.length; position++) {
+    const positionOf = (sequence: readonly number[], k: number) =>
+      k < 0
+        ? pool[startIndex]!.position
+        : k >= sequence.length
+          ? finish
+          : pool[sequence[k]!]!.position
+    const before = positionOf(current, position - 1)
+    const here = positionOf(current, position)
+    const after = positionOf(current, position + 1)
+    if (!doublesBack(before, here, after)) continue
+    const used = new Set([startIndex, ...current])
+    let best: { order: number[]; score: number } | null = null
+    pool.forEach((site, i) => {
+      if (used.has(i) || distanceBetween(site.position, here) > DOGLEG_REPAIR_RADIUS_METERS) return
+      if (doublesBack(before, site.position, after)) return
+      const replaced = current.map((siteIndex, k) => (k === position ? i : siteIndex))
+      const { score } = evaluation.score(startIndex, replaced)
+      if (!best || score < best.score) best = { order: replaced, score }
+    })
+    if (best) current = (best as { order: number[] }).order
+  }
+  return current
 }
 
 function nearestOpenPoint(grid: CostGrid, target: LocalPoint): LocalPoint | null {

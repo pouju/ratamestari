@@ -135,20 +135,21 @@ export const scoreWeightsSchema = citedSchema.extend({
 export type ScoreWeights = z.infer<typeof scoreWeightsSchema>
 export type ScoreTermName = Exclude<keyof ScoreWeights, 'sources' | 'interpretation'>
 
-// Hard rules outweigh anything the quality terms can earn, so the search never trades them away.
+// Hard rules outweigh anything the quality terms or the winning time can earn, so the search
+// never trades them away, not even to reach a winning time the terrain cannot hold.
 const RULE_PENALTIES = {
   timeErrorPerPercent: 2,
   timeOutsideRangePerPercent: 20,
-  spacing: 200,
-  acuteAngleWarning: 100,
+  spacing: 1000,
+  acuteAngleWarning: 500,
   acuteAngleNote: 5,
   difficultyOutsideRange: 4,
   courseLineCrossing: 30,
   courseLineThroughControl: 40,
   finalLegPerPercentOverLimit: 5,
-  courseLineOutsideMap: 150,
-  courseLineOverDescriptions: 150,
-  overlappingCircles: 150,
+  courseLineOutsideMap: 1000,
+  courseLineOverDescriptions: 1000,
+  overlappingCircles: 1000,
 }
 
 const WEIGHT_SOURCES = [

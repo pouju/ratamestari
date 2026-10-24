@@ -28,7 +28,7 @@ const spec = (overrides: Partial<CourseSpec> = {}): CourseSpec => ({
   printScale: 10000,
   competitionCentre: localPoint(1000, 1000),
   seed: 1,
-  improvementSteps: 150,
+  improvementSteps: 400,
   ...overrides,
 })
 

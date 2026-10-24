@@ -66,6 +66,7 @@ describe('readCourseData', () => {
         courseLinesOverDescriptions: 0,
         overlappingCircles: 0,
         finalLegTooLong: false,
+        winningTimeOutsideRange: false,
       },
       printArea: null,
       findings: [],

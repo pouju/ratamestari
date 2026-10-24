@@ -34,6 +34,7 @@ export const NO_PROBLEMS: CourseProblems = {
   courseLinesOverDescriptions: 0,
   overlappingCircles: 0,
   finalLegTooLong: false,
+  winningTimeOutsideRange: false,
 }
 
 export const COURSE: Course = {
