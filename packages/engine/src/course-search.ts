@@ -19,7 +19,6 @@ import type { ControlSiteCandidate, TechnicalDifficulty } from './control-sites'
 import { difficultyInCourse, flagSideFor, type FlagSide } from './flag-side'
 import { measureCourse } from './course-length'
 import { findRoute } from './router'
-import { planWaypoints } from './waypoints'
 import {
   alternation,
   closeness,
@@ -48,10 +47,15 @@ import {
   type PrintFrame,
 } from './print-area'
 import { findTechnicalAreas, type TechnicalArea } from './areas'
-import { fillSection } from './section-fill'
+import {
+  angleAt,
+  CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS,
+  fillSection,
+  FINISH_OUTER_CIRCLE_FOOTPRINT_RADIUS_METERS,
+} from './section-fill'
 import { planSkeleton, planSkeletonSteps, type Skeleton } from './skeleton'
 import { siteAreaQualityOf, type SiteQualityOf } from './site-quality'
-import { distanceToSegment, segmentsCross } from './polyline'
+import { distanceToSegment, isInsidePolygon, segmentsCross } from './polyline'
 import { BLOCKED, routableCellOf, type CostGrid } from './cost-grid'
 import { seededRandom, type Random } from './random'
 import { cellCenterOf, cellIndexOf } from './raster'
@@ -141,8 +145,6 @@ const INSERT_LEG_TIME_RANGE: readonly [number, number] = [0.3, 1.2]
 const TIME_TOLERANCE_SHARE = 0.02
 const LENGTH_CHANGE_CHANCE = 0.3
 const MIN_CONTROLS = 3
-const CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS = 37.5
-const FINISH_OUTER_CIRCLE_FOOTPRINT_RADIUS_METERS = 45
 const MIN_CONTROL_SEPARATION_METERS = Math.max(
   FOREST_CONTROL_SPACING.minStraightMetersForSimilarSites,
   2 * CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS,
@@ -154,25 +156,15 @@ const REVERSE_SECTION_CHANCE = 0.25
 const SHIFT_CHANCE = 0.4
 const TARGET_FLAGGED_CONTROL_CHANCE = 0.5
 const SHIFT_RADIUS_METERS = 150
-const MAX_BACKTRACKS = 8
 const DOGLEG_REPAIR_RADIUS_METERS = 250
 const HARD_RULE_REPAIR_RADIUS_METERS = 400
 // A dogleg is worth giving up this much of the score to remove, but never a hard rule.
 const DOGLEG_WORTH = 60
-const HEADING_HOME_SHARE_OF_TARGET = 0.25
-const QUALITY_PREFERENCE = 2
-const ROUTE_CHOICE_PREFERENCE = 2
 const MAX_KEY_LEGS = 4
-const MIDDLE_CORE_RADIUS_METERS = 750
 const LONG_MIN_AREA_QUALITY = 0.3
 const MAX_DRAFTS = 3
-const MIDDLE_CORE_REACH_SHARE_OF_TARGET = 0.4
 const BRING_LAST_CONTROL_HOME_CHANCE = 0.5
-const WAYPOINT_PREFERENCE = 2
-const MAX_DETOUR_FROM_WAYPOINT_SHARE_OF_LEG = 0.3
 const START_TOWARDS_WAYPOINT_PREFERENCE = 1
-const LONG_LEG_FROM_METRES = 800
-const WIDER_LEG_BAND = 1.5
 const NO_SITE = -1
 
 // A search yields the course so far when it improves, or null at a pause point. Whoever runs it
@@ -348,25 +340,11 @@ function sitesNearArea(pool: readonly ControlSiteCandidate[], area: TechnicalAre
   const buffer = SECTION_FILL.areaBufferMetres
   const hull = area.hull
   const isNear = (point: LocalPoint) =>
-    isInsideHull(point, hull) ||
+    isInsidePolygon(point, hull) ||
     hull.some(
       (corner, k) => distanceToSegment(point, corner, hull[(k + 1) % hull.length]!) <= buffer,
     )
   return pool.flatMap((site, i) => (isNear(site.position) ? [i] : []))
-}
-
-function isInsideHull(point: LocalPoint, hull: readonly LocalPoint[]): boolean {
-  let inside = false
-  for (let i = 0, j = hull.length - 1; i < hull.length; j = i++) {
-    const [xi, yi] = hull[i]!
-    const [xj, yj] = hull[j]!
-    if (
-      yi > point[1] !== yj > point[1] &&
-      point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi
-    )
-      inside = !inside
-  }
-  return inside
 }
 
 interface PreparedSearch {
@@ -510,7 +488,6 @@ function planningContextFor(
         targetSeconds,
         towards,
         finish,
-        null,
         spec.startDistanceFromFinishMeters ?? null,
         random,
         excluded,
@@ -908,34 +885,12 @@ function createEvaluation(
   return { score }
 }
 
-function densestCore(
-  candidates: readonly ControlSiteCandidate[],
-  qualityOf: SiteQualityOf,
-): LocalPoint | null {
-  let best: LocalPoint | null = null
-  let bestTotal = -1
-  for (const centre of candidates) {
-    let total = 0
-    for (const other of candidates) {
-      if (distanceBetween(centre.position, other.position) <= MIDDLE_CORE_RADIUS_METERS) {
-        total += qualityOf(other)
-      }
-    }
-    if (total > bestTotal) {
-      bestTotal = total
-      best = centre.position
-    }
-  }
-  return best
-}
-
 function pickStart(
   pool: readonly ControlSiteCandidate[],
   toFinish: Float32Array,
   targetSeconds: number,
-  waypoints: readonly LocalPoint[],
+  towards: readonly LocalPoint[],
   finish: LocalPoint,
-  core: LocalPoint | null,
   wishedDistance: readonly [number, number] | null,
   random: Random,
   excluded: (poolIndex: number) => boolean = () => false,
@@ -955,14 +910,7 @@ function pickStart(
     pool.flatMap((site, i) =>
       site.technicalDifficulty <= maxDifficulty && reachable(i) ? [i] : [],
     )
-  if (core) {
-    const inCore = sitesUpTo(MAX_START_DIFFICULTY).filter(
-      i => fitsDistance(i) && distanceBetween(pool[i]!.position, core) <= MIDDLE_CORE_RADIUS_METERS,
-    )
-    const start = random.pick(inCore)
-    if (start !== undefined) return start
-  }
-  const firstWaypoint = waypoints[0]
+  const firstWaypoint = towards[0]
   const towardsFirstWaypoint = (site: ControlSiteCandidate) => {
     if (!firstWaypoint) return 0
     const ax = site.position[0] - finish[0]
@@ -983,303 +931,6 @@ function pickStart(
   const preference = (i: number) =>
     START_TOWARDS_WAYPOINT_PREFERENCE * towardsFirstWaypoint(pool[i]!) + random.next()
   return pickable.reduce((a, b) => (preference(b) > preference(a) ? b : a))
-}
-
-function buildGreedy(
-  startIndex: number,
-  pool: readonly ControlSiteCandidate[],
-  toFinish: Float32Array,
-  timesFrom: (poolIndex: number) => Float32Array,
-  targetSeconds: number,
-  spec: CourseSpec,
-  waypoints: readonly LocalPoint[],
-  finish: LocalPoint,
-  staysOnMap: (from: LocalPoint, to: LocalPoint) => boolean,
-  quality: Float32Array,
-  routeChoiceValue: (from: LocalPoint, to: LocalPoint, fastestSeconds: number) => number,
-  random: Random,
-): number[] {
-  const profile = LEG_PROFILES[spec.format]
-  const formatQuality = FORMAT_QUALITY[spec.format]
-  const { binEdgesMetres: edges, shares } = formatQuality.legLengths
-  const legCounts = new Array<number>(edges.length - 1).fill(0)
-  const expectedLegs = expectedControlCount(spec.format) + 1
-  const binOf = (metres: number) => {
-    const bin = edges.findIndex((edge, i) => i > 0 && metres < edge) - 1
-    return bin < 0 ? legCounts.length - 1 : bin
-  }
-  const pickLegBin = () => {
-    const deficits = shares.map((share, bin) => Math.max(0, share * expectedLegs - legCounts[bin]!))
-    const weights = deficits.some(d => d > 0) ? deficits : shares
-    const total = weights.reduce((sum, w) => sum + w, 0)
-    let pick = random.next() * total
-    return Math.max(
-      0,
-      weights.findIndex(w => (pick -= w) <= 0),
-    )
-  }
-  let nextWaypoint = 0
-  const crowdingRule = CROWDING[spec.format]
-  const wouldCrowd = (candidate: LocalPoint) =>
-    crowdingCounts(
-      [pool[startIndex]!.position, ...order.map(u => pool[u]!.position), candidate, finish],
-      crowdingRule.radiusMetres,
-    ).some(count => count > crowdingRule.maxControls)
-  const [minDifficulty, maxDifficulty] = spec.target.siteDifficulty
-  const spacing = controlSpacingForScale(spec.printScale)
-  const order: number[] = []
-  let current = startIndex
-  let previous = NO_SITE
-  let elapsed = 0
-  const banned = new Set<number>()
-  let backtracks = 0
-  const legSecondsAt = (k: number) => timesFrom(k === 0 ? startIndex : order[k - 1]!)[order[k]!]!
-
-  for (;;) {
-    const remaining = targetSeconds - elapsed
-    const shortestLeg = profile.shortLeg[0] * targetSeconds
-    const finalLegMax = FINAL_LEG_MAX_SHARE_OF_TARGET * targetSeconds
-    if (remaining - toFinish[current]! < shortestLeg) break
-
-    const bin = pickLegBin()
-    const low = edges[bin]!
-    const high = edges[bin + 1]!
-    const isLongLeg = low >= LONG_LEG_FROM_METRES
-    const times = timesFrom(current)
-    const from = pool[current]!.position
-    const waypoint = waypoints[nextWaypoint] ?? null
-    const toWaypoint = waypoint ? distanceBetween(from, waypoint) : 0
-    const used = new Set([startIndex, ...order, ...banned])
-    const anyLength: readonly [number, number] = [edges[0]!, edges[edges.length - 1]!]
-    const fits = (
-      i: number,
-      [shortest, longest]: readonly [number, number],
-      keepToWaypoint: boolean,
-    ) => {
-      const t = times[i]!
-      const site = pool[i]!
-      const straight = distanceBetween(from, site.position)
-      if (used.has(i) || straight < shortest || straight > longest) return false
-      if (t + toFinish[i]! > remaining) return false
-      if (
-        keepToWaypoint &&
-        waypoint &&
-        distanceBetween(site.position, waypoint) >
-          toWaypoint + MAX_DETOUR_FROM_WAYPOINT_SHARE_OF_LEG * straight
-      ) {
-        return false
-      }
-      const wouldBeLastControl = remaining - t - toFinish[i]! < shortestLeg
-      if (wouldBeLastControl && toFinish[i]! > finalLegMax) return false
-      const isNearHome = remaining - t < HEADING_HOME_SHARE_OF_TARGET * targetSeconds
-      if (isNearHome || wouldBeLastControl) {
-        const earlierStops = [startIndex, ...order].map(u => pool[u]!.position)
-        for (let k = 0; k + 1 < earlierStops.length; k++) {
-          if (
-            crossingSeverity(earlierStops[k]!, earlierStops[k + 1]!, site.position, finish, [
-              ...earlierStops,
-              site.position,
-              finish,
-            ]) > COURSE_LINE_CROSSING.acceptableSeverity
-          ) {
-            return false
-          }
-        }
-      }
-      if (wouldBeLastControl) {
-        if (
-          angleAt(pool[current]!.position, site.position, finish) < ACUTE_ANGLE.noteBelowDegrees
-        ) {
-          return false
-        }
-        if (!staysOnMap(site.position, finish)) return false
-      }
-      const tooClose = [...used].some(u => {
-        const other = pool[u]!
-        const minimum =
-          other.isomCode === site.isomCode
-            ? spacing.minStraightMetersForSimilarSites
-            : spacing.minStraightMeters
-        const circlesApart = 2 * CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS
-        return distanceBetween(other.position, site.position) < Math.max(minimum, circlesApart)
-      })
-      if (tooClose) return false
-      if (wouldCrowd(site.position)) return false
-      if (!staysOnMap(pool[current]!.position, site.position)) return false
-      if (previous !== NO_SITE) {
-        const angle = angleAt(pool[previous]!.position, pool[current]!.position, site.position)
-        if (angle < ACUTE_ANGLE.noteBelowDegrees) return false
-      }
-      const stops = [startIndex, ...order].map(u => pool[u]!.position)
-      for (let k = 0; k + 1 < stops.length - 1; k++) {
-        const severity = crossingSeverity(stops[k]!, stops[k + 1]!, from, site.position, [
-          ...stops,
-          site.position,
-        ])
-        if (severity > COURSE_LINE_CROSSING.acceptableSeverity) return false
-      }
-      for (let k = 0; k < stops.length - 1; k++) {
-        if (
-          distanceToSegment(stops[k]!, from, site.position) < CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS
-        ) {
-          return false
-        }
-        if (
-          distanceToSegment(site.position, stops[k]!, stops[k + 1]!) <
-          CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS
-        ) {
-          return false
-        }
-      }
-      return true
-    }
-    const isInDifficultyRange = (i: number) => {
-      const difficulty = difficultyInCourse(pool[i]!, maxDifficulty)
-      return difficulty >= minDifficulty && difficulty <= maxDifficulty
-    }
-    const fitting = (
-      band: readonly [number, number],
-      inRangeOnly: boolean,
-      keepToWaypoint: boolean,
-    ) =>
-      pool.flatMap((_, i) =>
-        (!inRangeOnly || isInDifficultyRange(i)) && fits(i, band, keepToWaypoint) ? [i] : [],
-      )
-    const widened = [low / WIDER_LEG_BAND, high * WIDER_LEG_BAND] as const
-    let candidates = fitting([low, high], true, true)
-    if (candidates.length === 0) candidates = fitting(widened, true, true)
-    if (candidates.length === 0) candidates = fitting(anyLength, true, true)
-    if (candidates.length === 0) {
-      candidates = fitting(anyLength, false, false)
-      if (waypoint) nextWaypoint++
-    }
-    if (candidates.length === 0) {
-      // Dead end: take back the last control, never use it again, and carry on from before it.
-      if (backtracks >= MAX_BACKTRACKS || order.length === 0) break
-      backtracks++
-      const last = order.pop()!
-      banned.add(last)
-      const lastFrom = order.length === 0 ? startIndex : order[order.length - 1]!
-      legCounts[binOf(distanceBetween(pool[lastFrom]!.position, pool[last]!.position))]!--
-      elapsed = order.reduce((sum, _, k) => sum + legSecondsAt(k), 0)
-      current = lastFrom
-      previous =
-        order.length >= 2 ? order[order.length - 2]! : order.length === 1 ? startIndex : NO_SITE
-      continue
-    }
-
-    const isHeadingHome = remaining < HEADING_HOME_SHARE_OF_TARGET * targetSeconds
-    const preference = (i: number) => {
-      const difficulty = difficultyInCourse(pool[i]!, maxDifficulty)
-      const inRange = difficulty >= minDifficulty && difficulty <= maxDifficulty
-      const closerToFinish = isHeadingHome ? 2 * (1 - toFinish[i]! / remaining) : 0
-      const position = pool[i]!.position
-      const progress = waypoint
-        ? Math.max(
-            -1,
-            Math.min(
-              1,
-              (toWaypoint - distanceBetween(position, waypoint)) /
-                Math.max(1, distanceBetween(from, position)),
-            ),
-          )
-        : 0
-      return (
-        random.next() +
-        (inRange ? 1 : 0) +
-        closerToFinish +
-        WAYPOINT_PREFERENCE * progress +
-        QUALITY_PREFERENCE * quality[i]! +
-        (isLongLeg
-          ? ROUTE_CHOICE_PREFERENCE *
-            routeChoiceValue(pool[current]!.position, pool[i]!.position, times[i]!)
-          : 0)
-      )
-    }
-    const next = candidates.reduce((a, b) => (preference(b) > preference(a) ? b : a))
-    legCounts[binOf(distanceBetween(from, pool[next]!.position))]!++
-    while (
-      waypoints[nextWaypoint] &&
-      distanceBetween(pool[next]!.position, waypoints[nextWaypoint]!) <=
-        formatQuality.waypoints.reachedWithinMetres
-    ) {
-      nextWaypoint++
-    }
-    order.push(next)
-    elapsed += times[next]!
-    previous = current
-    current = next
-  }
-
-  // The build can stop where nothing more fits, after a control that was never checked as the
-  // last one. If its line into the finish is not clean, put the best clean site there instead.
-  function closeCleanly(course: number[]) {
-    const stopsOf = (indices: readonly number[]) =>
-      [startIndex, ...indices].map(u => pool[u]!.position)
-    const endsCleanly = (indices: readonly number[]) => {
-      const stops = stopsOf(indices)
-      const last = stops[stops.length - 1]!
-      const beforeLast = stops[stops.length - 2]
-      const beforeThat = stops[stops.length - 3]
-      if (distanceBetween(last, finish) < FINISH_CLEARANCE_METERS) return false
-      const keepsApart = stops
-        .slice(0, -1)
-        .every(
-          stop =>
-            distanceBetween(stop, last) >=
-            Math.max(
-              spacing.minStraightMetersForSimilarSites,
-              2 * CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS,
-            ),
-        )
-      if (!keepsApart) return false
-      if (beforeLast && angleAt(beforeLast, last, finish) < ACUTE_ANGLE.noteBelowDegrees)
-        return false
-      if (
-        beforeThat &&
-        beforeLast &&
-        angleAt(beforeThat, beforeLast, last) < ACUTE_ANGLE.noteBelowDegrees
-      ) {
-        return false
-      }
-      for (let k = 0; k + 2 < stops.length; k++) {
-        if (segmentsCross(stops[k]!, stops[k + 1]!, last, finish)) return false
-        if (k + 3 < stops.length && segmentsCross(stops[k]!, stops[k + 1]!, beforeLast!, last))
-          return false
-      }
-      return stops
-        .slice(0, -1)
-        .every(
-          stop =>
-            distanceToSegment(stop, last, finish) >= CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS &&
-            (stop === beforeLast ||
-              !beforeLast ||
-              distanceToSegment(stop, beforeLast, last) >= CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS),
-        )
-    }
-    if (course.length === 0 || endsCleanly(course)) return
-    const kept = course.slice(0, -1)
-    const previous = kept.length > 0 ? kept[kept.length - 1]! : startIndex
-    const fromPrevious = timesFrom(previous)
-    const used = new Set([startIndex, ...kept])
-    const elapsedBefore = kept.reduce(
-      (sum, site, i) => sum + timesFrom(i === 0 ? startIndex : kept[i - 1]!)[site]!,
-      0,
-    )
-    let best: { site: number; error: number } | null = null
-    pool.forEach((_, site) => {
-      if (used.has(site)) return
-      const total = elapsedBefore + fromPrevious[site]! + toFinish[site]!
-      if (!Number.isFinite(total)) return
-      const error = Math.abs(targetSeconds - total)
-      if (best && error >= best.error) return
-      if (!endsCleanly([...kept, site])) return
-      best = { site, error }
-    })
-    if (best) course.splice(course.length - 1, 1, (best as { site: number }).site)
-  }
-  closeCleanly(order)
-  return order
 }
 
 function proposeChange(
@@ -1531,16 +1182,6 @@ function nearestOpenPoint(grid: CostGrid, target: LocalPoint): LocalPoint | null
 }
 
 const distanceBetween = (a: LocalPoint, b: LocalPoint) => Math.hypot(b[0] - a[0], b[1] - a[1])
-
-function angleAt(previous: LocalPoint, vertex: LocalPoint, next: LocalPoint): number {
-  const ax = previous[0] - vertex[0]
-  const ay = previous[1] - vertex[1]
-  const bx = next[0] - vertex[0]
-  const by = next[1] - vertex[1]
-  const lengths = Math.hypot(ax, ay) * Math.hypot(bx, by)
-  if (lengths === 0) return 180
-  return (Math.acos(Math.max(-1, Math.min(1, (ax * bx + ay * by) / lengths))) * 180) / Math.PI
-}
 
 type Pair = [number, number]
 

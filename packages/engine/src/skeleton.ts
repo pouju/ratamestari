@@ -4,7 +4,7 @@ import type { TechnicalArea } from './areas'
 import { convexHullArea } from './course-metrics'
 import type { PlanningContext } from './course-search'
 import { difficultyInCourse } from './flag-side'
-import { segmentsCross } from './polyline'
+import { isInsidePolygon, segmentsCross } from './polyline'
 import type { Random } from './random'
 
 export interface SkeletonSection {
@@ -451,19 +451,4 @@ function turnDegrees(previous: LocalPoint, vertex: LocalPoint, next: LocalPoint)
   const b = Math.atan2(next[1] - vertex[1], next[0] - vertex[0])
   const turn = Math.abs(((b - a) * 180) / Math.PI) % 360
   return turn > 180 ? 360 - turn : turn
-}
-
-function isInsidePolygon(point: LocalPoint, polygon: readonly LocalPoint[]): boolean {
-  let inside = false
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const [xi, yi] = polygon[i]!
-    const [xj, yj] = polygon[j]!
-    if (
-      yi > point[1] !== yj > point[1] &&
-      point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi
-    ) {
-      inside = !inside
-    }
-  }
-  return inside
 }

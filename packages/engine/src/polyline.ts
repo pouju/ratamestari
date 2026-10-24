@@ -69,3 +69,18 @@ export function segmentIntersection(
   if (t < 0 || t > 1 || u < 0 || u > 1) return null
   return [a[0] + t * rx, a[1] + t * ry] as const as LocalPoint
 }
+
+export function isInsidePolygon(point: LocalPoint, polygon: readonly LocalPoint[]): boolean {
+  let inside = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i]!
+    const [xj, yj] = polygon[j]!
+    if (
+      yi > point[1] !== yj > point[1] &&
+      point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi
+    ) {
+      inside = !inside
+    }
+  }
+  return inside
+}

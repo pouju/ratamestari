@@ -80,11 +80,6 @@ export const formatQualityProfileSchema = citedSchema.extend({
   legLengths: legLengthTargetSchema,
   directionChangeRateTarget: z.number().min(0).max(1),
   spreadTarget: z.number().min(0).max(1),
-  waypoints: z.object({
-    count: z.tuple([z.int().min(1), z.int().min(1)]),
-    minSeparationMetres: z.number().positive(),
-    reachedWithinMetres: z.number().positive(),
-  }),
 })
 
 export type LegLengthTarget = z.infer<typeof legLengthTargetSchema>
@@ -102,7 +97,6 @@ export const FORMAT_QUALITY: Readonly<Record<Format, FormatQualityProfile>> = {
     },
     directionChangeRateTarget: 0.6,
     spreadTarget: 0.3,
-    waypoints: { count: [3, 5], minSeparationMetres: 700, reachedWithinMetres: 250 },
     sources: [ratamestarikirja('2.S.1'), iofRules('App. 2 §3.4.1')],
     interpretation: true,
   },
@@ -117,7 +111,6 @@ export const FORMAT_QUALITY: Readonly<Record<Format, FormatQualityProfile>> = {
     },
     directionChangeRateTarget: 0.75,
     spreadTarget: 0.15,
-    waypoints: { count: [2, 3], minSeparationMetres: 300, reachedWithinMetres: 120 },
     sources: [ratamestarikirja('2.S.2'), iofRules('App. 2 §3.4.1')],
     interpretation: true,
   },
