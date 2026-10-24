@@ -120,7 +120,7 @@ const REVERSE_SECTION_CHANCE = 0.25
 const SHIFT_CHANCE = 0.4
 const TARGET_FLAGGED_CONTROL_CHANCE = 0.5
 const SHIFT_RADIUS_METERS = 150
-const MAX_BACKTRACKS = 30
+const MAX_BACKTRACKS = 8
 const DOGLEG_REPAIR_RADIUS_METERS = 250
 const HEADING_HOME_SHARE_OF_TARGET = 0.25
 const QUALITY_PREFERENCE = 2
@@ -200,10 +200,11 @@ export function searchCourse(
     timesCache.set(poolIndex, times)
     return times
   }
+  // Costs are symmetric. When neither end has a tree yet, build it from the later stop: that is
+  // a control of the course, reused by the next move, while the earlier one is often a candidate.
   const legSeconds = (from: number, to: number): number => {
     if (timesCache.has(from)) return timesFrom(from)[to]!
-    if (timesCache.has(to)) return timesFrom(to)[from]!
-    return timesFrom(from)[to]!
+    return timesFrom(to)[from]!
   }
 
   const { evaluation, isAllowedCourseLine, routeChoiceValue } = evaluationFor(
