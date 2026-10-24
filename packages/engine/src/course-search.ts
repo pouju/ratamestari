@@ -1,14 +1,28 @@
 import type { LocalPoint } from '@ratamestari/core'
 import {
   ACUTE_ANGLE,
+  FORMAT_QUALITY,
+  SCORE_WEIGHTS,
   controlSpacingForScale,
   REFERENCE_PACE_SECONDS_PER_KM,
   type CourseTarget,
   type Format,
+  type ScoreTermName,
 } from '@ratamestari/rules'
 import type { ControlSiteCandidate, TechnicalDifficulty } from './control-sites'
 import { difficultyInCourse, flagSideFor, type FlagSide } from './flag-side'
 import { measureCourse } from './course-length'
+import {
+  alternation,
+  directionChanges,
+  firstLegTowardsFinish,
+  legLengthDistribution,
+  mappedAreaWithin,
+  reversals,
+  ring,
+  spread,
+  type Metric,
+} from './course-metrics'
 import { isUsableInPrintArea, lineCrossesExtent, type PrintArea } from './print-area'
 import { siteAreaQuality } from './site-quality'
 import { distanceToSegment, segmentsCross } from './polyline'
@@ -62,6 +76,7 @@ export interface Course {
   readonly printArea: PrintArea | null
   readonly problems: CourseProblems
   readonly findings: readonly Finding[]
+  readonly breakdown: ScoreBreakdown
   readonly score: number
 }
 
@@ -91,31 +106,14 @@ const INSERT_LEG_TIME_RANGE: readonly [number, number] = [0.3, 1.2]
 const TIME_TOLERANCE_SHARE = 0.02
 const LENGTH_CHANGE_CHANCE = 0.3
 const MIN_CONTROLS = 3
-const PENALTY = {
-  timeErrorPerPercent: 2,
-  spacing: 50,
-  acuteAngleWarning: 20,
-  acuteAngleNote: 5,
-  difficultyOutsideRange: 4,
-  courseLineCrossing: 15,
-  courseLineThroughControl: 10,
-  finalLegPerPercentOverLimit: 5,
-  courseLineOutsideMap: 30,
-  courseLineOverDescriptions: 30,
-  overlappingCircles: 15,
-} as const
 const CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS = 37.5
 const FINISH_OUTER_CIRCLE_FOOTPRINT_RADIUS_METERS = 45
 const FINAL_LEG_MAX_SHARE_OF_TARGET = 0.04
 const REVERSE_SECTION_CHANCE = 0.25
 const HEADING_HOME_SHARE_OF_TARGET = 0.25
-const QUALITY_REWARD: Readonly<Record<Format, number>> = { long: 20, middle: 40 }
 const QUALITY_PREFERENCE = 2
-const ROUTE_CHOICE_REWARD_PER_KEY_LEG = 8
 const ROUTE_CHOICE_PREFERENCE = 2
 const MAX_KEY_LEGS = 4
-const STRAIGHT_ON_ANGLE_DEGREES = 150
-const STRAIGHT_ON_PENALTY: Readonly<Record<Format, number>> = { long: 0, middle: 3 }
 const MIDDLE_CORE_RADIUS_METERS = 750
 const LONG_MIN_AREA_QUALITY = 0.3
 const MAX_DRAFTS = 3
@@ -295,6 +293,7 @@ export function evaluationFor(
     clearOfDescriptions,
     quality,
     routeChoiceValue,
+    mappedAreaWithin(terrain, printArea?.extent ?? null),
   )
   return { evaluation, isAllowedCourseLine, routeChoiceValue }
 }
@@ -326,8 +325,21 @@ export function assembleCourse(
     printArea: spec.printArea ?? null,
     problems: scored.problems,
     findings,
+    breakdown: scored.breakdown,
     score: scored.score,
   }
+}
+
+export interface ScoreTerm {
+  readonly value: number
+  readonly weight: number
+  readonly contribution: number
+  readonly note: string
+}
+
+export interface ScoreBreakdown {
+  readonly total: number
+  readonly terms: Readonly<Record<ScoreTermName, ScoreTerm>>
 }
 
 interface ScoredCourse {
@@ -336,6 +348,7 @@ interface ScoredCourse {
   readonly estimatedSeconds: number
   readonly targetSeconds: number
   readonly problems: CourseProblems
+  readonly breakdown: ScoreBreakdown
   readonly score: number
 }
 
@@ -350,8 +363,11 @@ function createEvaluation(
   clearOfDescriptions: (from: LocalPoint, to: LocalPoint) => boolean,
   quality: Float32Array,
   routeChoiceValue: (from: LocalPoint, to: LocalPoint, fastestSeconds: number) => number,
+  usableAreaSquareMetres: number,
 ) {
   const spacing = controlSpacingForScale(spec.printScale)
+  const weights = SCORE_WEIGHTS[spec.format]
+  const profile = FORMAT_QUALITY[spec.format]
   const [minDifficulty, maxDifficulty] = spec.target.siteDifficulty
 
   const score = (
@@ -384,7 +400,6 @@ function createEvaluation(
       }
     }
 
-    let straightOnTurns = 0
     let acuteAngleWarnings = 0
     let acuteAngleNotes = 0
     const stops = [...sequence.map(i => pool[i]!.position), finish]
@@ -397,7 +412,6 @@ function createEvaluation(
         acuteAngleNotes++
         found('acuteAngleNotes', i)
       }
-      if (angle > STRAIGHT_ON_ANGLE_DEGREES) straightOnTurns++
     }
 
     const keyLegValues = legSeconds
@@ -461,30 +475,112 @@ function createEvaluation(
     }
     const timeErrorPercent = (100 * Math.abs(estimatedSeconds - targetSeconds)) / targetSeconds
     const isUnreachable = !Number.isFinite(estimatedSeconds)
+    const term = (name: ScoreTermName, value: number, note: string): ScoreTerm => ({
+      value,
+      weight: weights[name],
+      contribution: value * weights[name],
+      note,
+    })
+    const count = (n: number, what: string) => `${n} ${what}`
+    const terms: Record<ScoreTermName, ScoreTerm> = {
+      timeErrorPerPercent: term(
+        'timeErrorPerPercent',
+        timeErrorPercent,
+        `estimated ${Math.round(estimatedSeconds / 60)} min, target ${Math.round(targetSeconds / 60)} min`,
+      ),
+      spacing: term('spacing', spacingProblems, count(spacingProblems, 'pairs too close')),
+      acuteAngleWarning: term(
+        'acuteAngleWarning',
+        acuteAngleWarnings,
+        count(acuteAngleWarnings, 'sharp angles'),
+      ),
+      acuteAngleNote: term(
+        'acuteAngleNote',
+        acuteAngleNotes,
+        count(acuteAngleNotes, 'angles under 60°'),
+      ),
+      difficultyOutsideRange: term(
+        'difficultyOutsideRange',
+        difficultyOutsideRange,
+        count(difficultyOutsideRange, "controls off the class's difficulty"),
+      ),
+      courseLineCrossing: term(
+        'courseLineCrossing',
+        crossingLegs.length,
+        count(crossingLegs.length, 'crossings'),
+      ),
+      courseLineThroughControl: term(
+        'courseLineThroughControl',
+        linesThroughControls.length,
+        count(linesThroughControls.length, 'lines through circles'),
+      ),
+      finalLegPerPercentOverLimit: term(
+        'finalLegPerPercentOverLimit',
+        finalLegPercentOverLimit,
+        `last leg ${Math.round(finalLegShare * 100)}% of the winning time`,
+      ),
+      courseLineOutsideMap: term(
+        'courseLineOutsideMap',
+        courseLinesOutsideMap,
+        count(courseLinesOutsideMap, 'lines off the map'),
+      ),
+      courseLineOverDescriptions: term(
+        'courseLineOverDescriptions',
+        courseLinesOverDescriptions,
+        count(courseLinesOverDescriptions, 'lines under the descriptions'),
+      ),
+      overlappingCircles: term(
+        'overlappingCircles',
+        overlapping.length,
+        count(overlapping.length, 'overlapping circles'),
+      ),
+      areaQuality: term(
+        'areaQuality',
+        -meanQuality,
+        `mean terrain quality ${meanQuality.toFixed(2)}`,
+      ),
+      routeChoicePerKeyLeg: term(
+        'routeChoicePerKeyLeg',
+        -routeChoiceTotal,
+        `route-choice value ${routeChoiceTotal.toFixed(1)} on the key legs`,
+      ),
+      ...shapeTerms(stops),
+    }
+    const score = isUnreachable
+      ? Number.POSITIVE_INFINITY
+      : Object.values(terms).reduce((sum, t) => sum + t.contribution, 0)
     return {
       order,
       legSeconds,
       estimatedSeconds,
       targetSeconds,
       problems,
-      score: isUnreachable
-        ? Number.POSITIVE_INFINITY
-        : PENALTY.timeErrorPerPercent * timeErrorPercent +
-          PENALTY.spacing * spacingProblems +
-          PENALTY.acuteAngleWarning * acuteAngleWarnings +
-          PENALTY.acuteAngleNote * acuteAngleNotes +
-          PENALTY.difficultyOutsideRange * difficultyOutsideRange +
-          PENALTY.courseLineCrossing * crossingLegs.length +
-          PENALTY.courseLineThroughControl * linesThroughControls.length +
-          PENALTY.finalLegPerPercentOverLimit * finalLegPercentOverLimit +
-          PENALTY.courseLineOutsideMap * courseLinesOutsideMap +
-          PENALTY.courseLineOverDescriptions * courseLinesOverDescriptions +
-          PENALTY.overlappingCircles * overlapping.length -
-          QUALITY_REWARD[spec.format] * meanQuality +
-          STRAIGHT_ON_PENALTY[spec.format] * straightOnTurns -
-          (spec.format === 'long' ? ROUTE_CHOICE_REWARD_PER_KEY_LEG * routeChoiceTotal : 0),
+      breakdown: { total: score, terms },
+      score,
     }
   }
+
+  const shapeTerms = (stops: readonly LocalPoint[]) => {
+    const asTerm = (name: ScoreTermName, metric: Metric): ScoreTerm => ({
+      value: metric.value,
+      weight: weights[name],
+      contribution: metric.value * weights[name],
+      note: metric.note,
+    })
+    return {
+      reversals: asTerm('reversals', reversals(stops)),
+      ring: asTerm('ring', ring(stops)),
+      legLengths: asTerm('legLengths', legLengthDistribution(stops, profile.legLengths)),
+      alternation: asTerm('alternation', alternation(stops)),
+      directionChanges: asTerm(
+        'directionChanges',
+        directionChanges(stops, profile.directionChangeRateTarget),
+      ),
+      firstLeg: asTerm('firstLeg', firstLegTowardsFinish(stops)),
+      spread: asTerm('spread', spread(stops, usableAreaSquareMetres, profile.spreadTarget)),
+    }
+  }
+
   return { score }
 }
 

@@ -54,6 +54,7 @@ export const COURSE: Course = {
   problems: { ...NO_PROBLEMS, spacing: 1 },
   printArea: null,
   findings: [{ kind: 'spacing', stops: [1, 2] }],
+  breakdown: { total: 0, terms: {} } as unknown as Course['breakdown'],
   score: 0,
 }
 

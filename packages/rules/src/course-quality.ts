@@ -77,3 +77,81 @@ export const FORMAT_QUALITY: Readonly<Record<Format, FormatQualityProfile>> = {
     interpretation: true,
   },
 }
+
+export const scoreWeightsSchema = citedSchema.extend({
+  timeErrorPerPercent: z.number().nonnegative(),
+  spacing: z.number().nonnegative(),
+  acuteAngleWarning: z.number().nonnegative(),
+  acuteAngleNote: z.number().nonnegative(),
+  difficultyOutsideRange: z.number().nonnegative(),
+  courseLineCrossing: z.number().nonnegative(),
+  courseLineThroughControl: z.number().nonnegative(),
+  finalLegPerPercentOverLimit: z.number().nonnegative(),
+  courseLineOutsideMap: z.number().nonnegative(),
+  courseLineOverDescriptions: z.number().nonnegative(),
+  overlappingCircles: z.number().nonnegative(),
+  areaQuality: z.number().nonnegative(),
+  routeChoicePerKeyLeg: z.number().nonnegative(),
+  reversals: z.number().nonnegative(),
+  ring: z.number().nonnegative(),
+  legLengths: z.number().nonnegative(),
+  alternation: z.number().nonnegative(),
+  directionChanges: z.number().nonnegative(),
+  firstLeg: z.number().nonnegative(),
+  spread: z.number().nonnegative(),
+})
+
+export type ScoreWeights = z.infer<typeof scoreWeightsSchema>
+export type ScoreTermName = Exclude<keyof ScoreWeights, 'sources' | 'interpretation'>
+
+const RULE_PENALTIES = {
+  timeErrorPerPercent: 2,
+  spacing: 50,
+  acuteAngleWarning: 20,
+  acuteAngleNote: 5,
+  difficultyOutsideRange: 4,
+  courseLineCrossing: 15,
+  courseLineThroughControl: 10,
+  finalLegPerPercentOverLimit: 5,
+  courseLineOutsideMap: 30,
+  courseLineOverDescriptions: 30,
+  overlappingCircles: 15,
+}
+
+const WEIGHT_SOURCES = [
+  iofRules('App. 2 §3.4.1'),
+  ratamestarikirja('1.2.6.S'),
+  ratamestarikirja('2.S.1'),
+  ratamestarikirja('2.S.2'),
+]
+
+export const SCORE_WEIGHTS: Readonly<Record<Format, ScoreWeights>> = {
+  long: {
+    ...RULE_PENALTIES,
+    areaQuality: 20,
+    routeChoicePerKeyLeg: 8,
+    reversals: 15,
+    ring: 25,
+    legLengths: 60,
+    alternation: 20,
+    directionChanges: 20,
+    firstLeg: 5,
+    spread: 20,
+    sources: WEIGHT_SOURCES,
+    interpretation: true,
+  },
+  middle: {
+    ...RULE_PENALTIES,
+    areaQuality: 40,
+    routeChoicePerKeyLeg: 0,
+    reversals: 10,
+    ring: 15,
+    legLengths: 60,
+    alternation: 20,
+    directionChanges: 40,
+    firstLeg: 5,
+    spread: 10,
+    sources: WEIGHT_SOURCES,
+    interpretation: true,
+  },
+}

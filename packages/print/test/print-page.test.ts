@@ -52,6 +52,7 @@ const course: Course = {
     descriptionBox: localExtent(1520, 0, 2000, 1560),
   },
   findings: [],
+  breakdown: { total: 0, terms: {} } as unknown as Course['breakdown'],
   score: 0,
 }
 

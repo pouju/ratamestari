@@ -67,9 +67,12 @@ export {
   firstLegTowardsFinish,
   legLengthDistribution,
   legLengths,
+  mappedAreaWithin,
+  measureCourseShape,
   reversals,
   ring,
   signedTurns,
   spread,
   type Metric,
+  type ShapeMetricName,
 } from './course-metrics'
