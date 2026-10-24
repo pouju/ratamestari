@@ -3,6 +3,7 @@ import {
   ACUTE_ANGLE,
   COURSE_LINE_CROSSING,
   COURSE_SHAPE,
+  FOREST_CONTROL_SPACING,
   FORMAT_QUALITY,
   SCORE_WEIGHTS,
   controlSpacingForScale,
@@ -118,6 +119,12 @@ const LENGTH_CHANGE_CHANCE = 0.3
 const MIN_CONTROLS = 3
 const CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS = 37.5
 const FINISH_OUTER_CIRCLE_FOOTPRINT_RADIUS_METERS = 45
+const MIN_CONTROL_SEPARATION_METERS = Math.max(
+  FOREST_CONTROL_SPACING.minStraightMetersForSimilarSites,
+  2 * CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS,
+)
+const FINISH_CLEARANCE_METERS =
+  CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS + FINISH_OUTER_CIRCLE_FOOTPRINT_RADIUS_METERS
 const FINAL_LEG_MAX_SHARE_OF_TARGET = 0.04
 const REVERSE_SECTION_CHANCE = 0.25
 const SHIFT_CHANCE = 0.4
@@ -125,6 +132,9 @@ const TARGET_FLAGGED_CONTROL_CHANCE = 0.5
 const SHIFT_RADIUS_METERS = 150
 const MAX_BACKTRACKS = 8
 const DOGLEG_REPAIR_RADIUS_METERS = 250
+const HARD_RULE_REPAIR_RADIUS_METERS = 400
+// A dogleg is worth giving up this much of the score to remove, but never a hard rule.
+const DOGLEG_WORTH = 60
 const HEADING_HOME_SHARE_OF_TARGET = 0.25
 const QUALITY_PREFERENCE = 2
 const ROUTE_CHOICE_PREFERENCE = 2
@@ -283,7 +293,8 @@ export function searchCourse(
       onProgress(toCourse(best))
     }
   }
-  const repaired = repairDoglegs(startIndex, best.order, pool, finish, grid, pace, evaluation)
+  const cleared = repairHardRules(startIndex, best, pool, evaluation)
+  const repaired = repairDoglegs(startIndex, cleared, pool, finish, grid, pace, evaluation)
   if (repaired !== best.order) best = evaluation.score(startIndex, repaired)
   return toCourse(best, true)
 
@@ -815,9 +826,6 @@ function buildGreedy(
           return false
         }
         if (!staysOnMap(site.position, finish)) return false
-        const finishClearance =
-          CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS + FINISH_OUTER_CIRCLE_FOOTPRINT_RADIUS_METERS
-        if (distanceBetween(site.position, finish) < finishClearance) return false
       }
       const tooClose = [...used].some(u => {
         const other = pool[u]!
@@ -945,6 +953,18 @@ function buildGreedy(
       const last = stops[stops.length - 1]!
       const beforeLast = stops[stops.length - 2]
       const beforeThat = stops[stops.length - 3]
+      if (distanceBetween(last, finish) < FINISH_CLEARANCE_METERS) return false
+      const keepsApart = stops
+        .slice(0, -1)
+        .every(
+          stop =>
+            distanceBetween(stop, last) >=
+            Math.max(
+              spacing.minStraightMetersForSimilarSites,
+              2 * CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS,
+            ),
+        )
+      if (!keepsApart) return false
       if (beforeLast && angleAt(beforeLast, last, finish) < ACUTE_ANGLE.noteBelowDegrees)
         return false
       if (
@@ -1078,6 +1098,13 @@ function proposeChange(
         return false
       }
     }
+    if (distanceBetween(candidate, finish) < FINISH_CLEARANCE_METERS) return false
+    const replaced = replacing ? position + 1 : -1
+    const tooClose = stops.some(
+      (stop, k) =>
+        k !== replaced && distanceBetween(stop, candidate) < MIN_CONTROL_SEPARATION_METERS,
+    )
+    if (tooClose) return false
     const sequence = [...stops, finish]
     const beforeThat = sequence[position - 1]
     const afterThat = sequence[replacing ? position + 3 : position + 2]
@@ -1100,8 +1127,8 @@ function proposeChange(
 
   if (isTooShort && random.next() < LENGTH_CHANGE_CHANCE) {
     const inserted = random.pick(candidatesWithin(...INSERT_LEG_TIME_RANGE, false))
-    if (inserted === undefined) return null
-    return [...order.slice(0, position), inserted, ...order.slice(position)]
+    if (inserted !== undefined)
+      return [...order.slice(0, position), inserted, ...order.slice(position)]
   }
 
   if (random.next() < SHIFT_CHANCE) {
@@ -1133,6 +1160,38 @@ const addsLineProblems = (before: CourseProblems, after: CourseProblems) =>
   after.courseLineCrossings > before.courseLineCrossings ||
   after.courseLinesThroughControls > before.courseLinesThroughControls ||
   after.acuteAngleWarnings > before.acuteAngleWarnings
+
+const HARD_RULES: ReadonlySet<Finding['kind']> = new Set(['spacing', 'overlappingCircles'])
+
+// The random moves usually clear a broken hard rule, but not always; try every nearby site for
+// each control involved before giving up.
+function repairHardRules(
+  startIndex: number,
+  scored: ScoredCourse,
+  pool: readonly ControlSiteCandidate[],
+  evaluation: ReturnType<typeof createEvaluation>,
+): readonly number[] {
+  let current = scored
+  const involved = new Set(
+    current.findings
+      .filter(finding => HARD_RULES.has(finding.kind))
+      .flatMap(finding => finding.stops)
+      .filter(stop => stop >= 1 && stop <= current.order.length),
+  )
+  for (const stop of involved) {
+    const position = stop - 1
+    const here = pool[current.order[position]!]!.position
+    const used = new Set([startIndex, ...current.order])
+    pool.forEach((site, i) => {
+      if (used.has(i) || distanceBetween(site.position, here) > HARD_RULE_REPAIR_RADIUS_METERS)
+        return
+      const replaced = current.order.map((siteIndex, k) => (k === position ? i : siteIndex))
+      const candidate = evaluation.score(startIndex, replaced)
+      if (candidate.score < current.score) current = candidate
+    })
+  }
+  return current.order
+}
 
 // Doglegs need the actual routes, which are too slow to compute at every search step, so the
 // finished course is checked once and each doubling-back control moved to a nearby site.
@@ -1171,6 +1230,7 @@ function repairDoglegs(
     const after = positionOf(current, position + 1)
     if (!doublesBack(before, here, after)) continue
     const used = new Set([startIndex, ...current])
+    const keepScore = evaluation.score(startIndex, current).score
     let best: { order: number[]; score: number } | null = null
     pool.forEach((site, i) => {
       if (used.has(i) || distanceBetween(site.position, here) > DOGLEG_REPAIR_RADIUS_METERS) return
@@ -1179,7 +1239,8 @@ function repairDoglegs(
       const { score } = evaluation.score(startIndex, replaced)
       if (!best || score < best.score) best = { order: replaced, score }
     })
-    if (best) current = (best as { order: number[] }).order
+    const chosen = best as { order: number[]; score: number } | null
+    if (chosen && chosen.score < keepScore + DOGLEG_WORTH) current = chosen.order
   }
   return current
 }

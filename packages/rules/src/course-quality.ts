@@ -205,7 +205,8 @@ export const SCORE_WEIGHTS: Readonly<Record<Format, ScoreWeights>> = {
     firstLeg: 5,
     spread: 10,
     parallelLegs: 20,
-    closeness: 20,
+    // Middle distance is compact by nature (RMK 2.S.2), so coming back near a control is common.
+    closeness: 5,
     legCount: 30,
     sources: WEIGHT_SOURCES,
     interpretation: true,
