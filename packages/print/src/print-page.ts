@@ -20,6 +20,8 @@ export interface PrintPageInput {
   readonly course: Course
   readonly sheet: DescriptionSheet
   readonly peripheral?: PrintPeripheral
+  // Only the map and its peripheral information, for a background the course is drawn over.
+  readonly withoutCourse?: boolean
 }
 
 export interface PrintPeripheral {
@@ -49,6 +51,7 @@ export function printPageSvg({
   course,
   sheet,
   peripheral,
+  withoutCourse = false,
 }: PrintPageInput): PrintPage | null {
   const area = course.printArea
   if (!area) return null
@@ -68,8 +71,8 @@ export function printPageSvg({
     ((maxX - minX) * MILLIMETRES_PER_METRE) / area.scale,
     ((maxY - minY) * MILLIMETRES_PER_METRE) / area.scale,
   ])
-  const overprint = courseOverprint(course, area.scale, toPage)
-  const descriptions = descriptionBox(sheet, area, toPage)
+  const overprint = withoutCourse ? '' : courseOverprint(course, area.scale, toPage)
+  const descriptions = withoutCourse ? '' : descriptionBox(sheet, area, toPage)
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${pageWidth}mm" height="${pageHeight}mm"` +
     ` viewBox="0 0 ${pageWidth} ${pageHeight}">` +

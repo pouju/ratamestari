@@ -128,3 +128,18 @@ describe('printPageSvg with peripheral information', () => {
     )
   })
 })
+
+describe('printPageSvg without the course', () => {
+  it('leaves out the overprint and the description box', () => {
+    const background = printPageSvg({
+      mapSvg: MAP_SVG,
+      mapScale: 15000,
+      course,
+      sheet: descriptionSheet(course, { title: 'Middle distance', courseName: 'H21' }),
+      withoutCourse: true,
+    })!
+    expect(background.svg).toContain('viewBox="0 -59133.333 13333.333 19133.333"')
+    expect(background.svg).not.toContain('<circle')
+    expect(background.svg).not.toContain('Middle distance')
+  })
+})
