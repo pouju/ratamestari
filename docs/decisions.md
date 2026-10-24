@@ -572,3 +572,36 @@ While the course is being set, the map shows no course. The side panel shows the
 - The engine's search yields `SearchProgress` (phase, done, total) instead of intermediate courses (spec section 7). Phase labels live in the web i18n catalogues.
 - D5's "the user can stop" stays: Stop returns the best course so far, which is then revealed.
 - CLAUDE.md › Product behaviour is updated when the reveal lands.
+
+---
+
+## D21: Routes for the whole course, and a live route preview when setting by hand
+
+**Date:** 2026-10-24
+**Status:** Decided
+
+### Decision
+
+Extends "Routes on a leg" (D15):
+
+- **Routes on all legs** is a map layer in Layers, next to the cost map and candidate sites. It draws every leg's fastest route and alternatives in the leg view's colours (green, blue, red), thinner than the selected leg's.
+- **A route list** under the course: one row per leg with its fastest time and its route choice (how many other routes, and how much slower the best one is), plus "a real route choice on N of M legs". A row opens that leg's route view. It is found on request ("Find routes on all legs") or when the layer is on.
+- Both work for any course on the map: generated, set by hand, or opened from an IOF XML file and checked.
+- **While setting by hand with a mouse,** the pointer shows where the next control would snap, the fastest route of each leg it would make at once, and the alternatives once the pointer rests for 150 ms. The panel says how much slower the other routes are. On touch, a control just placed shows its legs' routes.
+- Route searches go to the worker one at a time through a queue (the pointer's preview first, then the selected leg, then the rest of the course), and their results are kept by leg ends and pace, so an edit only searches the legs it changed.
+
+### Why
+
+- Course setters look for legs with real route choice; seeing the routes while placing a control, and for the whole course at once, lets them find and keep those legs. This also makes route analysis of imported courses one click instead of one leg at a time.
+- Finding alternatives takes 30 ms to 1.1 s per leg on the club maps (fastest route alone 2–120 ms), so the preview shows the fastest route first, and the queue keeps a long course's searches from delaying the pointer.
+
+### Alternatives considered
+
+- **A switch inside the leg view:** hidden where it is least useful, and no overview of the course.
+- **Searching alternatives on every pointer move:** up to a second behind the pointer on long legs.
+- **Fastest route only in the preview:** cheaper, but the alternatives are the point: they show which legs are interesting.
+
+### Consequences
+
+- The worker gets `previewControl` (snap as a tap does, then the fastest routes).
+- Plan a leg and the selected leg use the same queue, so they never wait behind more than one leg's search.
