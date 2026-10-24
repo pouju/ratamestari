@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { localExtent, localPoint, type MapFeature } from '@ratamestari/core'
 import { courseTargetFor, FOREST_CONTROL_SPACING, type CourseRequest } from '@ratamestari/rules'
 import { findControlSites } from '../src/control-sites'
-import { searchCourse, searchCourseSteps, type Course, type CourseSpec } from '../src/course-search'
+import {
+  searchCourse,
+  searchCourseSteps,
+  type Course,
+  type CourseSpec,
+  type SearchPhase,
+  type SearchProgress,
+} from '../src/course-search'
 import { buildTerrain } from '../src/terrain'
 import { feature, line, point } from './fixtures'
 
@@ -118,12 +125,14 @@ describe('searchCourse', { timeout: SEARCH_TIMEOUT_MS }, () => {
     expect(allPoints(other)).not.toEqual(allPoints(course))
   })
 
-  it('reports progress as the course improves', () => {
-    const progress: Course[] = []
-    searchCourse(terrain, sites, spec(), c => progress.push(c))
-    expect(progress.length).toBeGreaterThan(0)
-    const scores = progress.map(c => c.score)
-    expect(scores).toEqual([...scores].sort((a, b) => b - a))
+  it('reports its phases in order, from finding areas to checking the rules', () => {
+    const progress: SearchProgress[] = []
+    searchCourse(terrain, sites, spec(), step => progress.push(step))
+    const order: SearchPhase[] = ['areas', 'skeleton', 'sections', 'improving', 'checking']
+    const phases = progress.map(step => order.indexOf(step.phase))
+    expect(phases).toEqual([...phases].sort((a, b) => a - b))
+    expect(new Set(progress.map(step => step.phase))).toEqual(new Set(order))
+    expect(progress.every(step => step.done < step.total)).toBe(true)
   })
 
   it('returns null when the centre cannot be reached', () => {
@@ -178,16 +187,22 @@ describe('searchCourse', { timeout: SEARCH_TIMEOUT_MS }, () => {
 describe('stopping a search', { timeout: SEARCH_TIMEOUT_MS }, () => {
   it('returns the best course so far when told to stop', () => {
     const search = searchCourseSteps(terrain, sites, spec())
-    let latest: Course | null = null
     let step = search.next()
-    while (!step.done && !latest) {
-      latest = step.value
-      step = search.next()
-    }
-    expect(latest).not.toBeNull()
+    while (!step.done && step.value?.phase !== 'improving') step = search.next()
+    expect(step.done).toBe(false)
     const stopped = search.next(true)
-    expect(stopped.done).toBe(true)
+    if (!stopped.done) throw new Error('The search kept going after it was told to stop')
     expect(stopped.value).not.toBeNull()
     expect(stopped.value!.controls.length).toBeGreaterThan(0)
+  })
+
+  it('still sets a course when told to stop while planning', () => {
+    const search = searchCourseSteps(terrain, sites, spec())
+    search.next()
+    let step = search.next(true)
+    while (!step.done) step = search.next(true)
+    const course = step.value
+    expect(course).not.toBeNull()
+    expect(course!.controls.length).toBeGreaterThan(0)
   })
 })

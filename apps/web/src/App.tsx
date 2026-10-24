@@ -8,6 +8,7 @@ import {
   type Course,
   type Orientation,
   type PaperChoice,
+  type SearchProgress,
 } from '@ratamestari/engine'
 import {
   printScaleFor,
@@ -109,7 +110,6 @@ function frameFor(
 }
 
 // Only the final course is shown, revealed when the search ends.
-const ignoreIntermediateCourse = () => {}
 
 export function App() {
   const [engine] = useState(createEngine)
@@ -320,7 +320,9 @@ export function App() {
         paper,
         printScale,
         frame,
-        progressCallback<Course>(ignoreIntermediateCourse),
+        progressCallback<SearchProgress>(({ phase }) =>
+          setSearch(current => current && { ...current, phase }),
+        ),
         wish,
       )
       setCourse(result)

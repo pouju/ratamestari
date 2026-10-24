@@ -2,7 +2,7 @@ import type { LocalPoint } from '@ratamestari/core'
 import { FORMAT_QUALITY, FORMAT_TEMPLATES, SKELETON_SEARCH } from '@ratamestari/rules'
 import type { TechnicalArea } from './areas'
 import { convexHullArea } from './course-metrics'
-import type { PlanningContext } from './course-search'
+import type { PlanningContext, SearchProgress } from './course-search'
 import { difficultyInCourse } from './flag-side'
 import { isInsidePolygon, segmentsCross } from './polyline'
 import type { Random } from './random'
@@ -34,7 +34,7 @@ export interface Skeleton {
 }
 
 // Ranked, best first; empty when no start can be found.
-export type SkeletonPlanning = Generator<null, Skeleton[], boolean | undefined>
+export type SkeletonPlanning = Generator<SearchProgress, Skeleton[], boolean | undefined>
 
 // When the last area is farther from the finish than this share of the winning time, a run-in
 // section from sites near the finish closes the course (the existing final-leg limit).
@@ -244,10 +244,10 @@ export function* planSkeletonSteps(
 
   // 2. Refine the best orders with real endpoints, start, run-in and budgets.
   const ranked: Skeleton[] = []
-  for (const { sequence } of shortlist) {
+  for (const [k, { sequence }] of shortlist.entries()) {
+    if (yield { phase: 'skeleton', done: k, total: shortlist.length }) break
     const refined = refine(sequence)
     if (refined) ranked.push(refined)
-    if (yield null) break
   }
   if (ranked.length > 0) return ranked.sort((a, b) => a.score - b.score)
   const whole = wholePool()

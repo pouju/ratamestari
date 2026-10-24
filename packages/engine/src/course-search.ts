@@ -163,16 +163,26 @@ const DOGLEG_WORTH = 60
 const MAX_KEY_LEGS = 4
 const LONG_MIN_AREA_QUALITY = 0.3
 const MAX_DRAFTS = 3
+const IMPROVEMENT_STEPS_PER_PROGRESS = 25
 const BRING_LAST_CONTROL_HOME_CHANCE = 0.5
 const START_TOWARDS_WAYPOINT_PREFERENCE = 1
 const NO_SITE = -1
 
-// A search yields the course so far when it improves, or null at a pause point. Whoever runs it
-// can pause there, and passes true to next() to stop: the search then returns its best course.
-export type SearchStep = Course | null
+// A search yields its progress, or null at a pause point. Whoever runs it can pause at any step
+// and passes true to next() to stop: the search then returns its best course so far (D20).
+export type SearchPhase = 'areas' | 'skeleton' | 'sections' | 'improving' | 'checking'
+export interface SearchProgress {
+  readonly phase: SearchPhase
+  readonly done: number
+  readonly total: number
+}
+export type SearchStep = SearchProgress | null
 export type Search = Generator<SearchStep, Course | null, boolean | undefined>
 
-export function runSearch(search: Search, onProgress: (course: Course) => void = () => {}) {
+export function runSearch(
+  search: Search,
+  onProgress: (progress: SearchProgress) => void = () => {},
+) {
   for (let step = search.next(); ; step = search.next()) {
     if (step.done) return step.value
     if (step.value) onProgress(step.value)
@@ -183,7 +193,7 @@ export function searchCourse(
   terrain: Terrain,
   sites: readonly ControlSiteCandidate[],
   spec: CourseSpec,
-  onProgress: (course: Course) => void = () => {},
+  onProgress: (progress: SearchProgress) => void = () => {},
 ): Course | null {
   return runSearch(searchCourseSteps(terrain, sites, spec), onProgress)
 }
@@ -194,6 +204,7 @@ export function* searchCourseSteps(
   spec: CourseSpec,
 ): Search {
   const random = seededRandom(spec.seed)
+  let stopped = Boolean(yield { phase: 'areas', done: 0, total: 1 })
   const prepared = prepareSearch(terrain, sites, spec)
   if (!prepared) return null
   const { grid } = terrain
@@ -212,11 +223,22 @@ export function* searchCourseSteps(
     planning.paceSecondsPerKm,
   )
   const usable = mappedAreaWithin(terrain, spec.printArea?.extent ?? null)
-  const skeletons = yield* planSkeletonSteps(planning, areas, usable, random)
+  const planningSkeletons = planSkeletonSteps(planning, areas, usable, random)
+  let skeletons: readonly Skeleton[] = []
+  for (let step = planningSkeletons.next(stopped); ; step = planningSkeletons.next(stopped)) {
+    if (step.done) {
+      skeletons = step.value
+      break
+    }
+    stopped = Boolean(yield step.value) || stopped
+  }
   let startIndex = NO_SITE
   let order: readonly number[] = []
   let best: ScoredCourse | null = null
-  for (const skeleton of skeletons.slice(0, MAX_DRAFTS)) {
+  const drafts = skeletons.slice(0, stopped ? 1 : MAX_DRAFTS)
+  for (const [k, skeleton] of drafts.entries()) {
+    stopped = Boolean(yield { phase: 'sections', done: k, total: drafts.length }) || stopped
+    if (stopped && best) break
     const draft = fillSkeleton(planning, skeleton, areas, random)
     const scored = evaluation.score(skeleton.start, draft)
     if (!best || scored.score < best.score) {
@@ -224,13 +246,16 @@ export function* searchCourseSteps(
       startIndex = skeleton.start
       order = draft
     }
-    if (yield null) break
   }
   if (!best) return null
-  let stopped = Boolean(yield toCourse(best))
 
   const steps = spec.improvementSteps ?? DEFAULT_IMPROVEMENT_STEPS[spec.format]
   for (let step = 0; step < steps && !stopped; step++) {
+    const reportsProgress = step % IMPROVEMENT_STEPS_PER_PROGRESS === 0
+    stopped = Boolean(
+      yield reportsProgress ? { phase: 'improving', done: step, total: steps } : null,
+    )
+    if (stopped) break
     const candidate = proposeChange(
       startIndex,
       order,
@@ -248,16 +273,12 @@ export function* searchCourseSteps(
       order = candidate
       best = scored
     }
-    stopped = Boolean(yield improves ? toCourse(best) : null)
   }
+  if (!stopped) yield { phase: 'checking', done: 0, total: 1 }
   const cleared = repairHardRules(startIndex, best, pool, evaluation)
   const repaired = repairDoglegs(startIndex, cleared, pool, finish, grid, pace, evaluation)
   if (repaired !== best.order) best = evaluation.score(startIndex, repaired)
-  return toCourse(best, true)
-
-  function toCourse(scored: ScoredCourse, withLength = false): Course {
-    return assembleCourse(context, startIndex, scored.order, withLength)
-  }
+  return assembleCourse(context, startIndex, best.order, true)
 }
 
 // Sites in usable terrain, plus any site near the finish for the run-in: weak terrain far from

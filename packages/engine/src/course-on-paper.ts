@@ -8,6 +8,7 @@ import {
   type Course,
   type CourseSpec,
   type Search,
+  type SearchProgress,
 } from './course-search'
 import {
   fitBoxesToCourse,
@@ -43,7 +44,7 @@ export function setCourseOnPaper(
   sites: readonly ControlSiteCandidate[],
   spec: CourseSpec,
   paper: PaperChoice,
-  onProgress: (course: Course) => void = () => {},
+  onProgress: (progress: SearchProgress) => void = () => {},
 ): Course | null {
   return runSearch(setCourseOnPaperSteps(terrain, sites, spec, paper), onProgress)
 }

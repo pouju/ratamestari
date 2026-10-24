@@ -34,6 +34,8 @@ export {
   type CourseSpec,
   type Finding,
   type Search,
+  type SearchPhase,
+  type SearchProgress,
   type SearchStep,
 } from './course-search'
 export { mappedAreaMask } from './mapped-area'

@@ -33,6 +33,7 @@ import {
   type ControlSiteCandidate,
   type Course,
   type Search,
+  type SearchProgress,
   type LegEvaluation,
   type PeripheralInformation,
   type Terrain,
@@ -66,7 +67,7 @@ let stopRequested = false
 // The search pauses regularly; giving the event loop a turn there lets a stop message through.
 const SLICE_MILLISECONDS = 50
 
-async function runSliced(search: Search, onProgress: (course: Course) => void) {
+async function runSliced(search: Search, onProgress: (progress: SearchProgress) => void) {
   stopRequested = false
   let sliceStarted = performance.now()
   for (let step = search.next(); ; step = search.next(stopRequested)) {
@@ -168,7 +169,7 @@ const engine = {
     paper: PaperChoice,
     printScaleChoice: PrintScaleChoice,
     printFrame: PrintFrame | null,
-    onProgress: (course: Course) => void,
+    onProgress: (progress: SearchProgress) => void,
     startDistanceFromFinishMeters: readonly [number, number] | null = null,
   ): Promise<Course | null> {
     if (!terrain) throw new Error('No map loaded in the engine')

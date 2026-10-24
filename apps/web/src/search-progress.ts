@@ -1,4 +1,6 @@
-export type SearchPhase = 'areas' | 'skeleton' | 'sections' | 'improving' | 'checking'
+import type { SearchPhase } from '@ratamestari/engine'
+
+export type { SearchPhase }
 
 export interface SearchStatus {
   readonly startedAt: number
