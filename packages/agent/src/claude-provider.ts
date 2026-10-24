@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { betaZodTool } from '@anthropic-ai/sdk/helpers/beta/zod'
 import type { ChatOptions, ChatSession, LlmProvider } from './llm-provider'
 
-export const CLAUDE_MODEL = 'claude-opus-5-5'
+export const CLAUDE_MODEL = 'claude-haiku-5-5'
 const MAX_OUTPUT_TOKENS = 64000
 
 export class TruncatedToolCallError extends Error {}
@@ -34,8 +34,6 @@ export function createClaudeProvider(apiKey: string): LlmProvider {
               messages: [...history, { role: 'user', content: userText }],
               output_config: { effort: 'medium' },
               cache_control: { type: 'ephemeral' },
-              betas: ['server-side-fallback-2026-07-01'],
-              fallbacks: 'default',
               stream: true,
             },
             signal ? { signal } : undefined,
