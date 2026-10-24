@@ -36,7 +36,7 @@ export const FORBIDDEN_ALONG_SPEED_FACTOR: CitedNumber = {
 }
 
 export const CLIMB_EQUIVALENT_FLAT_METERS: CitedNumber = {
-  value: 10,
+  value: 5,
   sources: [isom('§2.3'), ratamestarikirja('1.1.2'), ratamestarikirja('1.2.2.SHP')],
   interpretation: true,
 }

@@ -88,10 +88,10 @@ describe('evaluateLeg', () => {
           [500 - halfSide, 500 - halfSide],
         ),
       )
-    const hill = [40, 60, 80].map(ring)
+    const hill = [15, 25, 35].map(ring)
     const leg = evaluateLeg(buildTerrain(hill, SQUARE_KILOMETRE, synthetic), south, north)!
     expect(leg.contourCrossings).toBe(0)
-    expect(leg.maxDeviationMeters).toBeGreaterThan(80)
+    expect(leg.maxDeviationMeters).toBeGreaterThan(35)
   })
 
   it('uses the given contour interval', () => {
