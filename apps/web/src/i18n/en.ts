@@ -34,6 +34,167 @@ export const en = {
     straightLine: 'Straight line',
     bearing: 'Bearing',
   },
+  landing: {
+    pageTitle: 'Ratamestari: orienteering course setter',
+    nav: {
+      label: 'Main',
+      how: 'How it works',
+      status: 'Status',
+      privacy: 'Privacy',
+      sourceCode: 'Source code',
+      openApp: 'Open the app',
+    },
+    hero: {
+      title: 'A first course in minutes, set by the rules.',
+      lead: 'Open your OCAD map, choose the competition centre and the class. Ratamestari places the controls, checks them against IOF and SSL rules, writes the control descriptions and fits it all on paper.',
+      openApp: 'Open the app',
+      privacy: 'Runs in your browser. Your map never leaves your computer.',
+    },
+    demo: {
+      label:
+        'Animation: a map opens, the competition centre is chosen, candidate control sites appear, the course is drawn leg by leg and the control descriptions are written.',
+      steps: [
+        'Map opened',
+        'Competition centre',
+        'Control sites',
+        'Setting the course',
+        'Descriptions and paper',
+        'Ready to print',
+      ],
+      mapCaption: 'Read in your browser, nothing uploaded',
+      centreCaption: 'Chosen by you',
+      sitesCaption: (count: number) => `${count} candidate sites on map features`,
+      courseCaption: (length: string, controls: number) =>
+        `${length} so far, ${controls} ${controls === 1 ? 'control' : 'controls'} placed`,
+      descriptionsCaption: 'IOF descriptions written, fitted to A4',
+      doneCaption: (length: string, climb: string) =>
+        `${length} with ${climb} climb and no rule errors`,
+      play: 'Play the demo',
+      pause: 'Pause the demo',
+    },
+    how: {
+      title: 'Four steps on one screen.',
+      steps: [
+        {
+          title: 'Open your map',
+          text: 'Choose an OCAD file. It is read in the browser and shown as the print page.',
+        },
+        {
+          title: 'Choose the centre',
+          text: 'Click where the competition centre is. The course starts and finishes near it.',
+        },
+        {
+          title: 'Pick the class',
+          text: 'Event level, distance and class. The course draws itself while it is set.',
+        },
+        {
+          title: 'Check and print',
+          text: 'Look at the routes, drag controls, fix what the rules flag, then save the print PDF and IOF XML.',
+        },
+      ],
+    },
+    checks: {
+      title: 'Every check names its rule.',
+      text: 'Distances, routes and climb are measured from the map, not guessed. Each warning cites the IOF or SSL rule behind it, so you can look it up. Walking the terrain and the final say stay with you and your controller.',
+      exampleLabel: 'Example of rule checks',
+      exampleTitle: '2 things to check',
+      examples: [
+        {
+          severity: 'error',
+          text: 'Controls 7 and 8 look alike and are 26 m apart. They need at least 30 m.',
+          basis: 'Lajisäännöt 2026 11.41',
+        },
+        {
+          severity: 'note',
+          text: 'Control 4 is on a hill top, which is easy for this level.',
+          basis: 'Our reading of the difficulty guidance',
+        },
+      ],
+      error: 'Error',
+      note: 'Note',
+      fix: 'Fix',
+    },
+    status: {
+      title: "What works, and what doesn't yet.",
+      text: 'Ratamestari started as a hackathon prototype in October 2026. Use it to draft courses, not to skip your checks.',
+      columns: [
+        {
+          title: 'Works now',
+          items: [
+            'OCAD maps, read in the browser',
+            'Long and middle distance for SSL classes',
+            'Controls placed on real map features',
+            'Rule checks that cite their source, with Fix',
+            'Dragging controls, with the rules checked again',
+            'Routes on every leg, fastest to slowest',
+            'Planning a leg yourself',
+            'IOF control descriptions on the map',
+            'Automatic fit to A4 or A3',
+            'Print PDF and IOF XML 3.0',
+            'Correcting how map symbols are read',
+            'An optional assistant with your own Claude API key',
+          ],
+        },
+        {
+          title: 'Coming next',
+          items: [
+            'Checking a course you set in OCAD or Purple Pen',
+            'Keeping controls you like while trying again',
+            'Phone and tablet layout for the app',
+            'Centre suggestions from the map',
+            'Several classes side by side',
+            'Stopping the search halfway',
+            'Moving the print area by hand',
+            'OpenOrienteering Mapper files',
+            'Finnish',
+          ],
+        },
+        {
+          title: 'Later',
+          items: [
+            'Sprint distance',
+            'Maps as PNG or PDF images',
+            'Relay forking',
+            'Planning all courses of an event together',
+            'The assistant without your own key',
+          ],
+        },
+      ],
+    },
+    privacy: {
+      title: 'Your map stays with you.',
+      paragraphs: [
+        'There is no server. The map is read, routed and printed in your browser, and nothing is uploaded. The source code is public so anyone can check.',
+        'The assistant is optional and everything works without it. With your own Claude API key you can ask in plain words, like "make leg 5 harder". It receives only text and numbers, never the map or coordinates.',
+      ],
+      exampleLabel: 'Example of a conversation with the assistant',
+      exampleQuestion: "Make leg 5 harder, it's just running along the path.",
+      exampleAnswer:
+        'I moved control 5 from the path bend to a re-entrant 180 m east. Now the leg has a choice: around on the path, or straight over the hill with 35 m of climb. Spacing and length still meet the SSL rules.',
+    },
+    credits: {
+      madeBy: 'Made by',
+      author: 'Pouju',
+      about: "Ratamestari is open source, and course setters' feedback is very welcome.",
+      github: 'GitHub',
+      feedback: 'Send feedback',
+      items: [
+        { title: 'Reading OCAD files', text: 'ocad2geojson by Per Liedman', link: 'ocad2geojson' },
+        { title: 'Rules', text: 'IOF and Suomen Suunnistusliitto rule documents', link: null },
+        {
+          title: 'Built with',
+          text: 'OpenLayers, React, Vite, pdf-lib, and Claude for the assistant',
+          link: null,
+        },
+      ],
+    },
+    footer: {
+      by: 'Ratamestari by',
+      licence: 'AGPL-3.0-or-later',
+      sourceCode: 'Source code',
+      language: 'English',
+    },
+  },
   units: {
     seconds: (value: string) => `${value} s`,
   },

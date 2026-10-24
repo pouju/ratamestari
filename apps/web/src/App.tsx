@@ -350,7 +350,9 @@ export function App() {
       </main>
 
       <aside>
-        <h1>Ratamestari</h1>
+        <h1>
+          <a href="../">Ratamestari</a>
+        </h1>
         {course && selectedLeg !== null && (
           <LegRoutesPanel
             course={course}
