@@ -66,15 +66,39 @@ export function courseOverprintFeatures(course: Course): Feature[] {
   return features
 }
 
+// drawnLegs is how far the course has been drawn, in legs (1.5 = first leg and half the second),
+// or null when the whole course is shown.
 export const courseOverprintStyle =
-  (highlightedLeg: number | null) =>
-  (feature: FeatureLike, metersPerPixel: number): Style => {
+  (highlightedLeg: number | null, drawnLegs: number | null = null) =>
+  (feature: FeatureLike, metersPerPixel: number): Style | undefined => {
     const colour =
       highlightedLeg === null || isOnLeg(feature, highlightedLeg)
         ? COURSE_OVERPRINT_PURPLE
         : FADED_OVERPRINT_PURPLE
+    if (drawnLegs === null) return overprintStyle(feature, metersPerPixel, colour)
+    const leg = feature.get(LEG_INDEX)
+    const stop = feature.get(STOP)
+    if (typeof leg === 'number') {
+      const share = Math.min(1, drawnLegs - leg)
+      if (share <= 0) return undefined
+      const style = overprintStyle(feature, metersPerPixel, colour)
+      const line = feature.getGeometry()
+      if (share < 1 && line instanceof LineString) style.setGeometry(partOfLine(line, share))
+      return style
+    }
+    if (typeof stop === 'number' && stop > drawnLegs) return undefined
     return overprintStyle(feature, metersPerPixel, colour)
   }
+
+function partOfLine(line: LineString, share: number): LineString {
+  const [from = [], to = []] = line.getCoordinates()
+  const [x1 = 0, y1 = 0] = from
+  const [x2 = 0, y2 = 0] = to
+  return new LineString([
+    [x1, y1],
+    [x1 + (x2 - x1) * share, y1 + (y2 - y1) * share],
+  ])
+}
 
 function overprintStyle(
   feature: FeatureLike,

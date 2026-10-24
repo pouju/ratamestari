@@ -1,6 +1,13 @@
 import { useMessages } from '../i18n'
-import { APP_PATH, AUTHOR_URL, FEEDBACK_URL, OCAD2GEOJSON_URL, SOURCE_CODE_URL } from '../config'
-import { ILLUSTRATED_RUN } from './demo-run'
+import {
+  APP_PATH,
+  AUTHOR_URL,
+  FEEDBACK_URL,
+  OCAD2GEOJSON_URL,
+  SAMPLE_QUERY,
+  SOURCE_CODE_URL,
+} from '../config'
+import { SAMPLE_RUN } from './demo-run'
 import { HeroDemo } from './HeroDemo'
 
 const CREDIT_LINKS: Readonly<Record<string, string>> = { ocad2geojson: OCAD2GEOJSON_URL }
@@ -32,14 +39,20 @@ export function Landing() {
             <h1>{m.hero.title}</h1>
             <p className="landing-lead">{m.hero.lead}</p>
             <div className="landing-actions">
-              <a href={APP_PATH} className="landing-primary">
-                {m.hero.openApp}
+              <a href={`${APP_PATH}?${SAMPLE_QUERY}`} className="landing-primary">
+                {m.hero.trySample}
+              </a>
+              <a href={APP_PATH} className="landing-secondary">
+                {m.hero.openOwn}
+              </a>
+              <a href={APP_PATH} className="landing-secondary">
+                {m.hero.checkOwn}
               </a>
             </div>
             <p className="landing-soft">{m.hero.privacy}</p>
           </div>
           <div className="landing-hero-demo">
-            <HeroDemo run={ILLUSTRATED_RUN} />
+            <HeroDemo run={SAMPLE_RUN} />
           </div>
         </section>
 

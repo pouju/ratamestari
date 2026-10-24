@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useFormat, useMessages } from '../i18n'
 import type { DemoPoint, DemoRun } from './demo-run'
-import { IllustratedMap } from './IllustratedMap'
 
 const TICK_MS = 100
 const MAP_TICKS = 8
@@ -16,18 +15,12 @@ const LEGS_FROM = 48
 const LEG_TICKS = 5
 const DESCRIPTIONS_FROM = 108
 const DESCRIPTION_ROW_EVERY = 1.1
-const FRAME_FROM = 124
-const DONE_FROM = 130
+const DONE_FROM = 128
 const LOOP_TICKS = 165
 const STEP_STARTS = [0, CENTRE_FROM, SITES_FROM, LEGS_FROM, DESCRIPTIONS_FROM, DONE_FROM]
 
-const CONTROL_RADIUS = 15
-const START_GAP = 18
-const LABEL_OFFSET: DemoPoint = [17, -12]
-const DESCRIPTION_ORIGIN: DemoPoint = [18, 18]
-const DESCRIPTION_WIDTH = 152
-const DESCRIPTION_ROW_HEIGHT = 10
-const DESCRIPTION_HEADER_ROWS = 2
+const SITE_SHARE_OF_CONTROL_RADIUS = 0.3
+const GAP_BESIDE_DESCRIPTIONS = 12
 
 const clamp = (value: number) => Math.max(0, Math.min(1, value))
 const prefersReducedMotion = () =>
@@ -46,21 +39,28 @@ export function HeroDemo({ run }: { run: DemoRun }) {
     return () => clearInterval(timer)
   }, [isPaused])
 
+  const symbols = run.symbols
   const stops = [run.start, ...run.controls, run.finish]
+  const radii = [
+    symbols.startRadius,
+    ...run.controls.map(() => symbols.controlRadius),
+    symbols.finishOuterRadius,
+  ]
   const legs = stops.slice(1).map((to, i) => {
     const from = stops[i]!
     const full = Math.hypot(to[0] - from[0], to[1] - from[1])
     const [ux, uy] = [(to[0] - from[0]) / full, (to[1] - from[1]) / full]
-    const gapFrom = i === 0 ? START_GAP : CONTROL_RADIUS
-    const drawable = full - gapFrom - CONTROL_RADIUS
+    const gapFrom = radii[i]! + symbols.gap
+    const gapTo = radii[i + 1]! + symbols.gap
+    const drawable = Math.max(0, full - gapFrom - gapTo)
     const shown = clamp((tick - LEGS_FROM - i * LEG_TICKS) / LEG_TICKS)
     return {
       full,
       shown,
       x1: from[0] + ux * gapFrom,
       y1: from[1] + uy * gapFrom,
-      x2: to[0] - ux * CONTROL_RADIUS,
-      y2: to[1] - uy * CONTROL_RADIUS,
+      x2: to[0] - ux * gapTo,
+      y2: to[1] - uy * gapTo,
       dash: drawable,
       offset: drawable * (1 - shown),
     }
@@ -82,109 +82,133 @@ export function HeroDemo({ run }: { run: DemoRun }) {
     m.doneCaption(format.kilometres(run.lengthMeters), format.metres(run.climbMeters)),
   ]
   const centreShown = clamp((tick - CENTRE_FROM) / CENTRE_TICKS)
-  const descriptionRows = run.controls.length + DESCRIPTION_HEADER_ROWS + 2
+  const clipId = useId()
+  const descriptions = run.descriptions
+  const rowHeight = descriptions.height / descriptions.rows
+  const shownRows = Array.from({ length: descriptions.rows }, (_, row) => row).filter(
+    row => tick >= DESCRIPTIONS_FROM + row * DESCRIPTION_ROW_EVERY,
+  ).length
   const [pageWidth, pageHeight] = run.page
+  const mapLeft = descriptions.width + GAP_BESIDE_DESCRIPTIONS
+  const viewWidth = mapLeft + pageWidth
+  const viewHeight = Math.max(pageHeight, descriptions.height)
+  const labelOffset = (symbols.controlRadius + symbols.numberHeight / 2) * Math.SQRT1_2
 
   return (
     <figure className="hero-demo">
       <svg
-        viewBox={`0 0 ${pageWidth} ${pageHeight}`}
+        viewBox={`0 0 ${viewWidth} ${viewHeight}`}
         className="hero-demo-page"
         role="img"
         aria-label={m.label}
       >
-        <g opacity={clamp(tick / MAP_TICKS)}>
-          <IllustratedMap />
-        </g>
-
-        {run.sites.map(([x, y], i) => {
-          const appears = SITES_FROM + i * SITE_EVERY
-          const opacity =
-            tick < appears
-              ? 0
-              : SITE_OPACITY * clamp(1 - (tick - SITES_FADE_FROM) / SITES_FADE_TICKS)
-          return (
-            <circle
-              key={i}
-              cx={x}
-              cy={y}
-              r="4.5"
-              fill="var(--colour-overprint)"
-              opacity={opacity}
-            />
-          )
-        })}
-
-        <g transform={`translate(0 ${-40 * (1 - centreShown)})`} opacity={centreShown > 0 ? 1 : 0}>
-          <circle
-            cx={run.centre[0]}
-            cy={run.centre[1]}
-            r="13"
-            fill="#000"
-            stroke="#fff"
-            strokeWidth="3"
+        <defs>
+          <clipPath id={clipId}>
+            <rect width={descriptions.width} height={shownRows * rowHeight} />
+          </clipPath>
+        </defs>
+        <image
+          href={descriptions.image}
+          width={descriptions.width}
+          height={descriptions.height}
+          clipPath={`url(#${clipId})`}
+        />
+        <g transform={`translate(${mapLeft} 0)`}>
+          <image
+            href={run.pageImage}
+            width={pageWidth}
+            height={pageHeight}
+            preserveAspectRatio="none"
+            opacity={clamp(tick / MAP_TICKS)}
           />
-          <circle cx={run.centre[0]} cy={run.centre[1]} r="4" fill="#fff" />
-        </g>
 
-        <g stroke="var(--colour-overprint)" strokeWidth="2.6" fill="none">
-          {legs.map((leg, i) => (
-            <line
-              key={i}
-              x1={leg.x1}
-              y1={leg.y1}
-              x2={leg.x2}
-              y2={leg.y2}
-              strokeDasharray={leg.dash}
-              strokeDashoffset={leg.offset}
+          {run.sites.map(([x, y], i) => {
+            const appears = SITES_FROM + i * SITE_EVERY
+            const opacity =
+              tick < appears
+                ? 0
+                : SITE_OPACITY * clamp(1 - (tick - SITES_FADE_FROM) / SITES_FADE_TICKS)
+            return (
+              <circle
+                key={i}
+                cx={x}
+                cy={y}
+                r={symbols.controlRadius * SITE_SHARE_OF_CONTROL_RADIUS}
+                fill="var(--colour-overprint)"
+                opacity={opacity}
+              />
+            )
+          })}
+
+          <g
+            transform={`translate(0 ${-40 * (1 - centreShown)})`}
+            opacity={centreShown > 0 ? 1 : 0}
+          >
+            <circle
+              cx={run.centre[0]}
+              cy={run.centre[1]}
+              r={symbols.controlRadius}
+              fill="#000"
+              stroke="#fff"
+              strokeWidth={symbols.lineWidth * 2}
             />
-          ))}
-          <polygon points={startTriangle(run.start)} opacity={clamp((tick - LEGS_FROM + 2) / 2)} />
-          {run.controls.map(([x, y], i) => (
-            <circle key={i} cx={x} cy={y} r={CONTROL_RADIUS} opacity={appearsAfterLeg(i + 1)} />
-          ))}
-          <g opacity={appearsAfterLeg(stops.length - 1)}>
-            <circle cx={run.finish[0]} cy={run.finish[1]} r="10" />
-            <circle cx={run.finish[0]} cy={run.finish[1]} r={CONTROL_RADIUS} />
+            <circle
+              cx={run.centre[0]}
+              cy={run.centre[1]}
+              r={symbols.controlRadius / 3}
+              fill="#fff"
+            />
+          </g>
+
+          <g stroke="var(--colour-overprint)" strokeWidth={symbols.lineWidth} fill="none">
+            {legs.map((leg, i) => (
+              <line
+                key={i}
+                x1={leg.x1}
+                y1={leg.y1}
+                x2={leg.x2}
+                y2={leg.y2}
+                strokeDasharray={leg.dash}
+                strokeDashoffset={leg.offset}
+              />
+            ))}
+            <polygon
+              points={startTriangle(run.start, stops[1] ?? run.finish, symbols.startRadius)}
+              opacity={clamp((tick - LEGS_FROM + 2) / 2)}
+            />
+            {run.controls.map(([x, y], i) => (
+              <circle
+                key={i}
+                cx={x}
+                cy={y}
+                r={symbols.controlRadius}
+                opacity={appearsAfterLeg(i + 1)}
+              />
+            ))}
+            <g opacity={appearsAfterLeg(stops.length - 1)}>
+              <circle cx={run.finish[0]} cy={run.finish[1]} r={symbols.finishInnerRadius} />
+              <circle cx={run.finish[0]} cy={run.finish[1]} r={symbols.finishOuterRadius} />
+            </g>
+          </g>
+          <g
+            fill="var(--colour-overprint)"
+            fontFamily="Arial, Helvetica, sans-serif"
+            fontSize={symbols.numberHeight}
+            textAnchor="middle"
+            dominantBaseline="central"
+          >
+            {run.controls.map(([x, y], i) => (
+              <text
+                key={i}
+                x={x + labelOffset}
+                y={y - labelOffset}
+                opacity={appearsAfterLeg(i + 1)}
+              >
+                {i + 1}
+              </text>
+            ))}
           </g>
         </g>
-        <g fill="var(--colour-overprint)" fontWeight="800" fontSize="20">
-          {run.controls.map(([x, y], i) => (
-            <text
-              key={i}
-              x={x + LABEL_OFFSET[0]}
-              y={y + LABEL_OFFSET[1]}
-              opacity={appearsAfterLeg(i + 1)}
-            >
-              {i + 1}
-            </text>
-          ))}
-        </g>
-
-        <rect
-          x="6"
-          y="6"
-          width={pageWidth - 12}
-          height={pageHeight - 12}
-          fill="none"
-          stroke="#000"
-          strokeWidth="1.5"
-          strokeDasharray="10 6"
-          opacity={clamp((tick - FRAME_FROM) / 4)}
-        />
-        {Array.from({ length: descriptionRows }, (_, row) => (
-          <rect
-            key={row}
-            x={DESCRIPTION_ORIGIN[0]}
-            y={DESCRIPTION_ORIGIN[1] + row * DESCRIPTION_ROW_HEIGHT}
-            width={DESCRIPTION_WIDTH}
-            height={DESCRIPTION_ROW_HEIGHT}
-            fill="#fff"
-            stroke="#1b1b1b"
-            strokeWidth="0.8"
-            opacity={clamp((tick - DESCRIPTIONS_FROM - row * DESCRIPTION_ROW_EVERY) / 2)}
-          />
-        ))}
       </svg>
 
       <figcaption className="hero-demo-caption">
@@ -205,6 +229,7 @@ export function HeroDemo({ run }: { run: DemoRun }) {
           <span>{captions[step]}</span>
         </span>
       </figcaption>
+      <p className="hero-demo-credit">{m.credit}</p>
       <div className="hero-demo-progress" aria-hidden="true">
         {m.steps.map((_, i) => (
           <span key={i} className={i <= step ? 'is-done' : undefined} />
@@ -214,11 +239,11 @@ export function HeroDemo({ run }: { run: DemoRun }) {
   )
 }
 
-function startTriangle([x, y]: DemoPoint): string {
-  const radius = 19
-  return [-90, 30, 150]
+function startTriangle([x, y]: DemoPoint, [towardsX, towardsY]: DemoPoint, radius: number): string {
+  const heading = Math.atan2(towardsY - y, towardsX - x)
+  return [0, 120, 240]
     .map(degrees => {
-      const angle = (degrees * Math.PI) / 180
+      const angle = heading + (degrees * Math.PI) / 180
       return `${x + radius * Math.cos(angle)},${y + radius * Math.sin(angle)}`
     })
     .join(' ')

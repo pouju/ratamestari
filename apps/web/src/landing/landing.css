@@ -163,6 +163,14 @@ body {
   font-size: 18px;
   font-weight: var(--font-weight-strong);
 }
+.landing a.landing-secondary {
+  color: var(--colour-ink);
+  font-size: 18px;
+  font-weight: var(--font-weight-strong);
+  text-decoration: underline;
+  text-underline-offset: 6px;
+  text-decoration-thickness: 2px;
+}
 .landing a.landing-primary:hover {
   background: var(--colour-overprint-hover);
   color: var(--colour-map-white);
@@ -429,4 +437,9 @@ body {
   margin-left: auto;
   color: var(--colour-ink);
   font-weight: var(--font-weight-strong);
+}
+.hero-demo-credit {
+  margin: 0;
+  font-size: 13px;
+  color: var(--colour-ink-soft);
 }

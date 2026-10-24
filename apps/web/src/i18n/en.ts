@@ -38,6 +38,9 @@ export const en = {
     openingHint: 'Reading the map and drawing it. Large maps take a few seconds.',
     openFailed: (reason: string) => `This file could not be opened: ${reason}`,
     privacy: 'The map is read in this browser and never uploaded.',
+    sampleCredit:
+      'Sample map: Leirikangas, Hamina. © Vehkalahden Veikot, for trying Ratamestari only.',
+    sampleFailed: (reason: string) => `The sample map could not be loaded: ${reason}`,
     mapLine: 'Map',
     noMap: 'No map open yet',
     openingLine: (fileName: string) => `Opening ${fileName}…`,
@@ -252,7 +255,9 @@ export const en = {
     hero: {
       title: 'A first course in minutes, set by the rules.',
       lead: 'Open your OCAD map, choose the competition centre and the class. Ratamestari places the controls, checks them against IOF and SSL rules, writes the control descriptions and fits it all on paper.',
-      openApp: 'Open the app',
+      trySample: 'Try it with a sample map',
+      openOwn: 'Open your own map',
+      checkOwn: 'Check a course you set',
       privacy: 'Runs in your browser. Your map never leaves your computer.',
     },
     demo: {
@@ -271,9 +276,11 @@ export const en = {
       sitesCaption: (count: number) => `${count} candidate sites on map features`,
       courseCaption: (length: string, controls: number) =>
         `${length} so far, ${controls} ${controls === 1 ? 'control' : 'controls'} placed`,
-      descriptionsCaption: 'IOF descriptions written, fitted to A4',
+      descriptionsCaption: 'IOF descriptions written, course fitted to paper',
       doneCaption: (length: string, climb: string) =>
-        `${length} with ${climb} climb and no rule errors`,
+        `${length} with ${climb} climb, ready to print`,
+      credit:
+        'A real run of the engine on the sample map: Leirikangas, Hamina. © Vehkalahden Veikot.',
       play: 'Play the demo',
       pause: 'Pause the demo',
     },
@@ -330,26 +337,26 @@ export const en = {
             'Long and middle distance for SSL classes',
             'Controls placed on real map features',
             'Rule checks that cite their source, with Fix',
-            'Dragging controls, with the rules checked again',
+            'Checking a course you set in OCAD or Purple Pen',
             'Routes on every leg, fastest to slowest',
             'Planning a leg yourself',
+            'Dragging controls, with the rules checked again',
+            'Stopping the search and keeping the best course',
             'IOF control descriptions on the map',
             'Automatic fit to A4 or A3',
             'Print PDF and IOF XML 3.0',
-            'Correcting how map symbols are read',
+            'Phones and tablets',
             'An optional assistant with your own Claude API key',
           ],
         },
         {
           title: 'Coming next',
           items: [
-            'Checking a course you set in OCAD or Purple Pen',
             'Keeping controls you like while trying again',
-            'Phone and tablet layout for the app',
             'Centre suggestions from the map',
             'Several classes side by side',
-            'Stopping the search halfway',
             'Moving the print area by hand',
+            'Open courses, finals and qualifications',
             'OpenOrienteering Mapper files',
             'Finnish',
           ],
@@ -385,6 +392,11 @@ export const en = {
       feedback: 'Send feedback',
       items: [
         { title: 'Reading OCAD files', text: 'ocad2geojson by Per Liedman', link: 'ocad2geojson' },
+        {
+          title: 'Sample map',
+          text: 'Leirikangas, Hamina, © Vehkalahden Veikot, included for trying Ratamestari only',
+          link: null,
+        },
         { title: 'Rules', text: 'IOF and Suomen Suunnistusliitto rule documents', link: null },
         {
           title: 'Built with',

@@ -200,7 +200,12 @@ interface Props {
   tools: ReactNode
   footer: ReactNode
   suggestedMove: { readonly from: LocalPoint; readonly to: LocalPoint } | null
+  // Changes when a new course should be drawn leg by leg, as when a search finishes.
+  drawCourseKey: number
 }
+
+const DRAW_MS_PER_LEG = 220
+const LONGEST_DRAW_MS = 3500
 
 const ZOOM_STEP = 1
 const ZOOM_ANIMATION_MS = 200
@@ -225,6 +230,7 @@ export function MapView({
   tools,
   footer,
   suggestedMove,
+  drawCourseKey,
 }: Props) {
   const target = useRef<HTMLDivElement>(null)
   const mapRef = useRef<OlMap | null>(null)
@@ -414,6 +420,31 @@ export function MapView({
   useEffect(() => {
     courseLayer.setStyle(courseOverprintStyle(selectedLeg))
   }, [selectedLeg, courseLayer])
+
+  const legCountRef = useRef(0)
+  legCountRef.current = course ? course.controls.length + 1 : 0
+  useEffect(() => {
+    const legs = legCountRef.current
+    if (drawCourseKey === 0 || legs === 0) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const msPerLeg = Math.min(DRAW_MS_PER_LEG, LONGEST_DRAW_MS / legs)
+    const started = performance.now()
+    let frame = 0
+    const draw = (now: number) => {
+      const drawnLegs = (now - started) / msPerLeg
+      if (drawnLegs >= legs) {
+        courseLayer.setStyle(courseOverprintStyle(selectedLegRef.current))
+        return
+      }
+      courseLayer.setStyle(courseOverprintStyle(selectedLegRef.current, drawnLegs))
+      frame = requestAnimationFrame(draw)
+    }
+    frame = requestAnimationFrame(draw)
+    return () => {
+      cancelAnimationFrame(frame)
+      courseLayer.setStyle(courseOverprintStyle(selectedLegRef.current))
+    }
+  }, [drawCourseKey, courseLayer])
 
   useEffect(() => {
     const source = legToolLayer.getSource()!

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
-import type { LocalPoint } from '@ratamestari/core'
+import { localPoint, type LocalPoint } from '@ratamestari/core'
 import type { ControlSiteCandidate, Course, PaperChoice } from '@ratamestari/engine'
 import type { CourseRequest, IsomCode, PrintScaleChoice } from '@ratamestari/rules'
 import { createCourseTools, type CourseWorkspace, type GenerateOptions } from '@ratamestari/agent'
@@ -39,7 +39,7 @@ import { useFormat, useMessages } from './i18n'
 import { MapView } from './MapView'
 import { LayersMenu, PlanLegTool, PrintLabel } from './MapTools'
 import { rasterizeSvg, type MapImage } from './rasterize'
-import { OCAD2GEOJSON_URL, SOURCE_CODE_URL } from './config'
+import { OCAD2GEOJSON_URL, SAMPLE_MAP, SAMPLE_QUERY, SOURCE_CODE_URL } from './config'
 
 type LoadState =
   | { status: 'empty' }
@@ -88,6 +88,10 @@ export function App() {
   const [showSites, setShowSites] = useState(false)
   const [sites, setSites] = useState<readonly ControlSiteCandidate[] | null>(null)
   const [competitionCentre, setCompetitionCentre] = useState<LocalPoint | null>(null)
+  const [isSampleMap, setIsSampleMap] = useState(false)
+  const [drawCourseKey, setDrawCourseKey] = useState(0)
+  const [isSampleCoursePending, setIsSampleCoursePending] = useState(false)
+  const hasAskedForSample = useRef(false)
   const [isPickingCentre, setIsPickingCentre] = useState(false)
   const [request, setRequest] = useState<CourseRequest>(DEFAULT_REQUEST)
   const [seed, setSeed] = useState(1)
@@ -127,7 +131,36 @@ export function App() {
   const winnerPaceRef = useRef(winnerPace)
   winnerPaceRef.current = winnerPace
 
+  async function openSampleMap() {
+    try {
+      const response = await fetch(SAMPLE_MAP.path)
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
+      const file = new File([await response.arrayBuffer()], SAMPLE_MAP.fileName)
+      setIsSampleCoursePending(true)
+      await openFile(file)
+      setIsSampleMap(true)
+    } catch (e) {
+      setIsSampleCoursePending(false)
+      setState({ status: 'error', message: messages.workspace.sampleFailed(errorMessage(e)) })
+    }
+  }
+
+  useEffect(() => {
+    if (hasAskedForSample.current) return
+    hasAskedForSample.current = true
+    if (new URLSearchParams(window.location.search).has(SAMPLE_QUERY)) void openSampleMap()
+  })
+
+  useEffect(() => {
+    if (!isSampleCoursePending || engineState !== 'ready' || state.status !== 'ready') return
+    setIsSampleCoursePending(false)
+    const centre = localPoint(...SAMPLE_MAP.centre)
+    setCompetitionCentre(centre)
+    void generateCourse(SAMPLE_MAP.request, seed, paceSecondsPerKm, centre)
+  })
+
   async function openFile(file: File) {
+    setIsSampleMap(false)
     setCourseFile(null)
     setSuggestion(null)
     setState({ status: 'loading', fileName: file.name })
@@ -205,8 +238,9 @@ export function App() {
     nextRequest: CourseRequest,
     nextSeed: number,
     pace: number | null,
+    centre = competitionCentre,
   ): Promise<Course | null> {
-    if (!competitionCentre || pace === null) return null
+    if (!centre || pace === null) return null
     setRequest(nextRequest)
     setSeed(nextSeed)
     setIsGenerating(true)
@@ -216,7 +250,7 @@ export function App() {
     try {
       const result = await engine.generateCourse(
         nextRequest,
-        competitionCentre,
+        centre,
         nextSeed,
         pace,
         paper,
@@ -224,7 +258,8 @@ export function App() {
         progressCallback<Course>(setCourse),
       )
       setCourse(result)
-      if (!result) setEditMessage(messages.course.noCourse)
+      if (result) setDrawCourseKey(key => key + 1)
+      else setEditMessage(messages.course.noCourse)
       return result
     } catch (e) {
       setEditMessage(messages.course.generationFailed(errorMessage(e)))
@@ -424,7 +459,10 @@ export function App() {
         },
     )
     setCourse(checked?.course ?? null)
-    if (checked) setCompetitionCentre(checked.course.finish)
+    if (checked) {
+      setCompetitionCentre(checked.course.finish)
+      setDrawCourseKey(key => key + 1)
+    }
   }
 
   function closeCourseFile() {
@@ -556,6 +594,7 @@ export function App() {
               </>
             }
             suggestedMove={suggestedMove}
+            drawCourseKey={drawCourseKey}
             footer={
               <PrintLabel
                 course={course}
@@ -608,6 +647,7 @@ export function App() {
               : undefined
           }
         />
+        {isSampleMap && <p className="note">{messages.workspace.sampleCredit}</p>}
         {engineState === 'loading' && <p className="note">{messages.map.building}</p>}
         {engineState === 'error' && <p className="error">{messages.map.engineError}</p>}
         {state.status !== 'ready' && (

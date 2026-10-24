@@ -1,55 +1,54 @@
+import recorded from './sample-run.json'
+import sampleDescriptions from './sample-descriptions.svg'
+import samplePage from './sample-page.png'
+
 export type DemoPoint = readonly [x: number, y: number]
 
-// What the hero replays, in page units with y down. A recorder will fill this from a real engine
-// run on the sample map; until the sample map is in the repo it holds the illustrated course.
+export interface DemoSymbols {
+  readonly lineWidth: number
+  readonly controlRadius: number
+  readonly startRadius: number
+  readonly finishInnerRadius: number
+  readonly finishOuterRadius: number
+  readonly numberHeight: number
+  readonly gap: number
+}
+
+// What the hero replays, in page units with y down: a real engine run on the sample map, recorded
+// by `pnpm record-demo-run` (scripts/record-demo-run.ts) with its page image.
 export interface DemoRun {
+  readonly pageImage: string
   readonly page: readonly [width: number, height: number]
   readonly centre: DemoPoint
   readonly sites: readonly DemoPoint[]
   readonly start: DemoPoint
   readonly controls: readonly DemoPoint[]
   readonly finish: DemoPoint
+  readonly descriptions: {
+    readonly image: string
+    readonly width: number
+    readonly height: number
+    readonly rows: number
+  }
+  readonly symbols: DemoSymbols
   readonly siteCount: number
   readonly lengthMeters: number
   readonly climbMeters: number
 }
 
-const PAGE_WIDTH = 600
-const PAGE_HEIGHT = 848
-const SHOWN_SITES = 46
-const SITE_MARGIN = 40
+const point = ([x = 0, y = 0]: readonly number[]): DemoPoint => [x, y]
 
-function scatteredSites(): DemoPoint[] {
-  let seed = 7
-  const random = () => {
-    seed = (seed * 9301 + 49297) % 233280
-    return seed / 233280
-  }
-  return Array.from({ length: SHOWN_SITES }, () => [
-    SITE_MARGIN + random() * (PAGE_WIDTH - 2 * SITE_MARGIN),
-    60 + random() * 700,
-  ])
-}
-
-export const ILLUSTRATED_RUN: DemoRun = {
-  page: [PAGE_WIDTH, PAGE_HEIGHT],
-  centre: [455, 722],
-  sites: scatteredSites(),
-  start: [250, 700],
-  controls: [
-    [220, 610],
-    [110, 500],
-    [170, 360],
-    [185, 238],
-    [300, 140],
-    [420, 230],
-    [500, 330],
-    [350, 420],
-    [470, 560],
-    [400, 640],
-  ],
-  finish: [360, 705],
-  siteCount: 414,
-  lengthMeters: 11_400,
-  climbMeters: 320,
+export const SAMPLE_RUN: DemoRun = {
+  pageImage: samplePage,
+  page: point(recorded.page),
+  centre: point(recorded.centre),
+  sites: recorded.sites.map(point),
+  start: point(recorded.start),
+  controls: recorded.controls.map(point),
+  finish: point(recorded.finish),
+  descriptions: { image: sampleDescriptions, ...recorded.descriptions },
+  symbols: recorded.symbols,
+  siteCount: recorded.siteCount,
+  lengthMeters: recorded.lengthMeters,
+  climbMeters: recorded.climbMeters,
 }
