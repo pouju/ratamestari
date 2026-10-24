@@ -1,6 +1,5 @@
-import { describeFinding } from '@ratamestari/agent'
+import { describeFinding, type Severity } from '@ratamestari/agent'
 import type { Course } from '@ratamestari/engine'
-import { descriptionText, type ControlDescription, type DescriptionSheet } from '@ratamestari/iof'
 import {
   ageClassSchema,
   eventLevelSchema,
@@ -9,237 +8,290 @@ import {
   skillLetterSchema,
   type CourseRequest,
 } from '@ratamestari/rules'
-import { EVENT_LEVEL_LABELS, FORMAT_LABELS } from './course-labels'
-import type { DescriptionBox } from './description-box'
-import { formatDuration, formatKilometers, formatMeters } from './format'
+import { useFormat, useMessages } from './i18n'
 import { ScoreBreakdown } from './ScoreBreakdown'
+import { PanelLine } from './WorkspaceStart'
 
 interface Props {
   request: CourseRequest
   onRequestChange: (request: CourseRequest) => void
   hasCentre: boolean
   isPickingCentre: boolean
-  onPickCentre: () => void
-  canGenerate: boolean
+  onMoveCentre: () => void
+  canSetCourse: boolean
   isGenerating: boolean
-  seed: number
-  onGenerate: (seed: number) => void
+  onSetCourse: () => void
+  onTryAnother: () => void
   course: Course | null
-  descriptionBox: DescriptionBox | null
-  onExportXml: () => void
-  onPrintPdf: () => void
-  onFixControl: (controlNumber: number) => void
   isEditing: boolean
   isPreparingPdf: boolean
+  onDownloadPdf: () => void
+  onDownloadXml: () => void
+  onFixControl: (controlNumber: number) => void
 }
 
-export function CoursePanel({
-  request,
-  onRequestChange,
-  hasCentre,
-  isPickingCentre,
-  onPickCentre,
-  canGenerate,
-  isGenerating,
-  seed,
-  onGenerate,
-  course,
-  descriptionBox,
-  onExportXml,
-  onPrintPdf,
-  onFixControl,
-  isEditing,
-  isPreparingPdf,
-}: Props) {
-  const change = (fields: Partial<CourseRequest>) => onRequestChange({ ...request, ...fields })
+export function CoursePanel(props: Props) {
+  const { hasCentre, isPickingCentre, onMoveCentre, course } = props
+  const m = useMessages()
+  const isMeasured = course !== null && course.lengthMeters !== null
+
   return (
-    <section>
-      <h2>Course</h2>
-      <button type="button" onClick={onPickCentre} disabled={isPickingCentre}>
-        {isPickingCentre
-          ? 'Click the competition centre on the map…'
-          : hasCentre
-            ? 'Move competition centre'
-            : 'Set competition centre'}
-      </button>
-      <div className="form">
+    <>
+      {hasCentre && !isPickingCentre ? (
+        <PanelLine
+          label={m.course.centreLine}
+          value={m.course.centreChosen}
+          action={{ label: m.course.change, onClick: onMoveCentre }}
+        />
+      ) : (
+        <section className="centre-step" aria-labelledby="centre-step-title">
+          <span className="panel-line-label">{m.course.centreLine}</span>
+          <h2 id="centre-step-title">{m.course.centreQuestion}</h2>
+          <p>{m.course.centreHint}</p>
+        </section>
+      )}
+
+      {hasCentre && !isPickingCentre && (
+        <>
+          <RequestSentence request={props.request} onRequestChange={props.onRequestChange} />
+          {course && <CourseFigures course={course} />}
+          {course && isMeasured && (
+            <Findings course={course} isEditing={props.isEditing} onFix={props.onFixControl} />
+          )}
+          {course && isMeasured && <ScoreBreakdown course={course} />}
+          <CourseActions {...props} isMeasured={isMeasured} />
+        </>
+      )}
+    </>
+  )
+}
+
+const classValue = (sex: CourseRequest['sex'], age: CourseRequest['ageClass']) => `${sex}${age}`
+
+function RequestSentence({ request, onRequestChange }: Pick<Props, 'request' | 'onRequestChange'>) {
+  const m = useMessages().course
+  const change = (fields: Partial<CourseRequest>) => onRequestChange({ ...request, ...fields })
+  const ages = [...ageClassSchema.values]
+
+  return (
+    <section className="request" aria-labelledby="request-title">
+      <span id="request-title" className="panel-line-label">
+        {m.courseLine}
+      </span>
+      <p className="request-sentence">
         <select
+          className="request-token"
+          aria-label={m.eventLevel}
           value={request.eventLevel}
           onChange={e => change({ eventLevel: eventLevelSchema.parse(e.target.value) })}
         >
           {eventLevelSchema.options.map(level => (
             <option key={level} value={level}>
-              {EVENT_LEVEL_LABELS[level]}
+              {m.eventLevels[level]}
             </option>
           ))}
-        </select>
+        </select>{' '}
         <select
+          className="request-token"
+          aria-label={m.distance}
           value={request.format}
           onChange={e => change({ format: formatSchema.parse(e.target.value) })}
         >
           {formatSchema.options.map(format => (
             <option key={format} value={format}>
-              {FORMAT_LABELS[format]}
+              {m.formats[format]}
+            </option>
+          ))}
+        </select>{' '}
+        {m.forClass}{' '}
+        <select
+          className="request-token"
+          aria-label={m.className}
+          value={classValue(request.sex, request.ageClass)}
+          onChange={e => {
+            const sex = sexSchema.parse(e.target.value.slice(0, 1))
+            change({ sex, ageClass: ageClassSchema.parse(Number(e.target.value.slice(1))) })
+          }}
+        >
+          {sexSchema.options.map(sex => (
+            <optgroup key={sex} label={m.sexes[sex]}>
+              {ages.map(age => (
+                <option key={age} value={classValue(sex, age)}>
+                  {classValue(sex, age)}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>{' '}
+        <select
+          className="request-token"
+          aria-label={m.skillLevel}
+          value={request.skillLetter}
+          onChange={e => change({ skillLetter: skillLetterSchema.parse(e.target.value) })}
+        >
+          {skillLetterSchema.options.map(letter => (
+            <option key={letter} value={letter}>
+              {letter}
             </option>
           ))}
         </select>
-        <span className="class-picker">
-          <select
-            value={request.sex}
-            onChange={e => change({ sex: sexSchema.parse(e.target.value) })}
-          >
-            {sexSchema.options.map(sex => (
-              <option key={sex}>{sex}</option>
-            ))}
-          </select>
-          <select
-            value={request.ageClass}
-            onChange={e => change({ ageClass: ageClassSchema.parse(Number(e.target.value)) })}
-          >
-            {[...ageClassSchema.values].map(age => (
-              <option key={age}>{age}</option>
-            ))}
-          </select>
-          <select
-            value={request.skillLetter}
-            onChange={e => change({ skillLetter: skillLetterSchema.parse(e.target.value) })}
-          >
-            {skillLetterSchema.options.map(letter => (
-              <option key={letter}>{letter}</option>
-            ))}
-          </select>
-        </span>
-      </div>
-      <div className="buttons">
-        <button type="button" disabled={!canGenerate} onClick={() => onGenerate(seed)}>
-          {isGenerating ? 'Setting course…' : 'Generate'}
-        </button>
-        <button type="button" disabled={!canGenerate} onClick={() => onGenerate(seed + 1)}>
-          Another option
-        </button>
-      </div>
-      {!hasCentre && (
-        <p className="note">Set the competition centre first. The finish goes there.</p>
-      )}
-      {course && <CourseSummary course={course} />}
-      {course && course.lengthMeters !== null && <ScoreBreakdown course={course} />}
-      {course && course.lengthMeters !== null && (
-        <RuleChecks course={course} onFixControl={onFixControl} isEditing={isEditing} />
-      )}
-      {descriptionBox && <DescriptionList sheet={descriptionBox.sheet} />}
-      {course && (
-        <div className="buttons">
-          <button
-            type="button"
-            disabled={course.lengthMeters === null || isPreparingPdf}
-            onClick={onPrintPdf}
-          >
-            {isPreparingPdf ? 'Preparing PDF…' : 'Print PDF'}
-          </button>
-          <button type="button" disabled={course.lengthMeters === null} onClick={onExportXml}>
-            Export IOF XML
-          </button>
-        </div>
-      )}
-      {course && (
-        <p className="note">
-          The PDF is the print page with the course and descriptions. IOF XML 3.0 opens in OCAD,
-          Condes and Purple Pen. Files are saved on this computer.
-        </p>
-      )}
+      </p>
     </section>
   )
 }
 
-function CourseSummary({ course }: { course: Course }) {
+function CourseFigures({ course }: { course: Course }) {
+  const m = useMessages().course
+  const format = useFormat()
   return (
-    <dl>
-      <dt>Controls</dt>
-      <dd>{course.controls.length}</dd>
-      <dt>Estimated winning time</dt>
-      <dd>
-        {formatDuration(course.estimatedSeconds)} (target {formatDuration(course.targetSeconds)})
-      </dd>
-      <dt>Course length (shortest route, LS 11.22)</dt>
-      <dd>{course.lengthMeters === null ? 'measuring…' : formatKilometers(course.lengthMeters)}</dd>
-      <dt>Climb</dt>
-      <dd>{course.climbMeters === null ? 'measuring…' : formatMeters(course.climbMeters)}</dd>
-
-      {course.printArea && (
-        <>
-          <dt>Paper</dt>
-          <dd>
-            {course.printArea.paper} {course.printArea.orientation}, 1:
-            {course.printArea.scale.toLocaleString('fi')}
-          </dd>
-        </>
-      )}
-      <dt>Option</dt>
-      <dd>Seed {course.seed}</dd>
+    <dl className="course-figures">
+      <div>
+        <dt>{m.length}</dt>
+        <dd>
+          {course.lengthMeters === null ? m.measuring : format.kilometres(course.lengthMeters)}
+        </dd>
+      </div>
+      <div>
+        <dt>{m.climb}</dt>
+        <dd>{course.climbMeters === null ? m.measuring : format.metres(course.climbMeters)}</dd>
+      </div>
+      <div>
+        <dt>{m.winningTime}</dt>
+        <dd>{m.minutes(Math.round(course.estimatedSeconds / 60))}</dd>
+        <dd className="course-figures-note">
+          {m.target(m.minutes(Math.round(course.targetSeconds / 60)))}
+        </dd>
+      </div>
+      <div>
+        <dt>{m.controls}</dt>
+        <dd>{course.controls.length}</dd>
+      </div>
     </dl>
   )
 }
 
-function DescriptionList({ sheet }: { sheet: DescriptionSheet }) {
-  const text = (description: ControlDescription | null) =>
-    description ? descriptionText(description) : 'Not describable'
-  return (
-    <>
-      <h2>Control descriptions</h2>
-      <ol className="descriptions">
-        <li value={0}>Start: {text(sheet.start)}</li>
-        {sheet.controls.map(control => (
-          <li key={control.number} value={control.number}>
-            {control.code} {text(control.description)}
-          </li>
-        ))}
-      </ol>
-      <p className="note">
-        {sheet.finish.distanceMeters} m from the last control to the finish, taped route.
-      </p>
-    </>
-  )
-}
-
-const SEVERITY_LABELS = { error: 'Error', warning: 'Warning', note: 'Note' } as const
-
-function RuleChecks({
+function Findings({
   course,
-  onFixControl,
   isEditing,
+  onFix,
 }: {
   course: Course
-  onFixControl: (controlNumber: number) => void
   isEditing: boolean
+  onFix: (controlNumber: number) => void
 }) {
+  const m = useMessages().course
   const findings = course.findings.map(finding => describeFinding(finding, course.controls.length))
+
   return (
-    <>
-      <h2>Rule checks</h2>
-      {findings.length === 0 ? (
-        <p className="note">No problems found.</p>
-      ) : (
-        <ul className="findings">
-          {findings.map(({ fixableControl, ...finding }, i) => (
-            <li key={i} className={finding.severity}>
-              <span className="severity">{SEVERITY_LABELS[finding.severity]}</span> {finding.text}
-              <span className="basis"> ({finding.basis})</span>
+    <section className="findings" aria-labelledby="findings-title">
+      <h2 id="findings-title">
+        {findings.length === 0 ? m.noFindings : m.findingCount(findings.length)}
+      </h2>
+      {findings.length > 0 && (
+        <ul>
+          {findings.map(({ fixableControl, severity, text, basis }, i) => (
+            <li key={i}>
+              <SeverityMark severity={severity} label={m.severities[severity]} />
+              <div className="findings-text">
+                <span>{text}</span>
+                <span className="findings-basis">{basis}</span>
+              </div>
               {fixableControl !== null && (
                 <button
                   type="button"
+                  className="findings-fix"
                   disabled={isEditing}
-                  onClick={() => onFixControl(fixableControl)}
+                  aria-label={m.fixControl(fixableControl)}
+                  onClick={() => onFix(fixableControl)}
                 >
-                  Fix control {fixableControl}
+                  {m.fix}
                 </button>
               )}
             </li>
           ))}
         </ul>
       )}
-      <p className="note">
-        Drag a control or the start on the map to move it; the rules are checked again.
-      </p>
-    </>
+      <p className="findings-hint">{m.dragHint}</p>
+    </section>
+  )
+}
+
+function SeverityMark({ severity, label }: { severity: Severity; label: string }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 18 18" role="img" aria-label={label}>
+      {severity === 'note' ? (
+        <circle cx="9" cy="9" r="7" fill="none" stroke="var(--colour-ink-soft)" strokeWidth="2" />
+      ) : (
+        <polygon
+          points="9,1 17,16 1,16"
+          fill={severity === 'error' ? 'var(--colour-contour-brown)' : 'none'}
+          stroke="var(--colour-contour-brown)"
+          strokeWidth="2"
+          strokeLinejoin="round"
+        />
+      )}
+    </svg>
+  )
+}
+
+function CourseActions({
+  course,
+  canSetCourse,
+  isGenerating,
+  isEditing,
+  isPreparingPdf,
+  isMeasured,
+  onSetCourse,
+  onTryAnother,
+  onDownloadPdf,
+  onDownloadXml,
+}: Props & { isMeasured: boolean }) {
+  const m = useMessages().course
+
+  if (!course || isGenerating) {
+    return (
+      <div className="course-actions">
+        <button
+          type="button"
+          className="course-primary"
+          disabled={!canSetCourse || isGenerating}
+          onClick={onSetCourse}
+        >
+          {isGenerating ? m.setting : m.setCourse}
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="course-actions">
+      <div className="course-actions-row">
+        <button
+          type="button"
+          className="course-primary"
+          disabled={!isMeasured || isPreparingPdf}
+          onClick={onDownloadPdf}
+        >
+          {isPreparingPdf ? m.preparingPdf : m.downloadPdf}
+        </button>
+        <button
+          type="button"
+          className="course-secondary"
+          disabled={!isMeasured}
+          onClick={onDownloadXml}
+        >
+          {m.downloadXml}
+        </button>
+        <button
+          type="button"
+          className="course-secondary course-another"
+          disabled={!canSetCourse || isEditing}
+          onClick={onTryAnother}
+        >
+          {m.tryAnother}
+        </button>
+      </div>
+      <p className="course-actions-note">{m.exportNote}</p>
+    </div>
   )
 }

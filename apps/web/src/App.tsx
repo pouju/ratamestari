@@ -319,6 +319,10 @@ export function App() {
 
   const georef = state.status === 'ready' ? state.map.info.georef : null
   const mapInfo = state.status === 'ready' ? state.map.info : null
+  const isChoosingCentre =
+    plannedLeg === null &&
+    (isPickingCentre || (state.status === 'ready' && competitionCentre === null))
+
   const descriptionBox = useMemo(
     () => (course && mapInfo ? descriptionBoxFor(course, request, mapInfo) : null),
     [course, request, mapInfo],
@@ -368,7 +372,7 @@ export function App() {
             course={course}
             descriptionBox={descriptionBox}
             competitionCentre={competitionCentre}
-            isPickingCentre={isPickingCentre}
+            isPickingCentre={isChoosingCentre}
             plannedLeg={plannedLeg}
             onPlannedLegChanged={setPlannedLeg}
             onCentrePicked={centre => {
@@ -406,7 +410,7 @@ export function App() {
             onStopMoved={(stopIndex, to) =>
               void editCourse(
                 current => engine.moveControl(current, stopIndex, to),
-                'No control site within 60 m of that spot, so the control stayed where it was.',
+                messages.course.moveRefused,
               )
             }
           />
@@ -443,6 +447,8 @@ export function App() {
               : undefined
           }
         />
+        {engineState === 'loading' && <p className="note">{messages.map.building}</p>}
+        {engineState === 'error' && <p className="error">{messages.map.engineError}</p>}
         {state.status !== 'ready' && (
           <>
             <PanelLine
@@ -465,28 +471,27 @@ export function App() {
             request={request}
             onRequestChange={setRequest}
             hasCentre={competitionCentre !== null}
-            isPickingCentre={isPickingCentre}
-            onPickCentre={() => setIsPickingCentre(true)}
-            canGenerate={
+            isPickingCentre={isChoosingCentre}
+            onMoveCentre={() => setIsPickingCentre(true)}
+            canSetCourse={
               engineState === 'ready' &&
               competitionCentre !== null &&
               paceSecondsPerKm !== null &&
               !isGenerating
             }
             isGenerating={isGenerating}
-            seed={seed}
-            onGenerate={nextSeed => void generateCourse(request, nextSeed, paceSecondsPerKm)}
+            onSetCourse={() => void generateCourse(request, seed, paceSecondsPerKm)}
+            onTryAnother={() => void generateCourse(request, seed + 1, paceSecondsPerKm)}
             course={course}
-            descriptionBox={descriptionBox}
-            isPreparingPdf={isPreparingPdf}
             isEditing={isEditing || isGenerating}
+            isPreparingPdf={isPreparingPdf}
             onFixControl={controlNumber =>
               void editCourse(
                 current => engine.fixControl(current, controlNumber),
-                'The control could not be fixed.',
+                messages.course.fixRefused,
               )
             }
-            onPrintPdf={() => {
+            onDownloadPdf={() => {
               if (!course || !descriptionBox || state.status !== 'ready') return
               setIsPreparingPdf(true)
               setPrintError(null)
@@ -511,7 +516,7 @@ export function App() {
                 .catch(e => setPrintError(errorMessage(e)))
                 .finally(() => setIsPreparingPdf(false))
             }}
-            onExportXml={() => {
+            onDownloadXml={() => {
               if (course && descriptionBox && mapInfo) {
                 downloadCourseXml(course, descriptionBox.sheet, request, mapInfo)
               }
@@ -522,10 +527,7 @@ export function App() {
         {course && selectedLeg === null && <p className="note">{messages.leg.selectHint}</p>}
 
         {editMessage && <p className="error">{editMessage}</p>}
-        {printError && <p className="error">The PDF could not be made: {printError}</p>}
-
-        {engineState === 'loading' && <p className="note">{messages.map.building}</p>}
-        {engineState === 'error' && <p className="error">{messages.map.engineError}</p>}
+        {printError && <p className="error">{messages.course.pdfFailed(printError)}</p>}
 
         {paceSecondsPerKm === null && (
           <p className="error">
