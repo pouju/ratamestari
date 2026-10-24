@@ -3,3 +3,5 @@ LICENSE
 # Written by release-please (D16)
 CHANGELOG.md
 .release-please-manifest.json
+# Agent worktrees are separate checkouts with their own checks
+.claude/worktrees/
