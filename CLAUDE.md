@@ -28,7 +28,7 @@ Full decision log with reasoning and rejected alternatives: [`docs/decisions.md`
 
 - **Ask before introducing a new convention** (pattern, tool, naming scheme, folder layout).
 - **Small, tested commits.** Each commit passes `pnpm check`.
-- **Commit messages:** Conventional Commits, scope = package name (`feat(map-ocad): …`, `docs: …`, `chore: …`). The body says **why**, not only what.
+- **Commit messages:** Conventional Commits, scope = package name (`feat(map-ocad): …`, `docs: …`, `chore: …`). The body says **why**, not only what. Releases and the changelog are generated from them (D16): user-visible changes are `feat` or `fix`, breaking ones get `!`.
 - **No unnecessary comments.** Use descriptive names instead. Comment only a non-obvious _why_ that a name can't carry.
 - **No file extensions in imports** (`./geometry`, not `./geometry.ts`).
 - **UI text** (D14): no user-facing string inline. Messages live in typed catalogues in `apps/web/src/i18n/` (`en.ts` is the source; other languages must satisfy its type), read with `useMessages()`. Numbers, units and plurals go through `Intl`. Engine and rules output stays language-free.
@@ -68,7 +68,8 @@ Out for the weekend: PNG/PDF map input, relay forking, planning a whole event's 
 - [x] ocad2geojson adapter module → internal map format (scale, extent, georef, SVG render, features with ISOM codes and per-map overrides)
 - [x] Bundler config: `buffer` + `string_decoder` polyfills, `fs` aliased to empty module
 - [x] Rules config file (IOF + SSL values): `packages/rules`; winning times and course lengths still to do
-- [ ] Releases and Pages deploy (D16): release-please, CI/release/deploy workflows, version in the app, README polish. Do once the new UI is ready
+- [x] Releases and Pages deploy (D16): release-please, CI/release/deploy workflows, version in the app, README
+- [ ] First release (D16): enable Actions PRs and Pages source in repo settings, merge the Release PR; add a README screenshot once the new UI is ready
 
 ## Recording new decisions
 

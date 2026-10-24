@@ -403,7 +403,7 @@ They are built before the new UI (D14), in today's UI.
 ## D16: Public repo, versioned releases and automatic deploys to GitHub Pages
 
 **Date:** 2026-10-24
-**Status:** Decided, to be implemented once the new UI (D14) is ready for a first release
+**Status:** Decided, set up 2026-10-24; the first release waits for the new UI (D14)
 
 ### Decision
 
@@ -413,8 +413,8 @@ They are built before the new UI (D14), in today's UI.
 - One version for the whole app, kept in the root `package.json` and starting at `0.1.0`. Internal packages are not versioned separately, since they are not published.
 - Three workflows in `.github/workflows/`:
   - `ci.yml`: `pnpm check` and `pnpm build` on every pull request and push to `main`.
-  - `release-please.yml`: on push to `main`, maintains the Release PR.
-  - `deploy.yml`: on a published release (or started by hand to redeploy), builds `apps/web` and deploys it with `actions/deploy-pages`.
+  - `release.yml`: on push to `main`, maintains the Release PR and, when a release was just created, calls `deploy.yml` with its tag.
+  - `deploy.yml`: builds `apps/web` at a release tag and deploys it with `actions/deploy-pages`. It can also be started by hand with a tag to redeploy.
 - The app shows its version next to the "Source code" link, so a bug report says which release it came from.
 - The README gets a header with a one-line pitch, badges (CI, latest release, license, live demo), a screenshot or GIF of the workspace, a short "How it works" diagram showing that the map stays in the browser (D3), and a "Releasing" section.
 
@@ -438,4 +438,8 @@ They are built before the new UI (D14), in today's UI.
 - Vite already uses `base: './'`, so the build works under the `/ratamestari/` path of a project Pages site.
 - Map-dependent tests skip in CI except those using the committed sample map.
 - Commit types now matter for releases: a user-visible change must be `feat` or `fix` to appear in the changelog, and breaking changes need `!`.
+- A release created with `GITHUB_TOKEN` does not trigger other workflows, so the deploy is called from `release.yml` rather than on a `release: published` event. For the same reason CI does not run on the Release PR itself; its commits already passed CI on `main`.
+- The repository must allow GitHub Actions to create pull requests (Settings › Actions › General), and Pages must use GitHub Actions as its source.
+- pnpm stops `install` on unapproved build scripts, which would fail CI. `pnpm-workspace.yaml` denies esbuild's script, which only verifies its binary.
+- The app version comes from the root `package.json` through Vite's `define`.
 - The README screenshot waits until the new UI is demo-ready.
