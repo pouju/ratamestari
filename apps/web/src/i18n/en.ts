@@ -226,6 +226,10 @@ export const en = {
       legCount: 'Number of legs',
     } satisfies Record<keyof Course['breakdown']['terms'], string>,
   },
+  print: {
+    scaleLine: (scale: string, contourInterval: string | null) =>
+      contourInterval === null ? scale : `${scale} · contour interval ${contourInterval}`,
+  },
   units: {
     seconds: (value: string) => `${value} s`,
   },

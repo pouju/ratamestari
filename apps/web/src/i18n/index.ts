@@ -29,6 +29,7 @@ export interface Format {
   readonly bearing: (degrees: number) => string
   readonly duration: (seconds: number) => string
   readonly timeDifference: (seconds: number) => string
+  readonly scale: (denominator: number) => string
 }
 
 const SECONDS_PER_MINUTE = 60
@@ -73,5 +74,6 @@ export function formatFor({ locale, messages }: Language): Format {
       Math.round(seconds) < SECONDS_PER_MINUTE
         ? messages.units.seconds(wholeNumber.format(Math.round(seconds)))
         : duration(seconds),
+    scale: denominator => `1:${wholeNumber.format(denominator)}`,
   }
 }

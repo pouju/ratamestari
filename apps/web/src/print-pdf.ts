@@ -1,5 +1,5 @@
 import { PDFDocument } from 'pdf-lib'
-import type { Course } from '@ratamestari/engine'
+import type { Course, PeripheralInformation } from '@ratamestari/engine'
 import type { DescriptionSheet } from '@ratamestari/iof'
 import type { OcadMap } from '@ratamestari/map-ocad'
 import { printPageSvg } from '@ratamestari/print'
@@ -15,9 +15,23 @@ export async function savePrintPdf(
   course: Course,
   sheet: DescriptionSheet,
   fileName: string,
+  peripheral: PeripheralInformation,
+  scaleLine: string,
 ) {
-  const mapSvg = new XMLSerializer().serializeToString(map.renderSvg(document))
-  const page = printPageSvg({ mapSvg, mapScale: map.info.scale, course, sheet })
+  const svgOf = (includesObject: (objectIndex: number) => boolean) =>
+    new XMLSerializer().serializeToString(map.renderSvg(document, includesObject))
+  const mapSvg = svgOf(i => !peripheral.marginObjectIndices.has(i))
+  const blocks = peripheral.blocks.map(block => ({
+    block,
+    svg: svgOf(i => block.objectIndices.includes(i)),
+  }))
+  const page = printPageSvg({
+    mapSvg,
+    mapScale: map.info.scale,
+    course,
+    sheet,
+    peripheral: { blocks, scaleLine },
+  })
   if (!page) throw new Error('The course has no print area')
 
   const widthInches = page.widthMillimetres / MILLIMETRES_PER_INCH

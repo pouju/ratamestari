@@ -27,7 +27,7 @@ import { createEngine, progressCallback } from './engine'
 import { formatDuration, parsePace } from './format'
 import { LegRoutesPanel, PlanLegPanel, type LegRoutesState } from './LegRoutesPanel'
 import { EMPTY_PLANNED_LEG, legEnds, plannedEnds, type PlannedLeg } from './leg-routes'
-import { useMessages } from './i18n'
+import { useFormat, useMessages } from './i18n'
 import { DIFFICULTY_COLOURS, MapView } from './MapView'
 import { rasterizeSvg, type MapImage } from './rasterize'
 import { SOURCE_CODE_URL } from './config'
@@ -66,6 +66,7 @@ export function App() {
   const [legRoutes, setLegRoutes] = useState<LegRoutesState>({ status: 'finding' })
   const latestLegRoutesRequest = useRef(0)
   const messages = useMessages()
+  const format = useFormat()
   const [showCostMap, setShowCostMap] = useState(false)
   const [costMap, setCostMap] = useState<CostMapImage | null>(null)
   const [showSites, setShowSites] = useState(false)
@@ -441,12 +442,24 @@ export function App() {
               if (!course || !descriptionBox || state.status !== 'ready') return
               setIsPreparingPdf(true)
               setPrintError(null)
-              savePrintPdf(
-                state.map,
-                course,
-                descriptionBox.sheet,
-                `${courseNameOf(request)}-${request.format}.pdf`,
-              )
+              const { map } = state
+              engine
+                .peripheralInformation()
+                .then(peripheral => {
+                  const contours = peripheral.contourIntervalMetres
+                  const scaleLine = messages.print.scaleLine(
+                    format.scale(course.printArea?.scale ?? map.info.scale),
+                    contours === null ? null : format.metres(contours),
+                  )
+                  return savePrintPdf(
+                    map,
+                    course,
+                    descriptionBox.sheet,
+                    `${courseNameOf(request)}-${request.format}.pdf`,
+                    peripheral,
+                    scaleLine,
+                  )
+                })
                 .catch(e => setPrintError(errorMessage(e)))
                 .finally(() => setIsPreparingPdf(false))
             }}

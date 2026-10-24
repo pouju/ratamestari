@@ -4,10 +4,12 @@ import {
   buildTerrain,
   evaluateLeg,
   findControlSites,
+  findPeripheralInformation,
   fitCourseToPaper,
   fixControl,
   moveControl,
   papersFor,
+  peripheralLayout,
   setCourseOnPaper,
   type CourseSpec,
   type PaperChoice,
@@ -15,6 +17,7 @@ import {
   type ControlSiteCandidate,
   type Course,
   type LegEvaluation,
+  type PeripheralInformation,
   type Terrain,
 } from '@ratamestari/engine'
 import { describeControl } from '@ratamestari/iof'
@@ -31,13 +34,17 @@ import type { CostGridSnapshot } from './cost-map-image'
 let map: OcadMap | null = null
 let terrain: Terrain | null = null
 let sites: readonly ControlSiteCandidate[] = []
+let peripheral: PeripheralInformation | null = null
 let lastSetting: { spec: CourseSpec; paper: PaperChoice } | null = null
 
 function editedCourse(course: Course, edit: (spec: CourseSpec) => Course | null): Course | null {
   if (!terrain || !lastSetting) throw new Error('Set a course before editing it')
   const { spec, paper } = lastSetting
   const edited = edit({ ...spec, ...(course.printArea && { printArea: course.printArea }) })
-  return edited && fitCourseToPaper(terrain, edited, papersFor(paper), spec.printScale)
+  return (
+    edited &&
+    fitCourseToPaper(terrain, edited, papersFor(paper), spec.printScale, spec.peripheralSize)
+  )
 }
 
 const engine = {
@@ -51,6 +58,12 @@ const engine = {
     const features = map.features(corrections)
     terrain = buildTerrain(features, map.info.extent)
     sites = findControlSites(features, terrain).filter(site => describeControl(site) !== null)
+    peripheral = findPeripheralInformation(map.annotations(corrections), terrain, map.info.scale)
+  },
+
+  peripheralInformation(): PeripheralInformation {
+    if (!peripheral) throw new Error('No map loaded in the engine')
+    return peripheral
   },
 
   evaluateLeg(from: LocalPoint, to: LocalPoint, paceSecondsPerKm: number): LegEvaluation | null {
@@ -78,6 +91,7 @@ const engine = {
       competitionCentre,
       seed,
       paceSecondsPerKm,
+      peripheralSize: peripheral && peripheralLayout(peripheral.blocks),
     }
     lastSetting = { spec, paper }
     return setCourseOnPaper(terrain, sites, spec, paper, onProgress)
