@@ -17,6 +17,7 @@ const render = (current: Course | null, selectedStop: number | null) =>
     <SetByHandPanel
       course={current}
       selectedStop={selectedStop}
+      preview={null}
       canUndo={false}
       isEditing={false}
       onDelete={ignore}

@@ -29,7 +29,10 @@ import { useAssistantKey } from './assistant-key'
 import { SettingsSheet } from './SettingsSheet'
 import { MapStart, PanelHeader, PanelLine } from './WorkspaceStart'
 import { atLeastHalf, SheetHandle, sheetStyle, type SheetSize } from './SheetHandle'
-import { CoursePanel } from './CoursePanel'
+import { CoursePanel, hasCoarsePointer } from './CoursePanel'
+import { CourseRoutesPanel } from './CourseRoutesPanel'
+import { createLegRouteCache, useCourseRoutes } from './course-routes'
+import { createRouteQueue, SUPERSEDED } from './route-queue'
 import { descriptionBoxFor } from './description-box'
 import { downloadCourseXml } from './export-xml'
 import { savePrintPdf } from './print-pdf'
@@ -47,13 +50,22 @@ import type { CourseFileCheck } from './CheckPanel'
 import { withOfferedClass } from './class-choice'
 import { deduceClass, type DeducedClass } from './course-fit'
 import { formatDuration, parsePace } from './format'
-import { LegRoutesPanel, PlanLegPanel, type LegRoutesState } from './LegRoutesPanel'
-import { EMPTY_PLANNED_LEG, legEnds, plannedEnds, type PlannedLeg } from './leg-routes'
+import { LegRoutesPanel, PlanLegPanel } from './LegRoutesPanel'
+import {
+  EMPTY_PLANNED_LEG,
+  isSamePreview,
+  legEnds,
+  legEndsAround,
+  plannedEnds,
+  type ControlPreview,
+  type LegRoutesState,
+  type PlannedLeg,
+} from './leg-routes'
 import { useFormat, useMessages } from './i18n'
 import { MapView } from './MapView'
 import { EditControlsTool, LayersMenu, PlanLegTool, PrintFrameBar, PrintLabel } from './MapTools'
 import { SetByHandPanel } from './SetByHandPanel'
-import { handEditFor, isControlStop, withUndoStep } from './set-by-hand'
+import { handEditFor, isControlStop, neighboursOf, withUndoStep } from './set-by-hand'
 import type { CourseHit } from './course-overprint'
 import { rasterizeSvg, type MapImage } from './rasterize'
 import type { SearchStatus } from './search-progress'
@@ -109,6 +121,9 @@ function frameFor(
   return printFrameAround(placed.centre, paper, placed.orientation, scale)
 }
 
+// The alternatives are worth a moment's wait; they come once the pointer rests this long.
+const PREVIEW_REST_MS = 150
+
 // Only the final course is shown, revealed when the search ends.
 
 export function App() {
@@ -117,10 +132,13 @@ export function App() {
   const [engineState, setEngineState] = useState<EngineState>('idle')
   const [plannedLeg, setPlannedLeg] = useState<PlannedLeg | null>(null)
   const [planRoutes, setPlanRoutes] = useState<LegRoutesState>({ status: 'finding' })
-  const plannedLegQueue = useRef<{
-    isBusy: boolean
-    next: readonly [LocalPoint, LocalPoint] | null
-  }>({ isBusy: false, next: null })
+  const [routeQueue] = useState(createRouteQueue)
+  const [routeCache] = useState(createLegRouteCache)
+  const [showCourseRoutes, setShowCourseRoutes] = useState(false)
+  const [isRouteListWanted, setIsRouteListWanted] = useState(false)
+  const [preview, setPreview] = useState<ControlPreview | null>(null)
+  const latestPreview = useRef(0)
+  const previewRest = useRef<number | undefined>(undefined)
   const [selectedLeg, setSelectedLeg] = useState<number | null>(null)
   const [legRoutes, setLegRoutes] = useState<LegRoutesState>({ status: 'finding' })
   const latestLegRoutesRequest = useRef(0)
@@ -180,6 +198,23 @@ export function App() {
   const winnerPace = paceSecondsPerKm ?? parsePace(DEFAULT_WINNER_PACE)!
   const winnerPaceRef = useRef(winnerPace)
   winnerPaceRef.current = winnerPace
+  const legRoutesOfCourse = useCourseRoutes(
+    engine,
+    routeQueue,
+    routeCache,
+    isGenerating ? null : course,
+    winnerPace,
+    engineState === 'ready' && (showCourseRoutes || isRouteListWanted),
+  )
+  const courseRoutesOnMap = useMemo(
+    () =>
+      showCourseRoutes && legRoutesOfCourse
+        ? legRoutesOfCourse.flatMap((state, leg) =>
+            state.status === 'evaluated' && leg !== selectedLeg ? [state.leg] : [],
+          )
+        : null,
+    [showCourseRoutes, legRoutesOfCourse, selectedLeg],
+  )
 
   async function openSampleMap() {
     try {
@@ -248,21 +283,26 @@ export function App() {
   useEffect(() => {
     const ends = plannedLeg && plannedEnds(plannedLeg)
     if (engineState !== 'ready' || !ends) return
-    const queue = plannedLegQueue.current
-    queue.next = ends
-    if (queue.isBusy) return
-    const evaluateNext = () => {
-      const next = queue.next
-      queue.next = null
-      queue.isBusy = next !== null
-      if (!next) return
-      void engine.evaluateLeg(next[0], next[1], winnerPaceRef.current).then(leg => {
+    void routeQueue
+      .request('planned leg', 'selected', () =>
+        engine.evaluateLeg(ends[0], ends[1], winnerPaceRef.current),
+      )
+      .then(leg => {
+        if (leg === SUPERSEDED) return
         setPlanRoutes(leg ? { status: 'evaluated', leg } : { status: 'unreachable' })
-        evaluateNext()
       })
-    }
-    evaluateNext()
-  }, [engine, engineState, plannedLeg, winnerPace])
+  }, [engine, engineState, routeQueue, plannedLeg, winnerPace])
+
+  useEffect(() => {
+    if (engineState === 'loading') routeCache.clear()
+  }, [engineState, routeCache])
+
+  useEffect(() => {
+    if (isSettingByHand) return
+    window.clearTimeout(previewRest.current)
+    latestPreview.current++
+    setPreview(null)
+  }, [isSettingByHand])
 
   useEffect(() => {
     if (engineState !== 'ready' || !course || selectedLeg === null) return
@@ -272,12 +312,13 @@ export function App() {
       return
     }
     const request = ++latestLegRoutesRequest.current
-    setLegRoutes({ status: 'finding' })
-    void engine.evaluateLeg(ends[0], ends[1], winnerPace).then(leg => {
-      if (request !== latestLegRoutesRequest.current) return
-      setLegRoutes(leg ? { status: 'evaluated', leg } : { status: 'unreachable' })
-    })
-  }, [engine, engineState, course, selectedLeg, winnerPace])
+    setLegRoutes(routeCache.get(...ends, winnerPace) ?? { status: 'finding' })
+    void routeCache
+      .find(engine, routeQueue, 'selected', 'selected leg', ends, winnerPace)
+      .then(state => {
+        if (state && request === latestLegRoutesRequest.current) setLegRoutes(state)
+      })
+  }, [engine, engineState, routeQueue, routeCache, course, selectedLeg, winnerPace])
 
   useEffect(() => {
     if (!showCostMap || costMap || engineState !== 'ready') return
@@ -462,9 +503,11 @@ export function App() {
         setCourse(before && { ...before })
         setEditMessage(refused)
       }
+      return edited
     } catch (e) {
       setCourse(before && { ...before })
       setEditMessage(errorMessage(e))
+      return null
     } finally {
       setIsEditing(false)
     }
@@ -522,14 +565,90 @@ export function App() {
         )
         return
       case 'add':
-        void editByHand(current => engine.addControl(current!, edit.at), setByHand.addRefused)
+        void editByHand(current => engine.addControl(current!, edit.at), setByHand.addRefused).then(
+          edited => edited && previewPlacedControl(edited, edited.controls.length, false),
+        )
         return
       case 'insert':
         void editByHand(
           current => engine.insertControlAt(current!, edit.afterStop, edit.at),
           setByHand.addRefused,
-        )
+        ).then(edited => edited && previewPlacedControl(edited, edit.afterStop + 1, true))
     }
+  }
+
+  // Follows the pointer with the fastest routes of the legs a control there would make, and adds
+  // the alternatives once the pointer rests.
+  function previewAt(hover: { readonly hit: CourseHit | null; readonly at: LocalPoint } | null) {
+    window.clearTimeout(previewRest.current)
+    const request = ++latestPreview.current
+    const neighbours =
+      hover && !isEditing
+        ? neighboursOf(course, handEditFor(course, selectedStop, hover.hit, hover.at))
+        : null
+    if (!hover || !neighbours) {
+      routeQueue.cancel('preview')
+      setPreview(null)
+      return
+    }
+    void routeQueue
+      .request('preview', 'preview', () => engine.previewControl(hover.at, neighbours, winnerPace))
+      .then(found => {
+        if (found === SUPERSEDED || request !== latestPreview.current) return
+        if (!found) {
+          setPreview(null)
+          return
+        }
+        setPreview(current =>
+          current &&
+          isSamePreview(current, found) &&
+          current.legs.every(leg => leg.hasLookedForAlternatives)
+            ? current
+            : found,
+        )
+        previewRest.current = window.setTimeout(
+          () => void showAlternatives(found.position, neighbours, request),
+          PREVIEW_REST_MS,
+        )
+      })
+  }
+
+  async function showAlternatives(
+    position: LocalPoint,
+    neighbours: readonly LocalPoint[],
+    request: number,
+  ) {
+    const states = await Promise.all(
+      legEndsAround(position, neighbours).map((ends, i) =>
+        routeCache.find(engine, routeQueue, 'preview', `preview leg ${i}`, ends, winnerPace),
+      ),
+    )
+    if (request !== latestPreview.current) return
+    const legs = states.flatMap(state =>
+      state?.status === 'evaluated'
+        ? [
+            {
+              fastest: state.leg.fastest,
+              alternatives: state.leg.alternatives,
+              hasLookedForAlternatives: true,
+            },
+          ]
+        : [],
+    )
+    if (legs.length === states.length) setPreview({ position, legs })
+  }
+
+  // Shows the routes into a control just placed. On touch there is no pointer to follow, so this
+  // is the only preview; with a mouse it lasts until the pointer moves.
+  function previewPlacedControl(edited: Course, stop: number, hasLegAfter: boolean) {
+    window.clearTimeout(previewRest.current)
+    const request = ++latestPreview.current
+    const stops = [edited.start.position, ...edited.controls.map(c => c.position), edited.finish]
+    const position = stops[stop]
+    const before = stops[stop - 1]
+    const after = stops[stop + 1]
+    if (!position || !before || !after) return
+    void showAlternatives(position, hasLegAfter ? [before, after] : [before], request)
   }
 
   function deleteSelectedControl(stop: number) {
@@ -833,6 +952,9 @@ export function App() {
                   ? planRoutes.leg
                   : null
             }
+            courseRoutes={courseRoutesOnMap}
+            preview={isSettingByHand ? preview : null}
+            onPointerOver={hover => isSettingByHand && previewAt(hover)}
             selectedLeg={selectedLeg}
             onLegSelected={selectLeg}
             costMap={showCostMap ? costMap : null}
@@ -864,6 +986,8 @@ export function App() {
                   showSites={showSites}
                   onShowSites={setShowSites}
                   siteCount={sites?.length ?? null}
+                  showCourseRoutes={showCourseRoutes}
+                  onShowCourseRoutes={setShowCourseRoutes}
                 />
                 <PlanLegTool
                   isActive={plannedLeg !== null}
@@ -939,6 +1063,7 @@ export function App() {
           <SetByHandPanel
             course={course}
             selectedStop={selectedStop}
+            preview={preview}
             canUndo={undoHistory.length > 0}
             isEditing={isEditing}
             onDelete={deleteSelectedControl}
@@ -1083,8 +1208,16 @@ export function App() {
 
         {assistantKey.apiKey && <ChatPanel apiKey={assistantKey.apiKey} tools={chatTools} />}
 
-        {course && selectedLeg === null && !isSettingByHand && (
-          <p className="note">{messages.leg.selectHint}</p>
+        {course && selectedLeg === null && !isSettingByHand && !isGenerating && (
+          <>
+            <p className="note">{messages.leg.selectHint}</p>
+            <CourseRoutesPanel
+              course={course}
+              legs={legRoutesOfCourse}
+              onFindAll={() => setIsRouteListWanted(true)}
+              onSelectLeg={selectLeg}
+            />
+          </>
         )}
 
         {isCentreOutsideFrame && <p className="error">{messages.print.centreOutside}</p>}

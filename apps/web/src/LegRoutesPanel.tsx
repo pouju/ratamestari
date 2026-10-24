@@ -7,13 +7,9 @@ import {
   rankedRoutes,
   ROUTE_COLOUR_TOKENS,
   stopName,
+  type LegRoutesState,
   type PlannedLeg,
 } from './leg-routes'
-
-export type LegRoutesState =
-  | { readonly status: 'finding' }
-  | { readonly status: 'evaluated'; readonly leg: LegEvaluation }
-  | { readonly status: 'unreachable' }
 
 interface Props {
   course: Course

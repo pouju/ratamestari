@@ -19,6 +19,11 @@ export function placeNext(plan: PlannedLeg, point: LocalPoint): PlannedLeg {
 export const plannedEnds = (plan: PlannedLeg): readonly [LocalPoint, LocalPoint] | null =>
   plan.from && plan.to ? [plan.from, plan.to] : null
 
+export type LegRoutesState =
+  | { readonly status: 'finding' }
+  | { readonly status: 'evaluated'; readonly leg: LegEvaluation }
+  | { readonly status: 'unreachable' }
+
 export type RouteRank = 'fastest' | 'middle' | 'slowest'
 
 export interface RankedRoute {
@@ -33,7 +38,44 @@ export const ROUTE_COLOUR_TOKENS: Readonly<Record<RouteRank, string>> = {
   slowest: '--colour-route-slowest',
 }
 
-export function rankedRoutes(leg: LegEvaluation): RankedRoute[] {
+export interface PreviewLeg {
+  readonly fastest: Route
+  readonly alternatives: readonly Route[]
+  readonly hasLookedForAlternatives: boolean
+}
+
+// Where a control would go if placed at the pointer, and the routes of the legs it would make.
+export interface ControlPreview {
+  readonly position: LocalPoint
+  readonly legs: readonly PreviewLeg[]
+}
+
+// The legs a control at `position` would make with its neighbours: from the stop before it, and
+// to the stop after it when it goes into a leg.
+export function legEndsAround(
+  position: LocalPoint,
+  neighbours: readonly LocalPoint[],
+): (readonly [LocalPoint, LocalPoint])[] {
+  const [before, after] = neighbours
+  return [
+    ...(before ? [[before, position] as const] : []),
+    ...(after ? [[position, after] as const] : []),
+  ]
+}
+
+const samePoint = (a: LocalPoint, b: LocalPoint) => a[0] === b[0] && a[1] === b[1]
+
+export const isSamePreview = (a: ControlPreview | null, b: ControlPreview): boolean =>
+  a !== null &&
+  samePoint(a.position, b.position) &&
+  a.legs.length === b.legs.length &&
+  a.legs.every((leg, i) => {
+    const other = b.legs[i]!.fastest.points
+    const points = leg.fastest.points
+    return samePoint(points[0]!, other[0]!) && samePoint(points.at(-1)!, other.at(-1)!)
+  })
+
+export function rankedRoutes(leg: Pick<LegEvaluation, 'fastest' | 'alternatives'>): RankedRoute[] {
   const routes = [
     leg.fastest,
     ...[...leg.alternatives].sort((a, b) => a.timeSeconds - b.timeSeconds),

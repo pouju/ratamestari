@@ -221,6 +221,9 @@ export const en = {
     costMapLegend:
       'Blue is fast (paths, open land), clear is normal forest, orange is slow and darker is slower, red is impassable or out of bounds.',
     sites: 'Candidate control sites',
+    courseRoutes: 'Routes on all legs',
+    courseRoutesLegend: (share: string) =>
+      `Fastest route green; other real routes blue and red, at most ${share} slower.`,
     siteCount: (count: number) => `${count} sites.`,
     difficulty: 'Difficulty from 1 easy to 5 hard:',
     planLeg: 'Plan a leg',
@@ -291,6 +294,33 @@ export const en = {
     addRefused: 'The control could not be added there.',
     deleteRefused: 'The control could not be deleted.',
     finishRefused: 'The finish could not be moved there.',
+    previewTitle: 'If you place it here',
+    previewFastest: (time: string, length: string) => `Fastest ${time}, ${length}`,
+    previewLooking: 'Looking for other routes…',
+    previewChoice: (count: number, difference: string) =>
+      count === 1
+        ? `1 other route, ${difference} slower`
+        : `${count} other routes, the best ${difference} slower`,
+    previewNoChoice: 'No other route',
+  },
+  courseRoutes: {
+    title: 'Routes',
+    findAll: 'Find routes on all legs',
+    findAllHint: 'Shows where each leg has a real route choice. Long legs take a moment.',
+    finding: (done: number, legs: number) => `Finding routes: ${done} of ${legs} legs`,
+    summary: (withChoice: number, legs: number) =>
+      `A real route choice on ${withChoice} of ${legs} ${legs === 1 ? 'leg' : 'legs'}`,
+    leg: 'Leg',
+    legName: (from: StopName, to: StopName) =>
+      `${from === 'start' ? 'S' : from}–${to === 'finish' ? 'F' : to}`,
+    fastest: 'Fastest',
+    choice: 'Route choice',
+    alternatives: (count: number, difference: string) =>
+      count === 1 ? `1 more, ${difference}` : `${count} more, best ${difference}`,
+    none: 'None',
+    unreachable: 'No route',
+    findingLeg: '…',
+    openLeg: (leg: string) => `Show the routes of ${leg} on the map`,
   },
   landing: {
     pageTitle: 'Ratamestari: orienteering course setter',

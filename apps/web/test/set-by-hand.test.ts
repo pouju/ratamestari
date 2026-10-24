@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { localPoint } from '@ratamestari/core'
 import type { Course } from '@ratamestari/engine'
-import { handEditFor, isControlStop, withUndoStep } from '../src/set-by-hand'
+import { handEditFor, isControlStop, neighboursOf, withUndoStep } from '../src/set-by-hand'
 
 const course = {
   start: { position: localPoint(0, 0) },
@@ -63,5 +63,23 @@ describe('withUndoStep', () => {
     for (let i = 0; i < 60; i++) history = withUndoStep(history, i === 0 ? null : course)
     expect(history).toHaveLength(50)
     expect(withUndoStep([], null)).toEqual([null])
+  })
+})
+
+describe('the stops a new control would join', () => {
+  it('joins the last control and the finish when added at the end', () => {
+    expect(neighboursOf(course, { kind: 'add', at })).toEqual([localPoint(1000, 500)])
+  })
+
+  it('joins both ends of the leg it goes into', () => {
+    expect(neighboursOf(course, { kind: 'insert', afterStop: 0, at })).toEqual([
+      localPoint(0, 0),
+      localPoint(1000, 0),
+    ])
+  })
+
+  it('joins nothing before the start is placed or when a tap selects', () => {
+    expect(neighboursOf(null, { kind: 'start', at })).toBeNull()
+    expect(neighboursOf(course, { kind: 'select', stop: 1 })).toBeNull()
   })
 })

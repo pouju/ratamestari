@@ -227,6 +227,62 @@ button.link {
   border-radius: 4px;
   opacity: 0.8;
 }
+.course-routes {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding-bottom: var(--space-5);
+  color: var(--colour-ink);
+  font-variant-numeric: tabular-nums;
+}
+.course-routes h2 {
+  margin: 0;
+  font-size: var(--font-size-lead);
+  font-weight: var(--font-weight-strong);
+}
+.course-routes p {
+  margin: 0;
+}
+.course-routes-table {
+  width: 100%;
+}
+.course-routes-table tbody th button {
+  min-height: var(--touch-target);
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--colour-ink-soft);
+  text-underline-offset: 3px;
+}
+.course-routes-table tbody th button:focus-visible {
+  outline: 2px solid var(--colour-overprint);
+  outline-offset: 2px;
+}
+.course-routes-table tbody tr:not(.has-route-choice) th {
+  font-weight: var(--font-weight-body);
+}
+.course-routes-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.course-routes-swatches {
+  display: inline-flex;
+  gap: var(--space-1);
+}
+.course-routes-swatches .leg-view-swatch {
+  width: 14px;
+}
+.control-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
 .leg-view-figures {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

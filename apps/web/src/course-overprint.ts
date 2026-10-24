@@ -72,6 +72,21 @@ export function courseOverprintFeatures(course: Course): Feature[] {
   return features
 }
 
+const PREVIEW_DASH_PIXELS = [6, 5]
+
+// Where a control would go if placed now: a dashed circle, so it never reads as part of the course.
+export const previewControlFeature = (position: LocalPoint): Feature =>
+  lineFeature(new Circle([...position], courseMm(CONTROL_CIRCLE_DIAMETER_MM) / 2))
+
+export const previewControlStyle = (_feature: FeatureLike, metersPerPixel: number): Style =>
+  new Style({
+    stroke: new Stroke({
+      color: COURSE_OVERPRINT_PURPLE,
+      width: Math.max(1, courseMm(COURSE_LINE_WIDTH_MM) / metersPerPixel),
+      lineDash: PREVIEW_DASH_PIXELS,
+    }),
+  })
+
 // drawnLegs is how far the course has been drawn, in legs (1.5 = first leg and half the second),
 // or null when the whole course is shown.
 export const courseOverprintStyle =

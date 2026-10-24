@@ -10,6 +10,8 @@ import {
   startCourse,
   evaluateLeg,
   findControlSites,
+  findRoute,
+  nearestSite,
   findPeripheralInformation,
   isInPeripheralBlock,
   fitCourseToFrame,
@@ -55,6 +57,7 @@ import {
   type PrintScaleChoice,
 } from '@ratamestari/rules'
 import type { CostGridSnapshot } from './cost-map-image'
+import { legEndsAround, type ControlPreview, type PreviewLeg } from './leg-routes'
 
 let map: OcadMap | null = null
 let terrain: Terrain | null = null
@@ -159,6 +162,24 @@ const engine = {
   evaluateLeg(from: LocalPoint, to: LocalPoint, paceSecondsPerKm: number): LegEvaluation | null {
     if (!terrain) throw new Error('No map loaded in the engine')
     return evaluateLeg(terrain, from, to, { paceSecondsPerKm })
+  },
+
+  // The control snaps to a site as a tapped one does. Only the fastest routes, so the preview can
+  // follow the pointer; the alternatives come from evaluateLeg once the pointer rests.
+  previewControl(
+    at: LocalPoint,
+    neighbours: readonly LocalPoint[],
+    paceSecondsPerKm: number,
+  ): ControlPreview | null {
+    if (!terrain) throw new Error('No map loaded in the engine')
+    const position = nearestSite(sites, at)?.position ?? at
+    const legs: PreviewLeg[] = []
+    for (const [from, to] of legEndsAround(position, neighbours)) {
+      const fastest = findRoute(terrain.grid, from, to, { paceSecondsPerKm })
+      if (!fastest) return null
+      legs.push({ fastest, alternatives: [], hasLookedForAlternatives: false })
+    }
+    return { position, legs }
   },
 
   generateCourse(

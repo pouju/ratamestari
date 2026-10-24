@@ -1,12 +1,14 @@
 import type { Course } from '@ratamestari/engine'
+import { ControlPreviewRoutes } from './CourseRoutesPanel'
 import { hasCoarsePointer } from './CoursePanel'
 import { useMessages } from './i18n'
-import { stopName } from './leg-routes'
+import { stopName, type ControlPreview } from './leg-routes'
 import { isControlStop } from './set-by-hand'
 
 interface Props {
   course: Course | null
   selectedStop: number | null
+  preview: ControlPreview | null
   canUndo: boolean
   isEditing: boolean
   onDelete: (stop: number) => void
@@ -17,6 +19,7 @@ interface Props {
 export function SetByHandPanel({
   course,
   selectedStop,
+  preview,
   canUndo,
   isEditing,
   onDelete,
@@ -43,6 +46,7 @@ export function SetByHandPanel({
           {instruction}
         </p>
       </div>
+      {preview && selected === null && <ControlPreviewRoutes preview={preview} />}
       {selected !== null && (
         <div>
           <p aria-live="polite">

@@ -36,6 +36,8 @@ import {
   courseOverprintFeatures,
   courseOverprintStyle,
   legOfFeature,
+  previewControlFeature,
+  previewControlStyle,
   shortenedLeg,
   STOP_INDEX,
   type CourseHit,
@@ -48,6 +50,7 @@ import {
   pointAlong,
   rankedRoutes,
   ROUTE_COLOUR_TOKENS,
+  type ControlPreview,
   type PlannedLeg,
 } from './leg-routes'
 import type { CostMapImage } from './cost-map-image'
@@ -57,6 +60,7 @@ import type { MapImage } from './rasterize'
 import 'ol/ol.css'
 
 const ROUTE_WIDTH_PIXELS = 10
+const COURSE_ROUTE_WIDTH_PIXELS = 5
 const ROUTE_LABEL_RADIUS_PIXELS = 10
 const ROUTE_LABEL_SHARE_OF_ROUTE = 0.45
 const LEG_HIT_TOLERANCE_PIXELS = 6
@@ -125,7 +129,7 @@ function routeStyle(feature: FeatureLike): Style {
     return new Style({
       stroke: new Stroke({
         color: [red, green, blue, Number(cssToken('--route-opacity'))],
-        width: ROUTE_WIDTH_PIXELS,
+        width: (feature.get('width') as number | undefined) ?? ROUTE_WIDTH_PIXELS,
         lineCap: 'round',
         lineJoin: 'round',
       }),
@@ -143,6 +147,28 @@ function routeStyle(feature: FeatureLike): Style {
       fill: new Fill({ color: 'white' }),
     }),
   })
+}
+
+const previewStyle = (feature: FeatureLike, metersPerPixel: number): Style =>
+  feature.get('colour') === undefined
+    ? previewControlStyle(feature, metersPerPixel)
+    : routeStyle(feature)
+
+// Slowest first, so the fastest route is drawn on top.
+function routeLines(
+  routes: Pick<LegEvaluation, 'fastest' | 'alternatives'>,
+  width = ROUTE_WIDTH_PIXELS,
+): Feature[] {
+  return rankedRoutes(routes)
+    .reverse()
+    .map(
+      ({ route, rank }) =>
+        new Feature({
+          geometry: new LineString(route.points.map(p => [...p])),
+          colour: cssToken(ROUTE_COLOUR_TOKENS[rank]),
+          width,
+        }),
+    )
 }
 
 function centreOf(geometry: Geometry): LocalPoint {
@@ -197,6 +223,11 @@ interface Props {
   info: MapInfo
   image: MapImage
   routes: LegEvaluation | null
+  // Every leg's routes, drawn thinner under the selected leg's.
+  courseRoutes: readonly LegEvaluation[] | null
+  preview: ControlPreview | null
+  // While setting by hand with a mouse: what is under the pointer, or null when it leaves the map.
+  onPointerOver: (hover: { readonly hit: CourseHit | null; readonly at: LocalPoint } | null) => void
   selectedLeg: number | null
   onLegSelected: (leg: number) => void
   costMap: CostMapImage | null
@@ -230,6 +261,9 @@ export function MapView({
   info,
   image,
   routes,
+  courseRoutes,
+  preview,
+  onPointerOver,
   selectedLeg,
   onLegSelected,
   costMap,
@@ -258,6 +292,8 @@ export function MapView({
   const mapRef = useRef<OlMap | null>(null)
   const messages = useMessages()
   const [routeSource] = useState(() => new VectorSource())
+  const [courseRouteSource] = useState(() => new VectorSource())
+  const [previewSource] = useState(() => new VectorSource())
   const [costLayer] = useState(() => new ImageLayer<ImageStatic>({ visible: false }))
   const [descriptionLayer] = useState(() => new ImageLayer<ImageStatic>({ visible: false }))
   const [printFrameSource] = useState(() => new VectorSource())
@@ -322,6 +358,8 @@ export function MapView({
   isSettingByHandRef.current = isSettingByHand
   const onCourseTappedRef = useRef(onCourseTapped)
   onCourseTappedRef.current = onCourseTapped
+  const onPointerOverRef = useRef(onPointerOver)
+  onPointerOverRef.current = onPointerOver
   const routeLetters = messages.leg.routeLetters
 
   useEffect(() => {
@@ -343,7 +381,9 @@ export function MapView({
           style: feature => siteStyles[feature.get('technicalDifficulty')],
         }),
         new VectorLayer({ source: printFrameSource, style: printFrameStyle }),
+        new VectorLayer({ source: courseRouteSource, style: routeStyle }),
         new VectorLayer({ source: routeSource, style: routeStyle }),
+        new VectorLayer({ source: previewSource, style: previewStyle }),
         courseLayer,
         descriptionLayer,
         legToolLayer,
@@ -370,6 +410,32 @@ export function MapView({
     }
     const element = target.current
     element.addEventListener('pointerdown', rememberPointerType, { capture: true })
+
+    let hoverFrame = 0
+    const reportHover = (event: PointerEvent) => {
+      cancelAnimationFrame(hoverFrame)
+      if (!isSettingByHandRef.current || event.pointerType !== 'mouse' || event.buttons !== 0) {
+        onPointerOverRef.current(null)
+        return
+      }
+      hoverFrame = requestAnimationFrame(() => {
+        const pixel = map.getEventPixel(event)
+        const [x = 0, y = 0] = map.getCoordinateFromPixel(pixel)
+        const hit = courseHitOf(
+          map.getFeaturesAtPixel(pixel, {
+            layerFilter: layer => layer === courseLayer,
+            hitTolerance: LEG_HIT_TOLERANCE_PIXELS,
+          }),
+        )
+        onPointerOverRef.current({ hit, at: localPoint(x, y) })
+      })
+    }
+    const endHover = () => {
+      cancelAnimationFrame(hoverFrame)
+      onPointerOverRef.current(null)
+    }
+    element.addEventListener('pointermove', reportHover)
+    element.addEventListener('pointerleave', endHover)
 
     map.on('singleclick', event => {
       if (isPickingCentreRef.current) {
@@ -435,12 +501,17 @@ export function MapView({
       courseTranslate.un('translateend', reportStopMoved)
       legToolTranslate.un(['translating', 'translateend'], reportPlannedLeg)
       element.removeEventListener('pointerdown', rememberPointerType, { capture: true })
+      element.removeEventListener('pointermove', reportHover)
+      element.removeEventListener('pointerleave', endHover)
+      cancelAnimationFrame(hoverFrame)
       map.setTarget(undefined)
     }
   }, [
     info,
     image,
     routeSource,
+    courseRouteSource,
+    previewSource,
     costLayer,
     descriptionLayer,
     printFrameSource,
@@ -694,22 +765,31 @@ export function MapView({
   useEffect(() => {
     routeSource.clear()
     if (!routes) return
-    const ranked = rankedRoutes(routes).map((ranked, i) => ({
-      ...ranked,
-      colour: cssToken(ROUTE_COLOUR_TOKENS[ranked.rank]),
-      letter: routeLetters[i] ?? '',
-    }))
-    const slowestFirst = [...ranked].reverse()
-    const lines = slowestFirst.map(
-      ({ route, colour }) =>
-        new Feature({ geometry: new LineString(route.points.map(p => [...p])), colour }),
-    )
-    const labels = slowestFirst.flatMap(({ route, colour, letter }) => {
+    const labels = rankedRoutes(routes).flatMap(({ route, rank }, i) => {
       const at = pointAlong(route.points, ROUTE_LABEL_SHARE_OF_ROUTE)
-      return at ? [new Feature({ geometry: new Point([...at]), colour, letter })] : []
+      const colour = cssToken(ROUTE_COLOUR_TOKENS[rank])
+      return at
+        ? [new Feature({ geometry: new Point([...at]), colour, letter: routeLetters[i] ?? '' })]
+        : []
     })
-    routeSource.addFeatures([...lines, ...labels])
+    routeSource.addFeatures([...routeLines(routes), ...labels.reverse()])
   }, [routes, routeSource, routeLetters])
+
+  useEffect(() => {
+    courseRouteSource.clear()
+    courseRouteSource.addFeatures(
+      (courseRoutes ?? []).flatMap(leg => routeLines(leg, COURSE_ROUTE_WIDTH_PIXELS)),
+    )
+  }, [courseRoutes, courseRouteSource])
+
+  useEffect(() => {
+    previewSource.clear()
+    if (!preview) return
+    previewSource.addFeatures([
+      ...preview.legs.flatMap(leg => routeLines(leg)),
+      previewControlFeature(preview.position),
+    ])
+  }, [preview, previewSource])
 
   const zoomBy = (delta: number) => {
     const view = mapRef.current?.getView()

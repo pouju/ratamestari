@@ -5,6 +5,7 @@ import {
   paperSizeSchema,
   PRINT_SCALE,
   printScaleSchema,
+  ROUTE_CHOICE,
   type Format,
   type PrintScaleChoice,
 } from '@ratamestari/rules'
@@ -64,6 +65,8 @@ interface LayersProps {
   showSites: boolean
   onShowSites: (show: boolean) => void
   siteCount: number | null
+  showCourseRoutes: boolean
+  onShowCourseRoutes: (show: boolean) => void
 }
 
 export function LayersMenu({
@@ -72,8 +75,11 @@ export function LayersMenu({
   showSites,
   onShowSites,
   siteCount,
+  showCourseRoutes,
+  onShowCourseRoutes,
 }: LayersProps) {
   const m = useMessages().map
+  const format = useFormat()
   return (
     <ToolMenu label={m.layers} className="map-tool" placement="below">
       <label className="tool-menu-option">
@@ -98,6 +104,19 @@ export function LayersMenu({
               {difficulty}
             </span>
           ))}
+        </p>
+      )}
+      <label className="tool-menu-option">
+        <input
+          type="checkbox"
+          checked={showCourseRoutes}
+          onChange={e => onShowCourseRoutes(e.target.checked)}
+        />
+        {m.courseRoutes}
+      </label>
+      {showCourseRoutes && (
+        <p className="tool-menu-note">
+          {m.courseRoutesLegend(format.share(ROUTE_CHOICE.maxExtraTimeShare))}
         </p>
       )}
     </ToolMenu>

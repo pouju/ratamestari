@@ -3,7 +3,9 @@ import { localPoint } from '@ratamestari/core'
 import type { Course, LegEvaluation, Route } from '@ratamestari/engine'
 import {
   EMPTY_PLANNED_LEG,
+  isSamePreview,
   legCount,
+  legEndsAround,
   legEnds,
   needsPlacing,
   placeNext,
@@ -92,5 +94,32 @@ describe('planning a leg', () => {
 
   it('has no ends until both controls are placed', () => {
     expect(plannedEnds(placeNext(EMPTY_PLANNED_LEG, first))).toBeNull()
+  })
+})
+
+describe('a control preview', () => {
+  const a = localPoint(0, 0)
+  const b = localPoint(100, 0)
+  const c = localPoint(100, 100)
+  const leg = (from = a, to = b) => ({
+    fastest: { points: [from, to], lengthMeters: 100, timeSeconds: 60 },
+    alternatives: [],
+    hasLookedForAlternatives: false,
+  })
+
+  it('makes a leg from the stop before, and one to the stop after when inserted', () => {
+    expect(legEndsAround(b, [a])).toEqual([[a, b]])
+    expect(legEndsAround(b, [a, c])).toEqual([
+      [a, b],
+      [b, c],
+    ])
+  })
+
+  it('is the same when the control and its legs stay where they were', () => {
+    const preview = { position: b, legs: [leg()] }
+    expect(isSamePreview(preview, { position: b, legs: [leg()] })).toBe(true)
+    expect(isSamePreview(preview, { position: c, legs: [leg(a, c)] })).toBe(false)
+    expect(isSamePreview(preview, { position: b, legs: [leg(), leg(b, c)] })).toBe(false)
+    expect(isSamePreview(null, preview)).toBe(false)
   })
 })
