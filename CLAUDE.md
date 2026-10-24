@@ -22,7 +22,7 @@ Full decision log with reasoning and rejected alternatives: [`docs/decisions.md`
   - Coordinates: engine and view use the map's **local frame** (ground metres, map north up = OCAD paper × scale). Convert to the projected CRS (dev map: EPSG:3067) only via `core` (`localToProjected`); don't use ocad2geojson's `toMapCoord` (buggy).
   - Map display: OCAD rendered in-browser to SVG, rasterised once to PNG, shown in OpenLayers as a static image. No online base map tiles.
   - ocad2geojson is CommonJS without types: import its submodules (`ocad2geojson/src/...`) only from `packages/map-ocad`, typed in `ocad2geojson.d.ts`.
-  - Commands: `pnpm dev`, `pnpm test`, `pnpm typecheck`, `pnpm build`, `pnpm format`, and `pnpm check` (all checks; run before every commit). Club maps go in git-ignored `maps/`; map-dependent tests skip without them. The only committed map is the sample in `apps/web/public/sample/` (© Vehkalahden Veikot, not AGPL; D14).
+  - Commands: `pnpm dev`, `pnpm test`, `pnpm typecheck`, `pnpm build`, `pnpm format`, and `pnpm check` (all checks; run before every commit). Dev tools: `pnpm render-course` (render a generated course to PNG), `pnpm crop-ocad` (cut a small OCAD file, as for the sample map) and `pnpm record-demo-run` (re-record the landing page's hero run on the sample map into `apps/web/src/landing/`; run it after engine or sample map changes). Club maps go in git-ignored `maps/`; map-dependent tests skip without them. The only committed map is the sample in `apps/web/public/sample/` (© Vehkalahden Veikot, not AGPL; D14).
 
 ## Conventions
 
