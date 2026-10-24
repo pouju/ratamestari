@@ -32,11 +32,13 @@ import type {
 } from '@ratamestari/engine'
 import {
   COURSE_OVERPRINT_PURPLE,
+  courseHitOf,
   courseOverprintFeatures,
   courseOverprintStyle,
   legOfFeature,
   shortenedLeg,
   STOP_INDEX,
+  type CourseHit,
 } from './course-overprint'
 import { useMessages } from './i18n'
 import {
@@ -210,6 +212,9 @@ interface Props {
   onCentrePicked: (centre: LocalPoint) => void
   onStopMoved: (stopIndex: number, to: LocalPoint) => void
   canEditCourse: boolean
+  isSettingByHand: boolean
+  selectedStop: number | null
+  onCourseTapped: (hit: CourseHit | null, at: LocalPoint) => void
   tools: ReactNode
   footer: ReactNode
   suggestedMove: { readonly from: LocalPoint; readonly to: LocalPoint } | null
@@ -243,6 +248,9 @@ export function MapView({
   onCentrePicked,
   onStopMoved,
   canEditCourse,
+  isSettingByHand,
+  selectedStop,
+  onCourseTapped,
   tools,
   footer,
   suggestedMove,
@@ -263,17 +271,22 @@ export function MapView({
   )
   const selectedLegRef = useRef(selectedLeg)
   selectedLegRef.current = selectedLeg
+  const selectedStopRef = useRef(selectedStop)
+  selectedStopRef.current = selectedStop
+  const overprintStyle = (drawnLegs: number | null = null) =>
+    courseOverprintStyle(selectedLegRef.current, drawnLegs, selectedStopRef.current)
   const lastPointerType = useRef<string>('mouse')
   const [courseTranslate] = useState(
     () =>
       new Translate({
         layers: [courseLayer],
         // A finger panning the map must not move a control by accident, so on touch only the
-        // ends of the selected leg can be dragged.
+        // selected stop or the ends of the selected leg can be dragged.
         filter: feature => {
           const stop = feature.get(STOP_INDEX)
           if (typeof stop !== 'number') return false
           if (lastPointerType.current !== 'touch') return true
+          if (stop === selectedStopRef.current) return true
           const leg = selectedLegRef.current
           return leg !== null && (stop === leg || stop === leg + 1)
         },
@@ -307,6 +320,10 @@ export function MapView({
   isPickingCentreRef.current = isPickingCentre
   const onLegSelectedRef = useRef(onLegSelected)
   onLegSelectedRef.current = onLegSelected
+  const isSettingByHandRef = useRef(isSettingByHand)
+  isSettingByHandRef.current = isSettingByHand
+  const onCourseTappedRef = useRef(onCourseTapped)
+  onCourseTappedRef.current = onCourseTapped
   const routeLetters = messages.leg.routeLetters
 
   useEffect(() => {
@@ -366,6 +383,17 @@ export function MapView({
       if (plan && needsPlacing(plan)) {
         const [x = 0, y = 0] = event.coordinate
         onPlannedLegChangedRef.current(placeNext(plan, localPoint(x, y)))
+        return
+      }
+      if (isSettingByHandRef.current) {
+        const [x = 0, y = 0] = event.coordinate
+        const hit = courseHitOf(
+          map.getFeaturesAtPixel(event.pixel, {
+            layerFilter: layer => layer === courseLayer,
+            hitTolerance: LEG_HIT_TOLERANCE_PIXELS,
+          }),
+        )
+        onCourseTappedRef.current(hit, localPoint(x, y))
         return
       }
       // Wrapped because the lookup stops only on a truthy result, and the first leg is 0.
@@ -434,8 +462,8 @@ export function MapView({
   }, [canEditCourse, courseTranslate])
 
   useEffect(() => {
-    courseLayer.setStyle(courseOverprintStyle(selectedLeg))
-  }, [selectedLeg, courseLayer])
+    courseLayer.setStyle(courseOverprintStyle(selectedLeg, null, selectedStop))
+  }, [selectedLeg, selectedStop, courseLayer])
 
   const legCountRef = useRef(0)
   legCountRef.current = course ? course.controls.length + 1 : 0
@@ -449,16 +477,16 @@ export function MapView({
     const draw = (now: number) => {
       const drawnLegs = (now - started) / msPerLeg
       if (drawnLegs >= legs) {
-        courseLayer.setStyle(courseOverprintStyle(selectedLegRef.current))
+        courseLayer.setStyle(overprintStyle())
         return
       }
-      courseLayer.setStyle(courseOverprintStyle(selectedLegRef.current, drawnLegs))
+      courseLayer.setStyle(overprintStyle(drawnLegs))
       frame = requestAnimationFrame(draw)
     }
     frame = requestAnimationFrame(draw)
     return () => {
       cancelAnimationFrame(frame)
-      courseLayer.setStyle(courseOverprintStyle(selectedLegRef.current))
+      courseLayer.setStyle(overprintStyle())
     }
   }, [drawCourseKey, courseLayer])
 
@@ -668,7 +696,8 @@ export function MapView({
       view.animate({ zoom: zoom + delta, duration: ZOOM_ANIMATION_MS })
   }
 
-  const isPlacing = isPickingCentre || (plannedLeg !== null && needsPlacing(plannedLeg))
+  const isPlacing =
+    isPickingCentre || isSettingByHand || (plannedLeg !== null && needsPlacing(plannedLeg))
   return (
     <div className="map-frame">
       <div

@@ -4,6 +4,7 @@ import { localPoint } from '@ratamestari/core'
 import type { Course } from '@ratamestari/engine'
 import {
   courseOverprintFeatures,
+  courseHitOf,
   courseOverprintStyle,
   legOfFeature,
 } from '../src/course-overprint'
@@ -45,5 +46,25 @@ describe('drawing a course leg by leg', () => {
     const whole = courseOverprintStyle(null)
     expect(whole(legLine(1), 1)).toBeDefined()
     expect(whole(controlCircle, 1)).toBeDefined()
+  })
+})
+
+describe('what a tap on the course hits', () => {
+  const finishCircles = features.filter(feature => feature.get('stopIndex') === 2)
+
+  it('prefers a control over the leg line next to it', () => {
+    expect(courseHitOf([legLine(0), controlCircle])).toEqual({ kind: 'stop', stop: 1 })
+    expect(courseHitOf([legLine(1)])).toEqual({ kind: 'leg', leg: 1 })
+    expect(courseHitOf([])).toBeNull()
+  })
+
+  it('lets the finish be dragged like the start and the controls', () => {
+    expect(finishCircles).toHaveLength(1)
+  })
+
+  it('draws the selected stop thicker', () => {
+    const plain = courseOverprintStyle(null)(controlCircle, 1)!
+    const selected = courseOverprintStyle(null, null, 1)(controlCircle, 1)!
+    expect(selected.getStroke()!.getWidth()).toBeGreaterThan(plain.getStroke()!.getWidth()!)
   })
 })

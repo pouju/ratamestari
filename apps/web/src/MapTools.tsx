@@ -104,13 +104,13 @@ export function LayersMenu({
   )
 }
 
-interface PlanLegToolProps {
+interface ToggleToolProps {
   isActive: boolean
   isDisabled: boolean
   onToggle: () => void
 }
 
-export function PlanLegTool({ isActive, isDisabled, onToggle }: PlanLegToolProps) {
+export function PlanLegTool({ isActive, isDisabled, onToggle }: ToggleToolProps) {
   const m = useMessages().map
   return (
     <button
@@ -121,6 +121,21 @@ export function PlanLegTool({ isActive, isDisabled, onToggle }: PlanLegToolProps
       onClick={onToggle}
     >
       {m.planLeg}
+    </button>
+  )
+}
+
+export function EditControlsTool({ isActive, isDisabled, onToggle }: ToggleToolProps) {
+  const m = useMessages().map
+  return (
+    <button
+      type="button"
+      className="map-tool"
+      aria-pressed={isActive}
+      disabled={isDisabled}
+      onClick={onToggle}
+    >
+      {m.editControls}
     </button>
   )
 }

@@ -24,6 +24,7 @@ const FINISH_OUTER_DIAMETER_MM = COURSE_OVERPRINT.finishOuterDiameterMillimetres
 const CONTROL_NUMBER_HEIGHT_MM = COURSE_OVERPRINT.controlNumberHeightMillimetres
 const COURSE_LINE_WIDTH_MM = COURSE_OVERPRINT.courseLineWidthMillimetres
 const COURSE_LINE_GAP_MM = COURSE_OVERPRINT.courseLineGapMillimetres
+const SELECTED_LINE_WIDTH_FACTOR = 2.5
 
 // Course symbols keep their ground size at any print scale (ISOM 2017-2 §3.7).
 const courseMm = (mm: number) => (mm * COURSE_OVERPRINT.baseScale) / 1000
@@ -55,7 +56,12 @@ export function courseOverprintFeatures(course: Course): Feature[] {
       finishStop,
     ),
   )
-  features.push(atStop(lineFeature(new Circle([...course.finish], finishRadius)), finishStop))
+  features.push(
+    draggable(
+      atStop(lineFeature(new Circle([...course.finish], finishRadius)), finishStop),
+      finishStop,
+    ),
+  )
 
   const stops = [start, ...controls, course.finish]
   const radii = [startRadius, ...controls.map(() => controlRadius), finishRadius]
@@ -69,12 +75,18 @@ export function courseOverprintFeatures(course: Course): Feature[] {
 // drawnLegs is how far the course has been drawn, in legs (1.5 = first leg and half the second),
 // or null when the whole course is shown.
 export const courseOverprintStyle =
-  (highlightedLeg: number | null, drawnLegs: number | null = null) =>
+  (
+    highlightedLeg: number | null,
+    drawnLegs: number | null = null,
+    selectedStop: number | null = null,
+  ) =>
   (feature: FeatureLike, metersPerPixel: number): Style | undefined => {
     const colour =
       highlightedLeg === null || isOnLeg(feature, highlightedLeg)
         ? COURSE_OVERPRINT_PURPLE
         : FADED_OVERPRINT_PURPLE
+    if (selectedStop !== null && feature.get(STOP) === selectedStop)
+      return overprintStyle(feature, metersPerPixel, colour, SELECTED_LINE_WIDTH_FACTOR)
     if (drawnLegs === null) return overprintStyle(feature, metersPerPixel, colour)
     const leg = feature.get(LEG_INDEX)
     const stop = feature.get(STOP)
@@ -104,6 +116,7 @@ function overprintStyle(
   feature: FeatureLike,
   metersPerPixel: number,
   colour: string | number[],
+  lineWidthFactor = 1,
 ): Style {
   const kind = feature.get('kind') as Kind
   if (kind === 'label') {
@@ -120,7 +133,7 @@ function overprintStyle(
   return new Style({
     stroke: new Stroke({
       color: colour,
-      width: Math.max(1, courseMm(COURSE_LINE_WIDTH_MM) / metersPerPixel),
+      width: lineWidthFactor * Math.max(1, courseMm(COURSE_LINE_WIDTH_MM) / metersPerPixel),
     }),
   })
 }
@@ -134,6 +147,21 @@ export function legOfFeature(feature: FeatureLike): number | null {
   if (typeof leg === 'number') return leg
   const stop = feature.get(STOP)
   return typeof stop === 'number' ? Math.max(0, stop - 1) : null
+}
+
+export type CourseHit =
+  { readonly kind: 'stop'; readonly stop: number } | { readonly kind: 'leg'; readonly leg: number }
+
+// A control, the start or the finish wins over a leg line drawn next to it.
+export function courseHitOf(features: readonly FeatureLike[]): CourseHit | null {
+  let legHit: CourseHit | null = null
+  for (const feature of features) {
+    const stop = feature.get(STOP)
+    if (typeof stop === 'number') return { kind: 'stop', stop }
+    const leg = feature.get(LEG_INDEX)
+    if (legHit === null && typeof leg === 'number') legHit = { kind: 'leg', leg }
+  }
+  return legHit
 }
 
 function isOnLeg(feature: FeatureLike, leg: number): boolean {

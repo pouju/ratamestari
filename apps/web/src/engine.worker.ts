@@ -1,8 +1,13 @@
 import * as Comlink from 'comlink'
 import type { LocalPoint } from '@ratamestari/core'
 import {
+  addControl,
   buildTerrain,
   checkSetCourse,
+  insertControlAt,
+  recheckCourse,
+  setFinish,
+  startCourse,
   evaluateLeg,
   findControlSites,
   findPeripheralInformation,
@@ -296,6 +301,66 @@ const engine = {
       const fitted = editedCourse(course, () => suggestion.course)
       return fitted ? [{ ...suggestion, course: fitted }] : []
     })
+  },
+
+  // A course set by hand starts with the start the user placed and the finish at the centre.
+  startCourseByHand(
+    request: CourseRequest,
+    competitionCentre: LocalPoint,
+    paceSecondsPerKm: number,
+    paper: PaperChoice,
+    printScaleChoice: PrintScaleChoice,
+    printFrame: PrintFrame | null,
+    start: LocalPoint,
+  ): Course | null {
+    if (!terrain) throw new Error('No map loaded in the engine')
+    const automatic = specFor(request, competitionCentre, 0, paceSecondsPerKm, printScaleChoice)
+    if (!automatic) return null
+    const spec = printFrame ? { ...automatic, printFrame, printScale: printFrame.scale } : automatic
+    lastSetting = { spec, paper }
+    return fittedAsSet(
+      startCourse(terrain, sites, spec, start, competitionCentre),
+      terrain,
+      lastSetting,
+    )
+  },
+
+  addControl(course: Course, at: LocalPoint): Course | null {
+    return editedCourse(course, spec => addControl(terrain!, sites, spec, course, at))
+  },
+
+  insertControlAt(course: Course, afterStopIndex: number, at: LocalPoint): Course | null {
+    return editedCourse(course, spec =>
+      insertControlAt(terrain!, sites, spec, course, afterStopIndex, at),
+    )
+  },
+
+  moveFinish(course: Course, to: LocalPoint): Course | null {
+    return editedCourse(course, spec => setFinish(terrain!, sites, spec, course, to))
+  },
+
+  // A course being set by hand is checked again as the class the user switches to.
+  recheckAs(
+    course: Course,
+    request: CourseRequest,
+    paceSecondsPerKm: number,
+    printScaleChoice: PrintScaleChoice,
+  ): Course | null {
+    if (!lastSetting) throw new Error('Set a course before editing it')
+    const spec = specFor(
+      request,
+      lastSetting.spec.competitionCentre,
+      lastSetting.spec.seed,
+      paceSecondsPerKm,
+      printScaleChoice,
+    )
+    if (!spec) return null
+    const { printFrame } = lastSetting.spec
+    lastSetting = {
+      ...lastSetting,
+      spec: printFrame ? { ...spec, printFrame, printScale: printFrame.scale } : spec,
+    }
+    return editedCourse(course, editSpec => recheckCourse(terrain!, sites, editSpec, course))
   },
 
   controlSites(): readonly ControlSiteCandidate[] {

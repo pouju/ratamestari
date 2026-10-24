@@ -125,7 +125,8 @@ export const en = {
     severities: { error: 'Error', warning: 'Warning', note: 'Note' },
     fix: 'Fix',
     fixControl: (control: number) => `Fix control ${control}`,
-    dragHint: 'Drag a control or the start on the map to move it. The rules are checked again.',
+    dragHint:
+      'Drag a control, the start or the finish on the map to move it. The rules are checked again.',
     dragHintTouch: 'Tap a leg, then drag one of its controls. The rules are checked again.',
     setCourse: 'Set course',
     setting: 'Setting the course…',
@@ -215,6 +216,7 @@ export const en = {
     siteCount: (count: number) => `${count} sites.`,
     difficulty: 'Difficulty from 1 easy to 5 hard:',
     planLeg: 'Plan a leg',
+    editControls: 'Edit controls',
     building: 'Reading the terrain…',
     engineError: 'The engine could not read this map.',
   },
@@ -255,6 +257,32 @@ export const en = {
     dragHint: 'Drag either control. The routes follow as you drag.',
     straightLine: 'Straight line',
     bearing: 'Bearing',
+  },
+  setByHand: {
+    title: 'Set it yourself',
+    entry: 'Set it yourself',
+    placeStart: 'Click the map where the start is. The finish is at the competition centre.',
+    placeStartTouch: 'Tap the map where the start is. The finish is at the competition centre.',
+    placeNext: (control: number) =>
+      `Click the map to add control ${control}. Click a leg line to put a control in it, or a control to select it.`,
+    placeNextTouch: (control: number) =>
+      `Tap the map to add control ${control}. Tap a leg line to put a control in it, or a control to select it.`,
+    snapNote:
+      'A control snaps to a mapped feature within 60 m. With none near, it stays where you put it and is flagged.',
+    selected: (stop: StopName) =>
+      typeof stop === 'number'
+        ? `Control ${stop} is selected.`
+        : `The ${stop} is selected. Drag it to move it.`,
+    selectedControlHint: 'Drag it to move it, or delete it.',
+    deleteKeyHint: 'Delete or Backspace also deletes it.',
+    deleteControl: (control: number) => `Delete control ${control}`,
+    undo: 'Undo',
+    done: 'Done',
+    noRulesForClass:
+      'The rules have no winning time for this class at this level, so the course cannot be checked.',
+    addRefused: 'The control could not be added there.',
+    deleteRefused: 'The control could not be deleted.',
+    finishRefused: 'The finish could not be moved there.',
   },
   landing: {
     pageTitle: 'Ratamestari: orienteering course setter',

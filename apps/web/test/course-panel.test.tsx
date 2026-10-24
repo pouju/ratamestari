@@ -27,6 +27,7 @@ const render = (hasCentre: boolean, check: CourseFileCheck | null = null) =>
       canSetCourse={hasCentre}
       isGenerating={false}
       onSetCourse={ignore}
+      onSetByHand={ignore}
       onStop={ignore}
       onTryAnother={ignore}
       course={null}
@@ -57,6 +58,7 @@ describe('CoursePanel', () => {
     const html = render(true)
     expect(html).toContain('SM level')
     expect(html).toContain('Set course')
+    expect(html).toContain('Set it yourself')
     expect(html).toContain('skill level A')
   })
 

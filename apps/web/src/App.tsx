@@ -50,7 +50,10 @@ import { LegRoutesPanel, PlanLegPanel, type LegRoutesState } from './LegRoutesPa
 import { EMPTY_PLANNED_LEG, legEnds, plannedEnds, type PlannedLeg } from './leg-routes'
 import { useFormat, useMessages } from './i18n'
 import { MapView } from './MapView'
-import { LayersMenu, PlanLegTool, PrintFrameBar, PrintLabel } from './MapTools'
+import { EditControlsTool, LayersMenu, PlanLegTool, PrintFrameBar, PrintLabel } from './MapTools'
+import { SetByHandPanel } from './SetByHandPanel'
+import { handEditFor, isControlStop, withUndoStep } from './set-by-hand'
+import type { CourseHit } from './course-overprint'
 import { rasterizeSvg, type MapImage } from './rasterize'
 import {
   APP_VERSION,
@@ -161,6 +164,9 @@ export function App() {
   const [isPlacingFrame, setIsPlacingFrame] = useState(false)
   const [isPreparingPdf, setIsPreparingPdf] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [isSettingByHand, setIsSettingByHand] = useState(false)
+  const [selectedStop, setSelectedStop] = useState<number | null>(null)
+  const [undoHistory, setUndoHistory] = useState<readonly (Course | null)[]>([])
   const [mapKey, setMapKey] = useState<string | null>(null)
   const [corrections, setCorrections] = useState<SymbolCorrections>(new Map())
   const [editMessage, setEditMessage] = useState<string | null>(null)
@@ -213,6 +219,8 @@ export function App() {
     setStartWish(null)
     setPlacedFrame(null)
     setIsPlacingFrame(false)
+    stopSettingByHand()
+    setUndoHistory([])
     const bytes = new Uint8Array(await file.arrayBuffer())
     const key = await mapKeyOf(bytes)
     const storedCorrections = loadCorrections(key)
@@ -295,6 +303,8 @@ export function App() {
     setPlannedLeg(null)
     setSelectedLeg(null)
     setEditMessage(null)
+    stopSettingByHand()
+    setUndoHistory([])
     try {
       const result = await engine.generateCourse(
         nextRequest,
@@ -332,8 +342,12 @@ export function App() {
   }
 
   async function editedFromChat(edit: Promise<Course | null>) {
+    const before = course
     const edited = await edit
-    if (edited) setCourse(edited)
+    if (edited) {
+      setUndoHistory(history => withUndoStep(history, before))
+      setCourse(edited)
+    }
     return edited
   }
 
@@ -415,6 +429,131 @@ export function App() {
     }
   }
 
+  // Edits the user makes on the map can be undone one by one, back to the empty map.
+  async function editByHand(
+    edit: (current: Course | null) => Promise<Course | null>,
+    refused: string,
+  ) {
+    if (isEditing) return
+    setIsEditing(true)
+    setSuggestion(null)
+    setEditMessage(null)
+    const before = course
+    try {
+      const edited = await edit(before)
+      if (edited) {
+        setUndoHistory(history => withUndoStep(history, before))
+        setCourse(edited)
+      } else {
+        setCourse(before && { ...before })
+        setEditMessage(refused)
+      }
+    } catch (e) {
+      setCourse(before && { ...before })
+      setEditMessage(errorMessage(e))
+    } finally {
+      setIsEditing(false)
+    }
+  }
+
+  function undo() {
+    const previous = undoHistory.at(-1)
+    if (previous === undefined || isEditing) return
+    setUndoHistory(history => history.slice(0, -1))
+    setSelectedStop(null)
+    setSelectedLeg(null)
+    setCourse(previous)
+  }
+
+  function startSettingByHand() {
+    setPlannedLeg(null)
+    setSelectedLeg(null)
+    setSelectedStop(null)
+    setIsPickingCentre(false)
+    setIsSettingByHand(true)
+  }
+
+  function stopSettingByHand() {
+    setIsSettingByHand(false)
+    setSelectedStop(null)
+  }
+
+  function tapCourse(hit: CourseHit | null, at: LocalPoint) {
+    if (isEditing) return
+    const edit = handEditFor(course, selectedStop, hit, at)
+    const { setByHand } = messages
+    switch (edit.kind) {
+      case 'select':
+        setSelectedStop(edit.stop)
+        return
+      case 'start':
+        if (!competitionCentre) return
+        if (isCentreOutsideFrame) {
+          setEditMessage(messages.print.centreOutside)
+          return
+        }
+        void editByHand(
+          () =>
+            engine.startCourseByHand(
+              request,
+              competitionCentre,
+              winnerPace,
+              paper,
+              printScale,
+              printFrame,
+              edit.at,
+            ),
+          setByHand.noRulesForClass,
+        )
+        return
+      case 'add':
+        void editByHand(current => engine.addControl(current!, edit.at), setByHand.addRefused)
+        return
+      case 'insert':
+        void editByHand(
+          current => engine.insertControlAt(current!, edit.afterStop, edit.at),
+          setByHand.addRefused,
+        )
+    }
+  }
+
+  function deleteSelectedControl(stop: number) {
+    setSelectedStop(null)
+    void editByHand(
+      current => engine.removeControl(current!, stop),
+      messages.setByHand.deleteRefused,
+    )
+  }
+
+  function moveStop(stopIndex: number, to: LocalPoint) {
+    const isFinish = course !== null && stopIndex === course.controls.length + 1
+    void editByHand(
+      current =>
+        isFinish ? engine.moveFinish(current!, to) : engine.moveControl(current!, stopIndex, to),
+      isFinish ? messages.setByHand.finishRefused : messages.course.moveRefused,
+    )
+  }
+
+  const keyActions = useRef({ deleteSelectedControl, undo })
+  keyActions.current = { deleteSelectedControl, undo }
+  const deletableStop = isSettingByHand && isControlStop(course, selectedStop) ? selectedStop : null
+  useEffect(() => {
+    if (!isSettingByHand) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return
+      if ((event.key === 'Delete' || event.key === 'Backspace') && deletableStop !== null) {
+        event.preventDefault()
+        keyActions.current.deleteSelectedControl(deletableStop)
+      } else if (event.key === 'z' && (event.ctrlKey || event.metaKey) && !event.shiftKey) {
+        event.preventDefault()
+        keyActions.current.undo()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isSettingByHand, deletableStop])
+
   async function correctSymbol(symbolNumber: number, isomCode: IsomCode | null | undefined) {
     const next = new Map(corrections)
     if (isomCode === undefined) next.delete(symbolNumber)
@@ -423,6 +562,8 @@ export function App() {
     if (mapKey) saveCorrections(mapKey, next)
     setEngineState('loading')
     setCourse(null)
+    stopSettingByHand()
+    setUndoHistory([])
     setCostMap(null)
     setSites(null)
     try {
@@ -434,6 +575,7 @@ export function App() {
   }
 
   function startPlanningLeg() {
+    stopSettingByHand()
     setSheetSize(atLeastHalf)
     setSelectedLeg(null)
     setPlanRoutes({ status: 'finding' })
@@ -504,6 +646,8 @@ export function App() {
       }
       setPlannedLeg(null)
       setIsPickingCentre(false)
+      stopSettingByHand()
+      setUndoHistory([])
       setCourseFile({
         fileName: file.name,
         courses,
@@ -572,6 +716,8 @@ export function App() {
     setSelectedLeg(null)
     setCourse(null)
     setCompetitionCentre(null)
+    stopSettingByHand()
+    setUndoHistory([])
   }
 
   async function suggestFix(controlNumber: number) {
@@ -607,6 +753,7 @@ export function App() {
   const mapInfo = state.status === 'ready' ? state.map.info : null
   const isChoosingCentre =
     plannedLeg === null &&
+    !isSettingByHand &&
     (isPickingCentre || (state.status === 'ready' && competitionCentre === null))
 
   const printFrame = useMemo(
@@ -691,6 +838,9 @@ export function App() {
               setIsPickingCentre(false)
             }}
             canEditCourse={course !== null && !isGenerating && !isEditing}
+            isSettingByHand={isSettingByHand}
+            selectedStop={isSettingByHand ? selectedStop : null}
+            onCourseTapped={tapCourse}
             tools={
               <>
                 <LayersMenu
@@ -704,6 +854,15 @@ export function App() {
                   isActive={plannedLeg !== null}
                   isDisabled={engineState !== 'ready'}
                   onToggle={() => (plannedLeg ? setPlannedLeg(null) : startPlanningLeg())}
+                />
+                <EditControlsTool
+                  isActive={isSettingByHand}
+                  isDisabled={
+                    engineState !== 'ready' ||
+                    isGenerating ||
+                    (course === null && competitionCentre === null)
+                  }
+                  onToggle={() => (isSettingByHand ? stopSettingByHand() : startSettingByHand())}
                 />
               </>
             }
@@ -743,12 +902,7 @@ export function App() {
                 />
               )
             }
-            onStopMoved={(stopIndex, to) =>
-              void editCourse(
-                current => engine.moveControl(current, stopIndex, to),
-                messages.course.moveRefused,
-              )
-            }
+            onStopMoved={moveStop}
           />
         ) : (
           <MapStart opening={state} isDraggingOver={isDraggingOver} onChooseFile={chooseMapFile} />
@@ -764,6 +918,17 @@ export function App() {
             leg={selectedLeg}
             routes={legRoutes}
             onSelectLeg={selectLeg}
+          />
+        )}
+        {isSettingByHand && (
+          <SetByHandPanel
+            course={course}
+            selectedStop={selectedStop}
+            canUndo={undoHistory.length > 0}
+            isEditing={isEditing}
+            onDelete={deleteSelectedControl}
+            onUndo={undo}
+            onDone={stopSettingByHand}
           />
         )}
         {plannedLeg && (
@@ -805,15 +970,25 @@ export function App() {
         {state.status === 'ready' && (
           <CoursePanel
             request={request}
-            onRequestChange={next =>
-              courseFile
-                ? void checkCourse(courseFile.courses, courseFile.selected, next, 'asGiven')
-                : setRequest(next)
-            }
+            onRequestChange={next => {
+              if (courseFile) {
+                void checkCourse(courseFile.courses, courseFile.selected, next, 'asGiven')
+                return
+              }
+              setRequest(next)
+              if (isSettingByHand && course)
+                void editCourse(
+                  current => engine.recheckAs(current, next, winnerPace, printScale),
+                  messages.setByHand.noRulesForClass,
+                )
+            }}
             isAssistantOn={assistantKey.apiKey !== ''}
             hasCentre={competitionCentre !== null}
             isPickingCentre={isChoosingCentre}
-            onMoveCentre={() => setIsPickingCentre(true)}
+            onMoveCentre={() => {
+              stopSettingByHand()
+              setIsPickingCentre(true)
+            }}
             canSetCourse={
               engineState === 'ready' &&
               competitionCentre !== null &&
@@ -823,6 +998,7 @@ export function App() {
             }
             isGenerating={isGenerating}
             onSetCourse={() => void generateCourse(request, seed, paceSecondsPerKm)}
+            onSetByHand={startSettingByHand}
             onStop={() => void engine.stopSearch()}
             onTryAnother={() => void generateCourse(request, seed + 1, paceSecondsPerKm)}
             course={course}
@@ -892,7 +1068,9 @@ export function App() {
 
         {assistantKey.apiKey && <ChatPanel apiKey={assistantKey.apiKey} tools={chatTools} />}
 
-        {course && selectedLeg === null && <p className="note">{messages.leg.selectHint}</p>}
+        {course && selectedLeg === null && !isSettingByHand && (
+          <p className="note">{messages.leg.selectHint}</p>
+        )}
 
         {isCentreOutsideFrame && <p className="error">{messages.print.centreOutside}</p>}
         {editMessage && <p className="error">{editMessage}</p>}

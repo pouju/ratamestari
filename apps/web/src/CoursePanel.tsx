@@ -31,6 +31,7 @@ interface Props {
   canSetCourse: boolean
   isGenerating: boolean
   onSetCourse: () => void
+  onSetByHand: () => void
   onStop: () => void
   onTryAnother: () => void
   course: Course | null
@@ -165,7 +166,7 @@ export function CoursePanel(props: Props) {
   )
 }
 
-const hasCoarsePointer = () =>
+export const hasCoarsePointer = () =>
   typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
 
 const classValue = (sex: CourseRequest['sex'], age: CourseRequest['ageClass']) => `${sex}${age}`
@@ -376,13 +377,14 @@ function CourseActions({
   isMeasured,
   isAssistantOn,
   onSetCourse,
+  onSetByHand,
   onStop,
   onTryAnother,
   onDownloadPdf,
   onDownloadXml,
   check,
 }: Props & { isMeasured: boolean }) {
-  const m = useMessages().course
+  const { course: m, setByHand } = useMessages()
 
   if (isGenerating) {
     return (
@@ -403,14 +405,24 @@ function CourseActions({
   if (!course) {
     return (
       <div className={isAssistantOn ? 'course-actions is-quiet' : 'course-actions'}>
-        <button
-          type="button"
-          className="course-primary"
-          disabled={!canSetCourse}
-          onClick={onSetCourse}
-        >
-          {m.setCourse}
-        </button>
+        <div className="course-actions-row">
+          <button
+            type="button"
+            className="course-primary"
+            disabled={!canSetCourse}
+            onClick={onSetCourse}
+          >
+            {m.setCourse}
+          </button>
+          <button
+            type="button"
+            className="course-secondary"
+            disabled={!canSetCourse}
+            onClick={onSetByHand}
+          >
+            {setByHand.entry}
+          </button>
+        </div>
       </div>
     )
   }
