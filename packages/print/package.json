@@ -1,0 +1,17 @@
+{
+  "name": "@ratamestari/print",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@ratamestari/core": "workspace:*",
+    "@ratamestari/engine": "workspace:*",
+    "@ratamestari/iof": "workspace:*",
+    "@ratamestari/rules": "workspace:*"
+  }
+}

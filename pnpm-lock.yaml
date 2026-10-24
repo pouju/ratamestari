@@ -178,6 +178,9 @@ importers:
       '@ratamestari/map-ocad':
         specifier: workspace:*
         version: link:packages/map-ocad
+      '@ratamestari/print':
+        specifier: workspace:*
+        version: link:packages/print
       '@ratamestari/rules':
         specifier: workspace:*
         version: link:packages/rules
@@ -330,6 +333,21 @@ importers:
       xmldom:
         specifier: ^0.6.0
         version: 0.6.0
+
+  packages/print:
+    dependencies:
+      '@ratamestari/core':
+        specifier: workspace:*
+        version: link:../core
+      '@ratamestari/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@ratamestari/iof':
+        specifier: workspace:*
+        version: link:../iof
+      '@ratamestari/rules':
+        specifier: workspace:*
+        version: link:../rules
 
   packages/rules:
     dependencies:

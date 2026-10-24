@@ -22,6 +22,7 @@
     "@ratamestari/engine": "workspace:*",
     "@ratamestari/iof": "workspace:*",
     "@ratamestari/map-ocad": "workspace:*",
+    "@ratamestari/print": "workspace:*",
     "@ratamestari/rules": "workspace:*",
     "@resvg/resvg-js": "^2.6.2",
     "@types/node": "^26.6.4",

@@ -7,19 +7,20 @@ import { Fill, Stroke, Style, Text } from 'ol/style'
 import type { FeatureLike } from 'ol/Feature'
 import type { LocalPoint } from '@ratamestari/core'
 import type { Course } from '@ratamestari/engine'
+import { COURSE_OVERPRINT } from '@ratamestari/rules'
 
-export const COURSE_OVERPRINT_PURPLE = 'rgb(190, 30, 180)'
+export const COURSE_OVERPRINT_PURPLE = COURSE_OVERPRINT.colour
 
-const ISOM_COURSE_SYMBOL_SCALE = 15000
-const START_TRIANGLE_SIDE_MM = 6
-const CONTROL_CIRCLE_DIAMETER_MM = 5
-const FINISH_INNER_DIAMETER_MM = 4
-const FINISH_OUTER_DIAMETER_MM = 6
-const CONTROL_NUMBER_HEIGHT_MM = 4
-const COURSE_LINE_WIDTH_MM = 0.35
-const COURSE_LINE_GAP_MM = 0.5
+const START_TRIANGLE_SIDE_MM = COURSE_OVERPRINT.startTriangleSideMillimetres
+const CONTROL_CIRCLE_DIAMETER_MM = COURSE_OVERPRINT.controlCircleDiameterMillimetres
+const FINISH_INNER_DIAMETER_MM = COURSE_OVERPRINT.finishInnerDiameterMillimetres
+const FINISH_OUTER_DIAMETER_MM = COURSE_OVERPRINT.finishOuterDiameterMillimetres
+const CONTROL_NUMBER_HEIGHT_MM = COURSE_OVERPRINT.controlNumberHeightMillimetres
+const COURSE_LINE_WIDTH_MM = COURSE_OVERPRINT.courseLineWidthMillimetres
+const COURSE_LINE_GAP_MM = COURSE_OVERPRINT.courseLineGapMillimetres
 
-const courseMm = (mm: number) => (mm * ISOM_COURSE_SYMBOL_SCALE) / 1000
+// Course symbols keep their ground size at any print scale (ISOM 2017-2 §3.7).
+const courseMm = (mm: number) => (mm * COURSE_OVERPRINT.baseScale) / 1000
 
 type Kind = 'line' | 'label'
 
