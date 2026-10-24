@@ -11,6 +11,7 @@ import {
   type Georef,
   type LocalGeometry,
   type LocalPoint,
+  type MapAnnotation,
   type MapFeature,
   type MapInfo,
 } from '@ratamestari/core'
@@ -19,6 +20,7 @@ import { isomCodeForOcadSymbol, type IsomCodeOverrides } from './isom-code'
 const BACKGROUND_MAP_RECORD_TYPE = '8'
 const SCALE_PARAMETERS_RECORD_TYPE = '1039'
 const OCAD_ANGLE_UNITS_PER_DEGREE = 10
+const TEXT_OBJECT_TYPES = new Set([4, 5, 6])
 
 export interface MapSymbol {
   readonly number: number
@@ -30,8 +32,9 @@ export interface OcadMap {
   readonly info: MapInfo
   readonly backgroundMapPaths: readonly string[]
   readonly objectCount: number
-  renderSvg(document: Document): SVGSVGElement
+  renderSvg(document: Document, includesObject?: (objectIndex: number) => boolean): SVGSVGElement
   features(isomCodeOverrides?: IsomCodeOverrides): readonly MapFeature[]
+  annotations(isomCodeOverrides?: IsomCodeOverrides): readonly MapAnnotation[]
   symbols(): readonly MapSymbol[]
 }
 
@@ -58,7 +61,11 @@ export async function loadOcadMap(bytes: Uint8Array): Promise<OcadMap> {
       record => record['_first'] ?? '',
     ),
     objectCount: file.objects.length,
-    renderSvg: document => ocadToSvg(file, { document }),
+    renderSvg: (document, includesObject) =>
+      ocadToSvg(file, {
+        document,
+        ...(includesObject && { objects: file.objects.filter((_, i) => includesObject(i)) }),
+      }),
     features: overrides =>
       overrides && overrides.size > 0
         ? defaultFeatures().map(feature => ({
@@ -67,7 +74,33 @@ export async function loadOcadMap(bytes: Uint8Array): Promise<OcadMap> {
           }))
         : defaultFeatures(),
     symbols: () => usedSymbols(file),
+    annotations: overrides => readAnnotations(file, scale, overrides),
   }
+}
+
+function readAnnotations(
+  file: OcadFile,
+  scale: number,
+  overrides?: IsomCodeOverrides,
+): MapAnnotation[] {
+  return file.objects.flatMap((object, objectIndex) => {
+    // A text object's coordinates are its anchor followed by the corners of its box.
+    const corners = object.coordinates.map(([x = 0, y = 0]) =>
+      paperToLocal(paperPoint(x, y), scale),
+    )
+    if (corners.length === 0) return []
+    const xs = corners.map(([x]) => x)
+    const ys = corners.map(([, y]) => y)
+    return [
+      {
+        objectIndex,
+        symbolNumber: object.sym,
+        hasTerrainMeaning: isomCodeForOcadSymbol(object.sym, overrides) !== null,
+        text: TEXT_OBJECT_TYPES.has(object.objType) ? (object.text ?? '') : null,
+        extent: localExtent(Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)),
+      },
+    ]
+  })
 }
 
 function readFeatures(file: OcadFile, scale: number): MapFeature[] {

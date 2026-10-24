@@ -23,6 +23,8 @@ declare module 'ocad2geojson/src/ocad-reader' {
   export interface OcadObject {
     sym: number
     objType: number
+    coordinates: number[][]
+    text?: string
   }
 
   export interface OcadFile {
@@ -52,6 +54,7 @@ declare module 'ocad2geojson/src/ocad-to-svg' {
     exportHidden?: boolean
     generateSymbolElements?: boolean
     fill?: string
+    objects?: OcadObject[]
   }
 
   export function ocadToSvg(file: OcadFile, options?: OcadToSvgOptions): SVGSVGElement
