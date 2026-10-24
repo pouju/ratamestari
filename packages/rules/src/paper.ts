@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { citedSchema, iofDescriptions, ratamestarikirja } from './source'
+import { citedSchema, iofDescriptions, lajisaannot, ratamestarikirja } from './source'
+import { formatSchema, type Format } from './winning-time'
 
 export const paperSizeSchema = z.enum(['A4', 'A3'])
 export type PaperSize = z.infer<typeof paperSizeSchema>
@@ -31,3 +32,21 @@ export const DESCRIPTION_BOX: z.infer<typeof descriptionBoxRuleSchema> = {
   sources: [iofDescriptions('p. 3')],
   interpretation: false,
 }
+
+export const printScaleSchema = z.literal([15000, 10000, 7500, 5000, 4000])
+export type PrintScale = z.infer<typeof printScaleSchema>
+
+export const printScaleRuleSchema = citedSchema.extend({
+  defaultByFormat: z.record(formatSchema, printScaleSchema),
+})
+
+export const PRINT_SCALE: z.infer<typeof printScaleRuleSchema> = {
+  defaultByFormat: { long: 15000, middle: 10000 },
+  sources: [ratamestarikirja('6.8.1'), lajisaannot('12.13')],
+  interpretation: false,
+}
+
+export type PrintScaleChoice = PrintScale | 'auto'
+
+export const printScaleFor = (choice: PrintScaleChoice, format: Format): PrintScale =>
+  choice === 'auto' ? PRINT_SCALE.defaultByFormat[format] : choice

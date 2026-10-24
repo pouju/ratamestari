@@ -41,7 +41,7 @@ describe('planPrintArea', () => {
     const sites = [...clusterAround(850, 500, 0), ...clusterAround(150, 900, 25).slice(0, 5)]
     const area = planPrintArea(terrain, sites, {
       paper: 'A4',
-      mapScale: SMALL_SCALE_FOR_A_SMALL_MAP,
+      printScale: SMALL_SCALE_FOR_A_SMALL_MAP,
       competitionCentre: centre,
       descriptionRows: 10,
     })!
@@ -61,7 +61,7 @@ describe('planPrintArea', () => {
     const sites = clusterAround(800, 700, 0)
     const area = planPrintArea(terrain, sites, {
       paper: 'A4',
-      mapScale: SMALL_SCALE_FOR_A_SMALL_MAP,
+      printScale: SMALL_SCALE_FOR_A_SMALL_MAP,
       competitionCentre: centre,
       descriptionRows: 10,
     })!
@@ -84,6 +84,7 @@ describe('placeDescriptionBox', () => {
   it('aligns the box to the paper corner of its reserved space', () => {
     const area = {
       paper: 'A4',
+      scale: 10000,
       orientation: 'portrait',
       extent: localExtent(0, 0, 400, 600),
       descriptionBox: localExtent(300, 0, 400, 300),

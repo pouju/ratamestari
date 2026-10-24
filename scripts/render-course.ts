@@ -22,7 +22,13 @@ import {
   renderDescriptionSheet,
 } from '@ratamestari/iof'
 import { loadOcadMap } from '@ratamestari/map-ocad'
-import { courseRequestSchema, courseTargetFor, type CourseRequest } from '@ratamestari/rules'
+import {
+  courseRequestSchema,
+  courseTargetFor,
+  printScaleFor,
+  printScaleSchema,
+  type CourseRequest,
+} from '@ratamestari/rules'
 
 const MAPS_FOLDER = 'maps'
 const RENDERS_FOLDER = join(MAPS_FOLDER, 'renders')
@@ -46,6 +52,7 @@ const { values } = parseArgs({
     legs: { type: 'boolean', default: false },
     xml: { type: 'string' },
     paper: { type: 'string', default: 'auto' },
+    scale: { type: 'string', default: 'auto' },
   },
 })
 
@@ -77,7 +84,10 @@ const course = setCourseOnPaper(
   {
     target,
     format: request.format,
-    mapScale: map.info.scale,
+    printScale: printScaleFor(
+      values.scale === 'auto' ? 'auto' : printScaleSchema.parse(Number(values.scale)),
+      request.format,
+    ),
     competitionCentre: centre,
     seed,
     paceSecondsPerKm,
@@ -89,7 +99,8 @@ const searchSeconds = (performance.now() - started) / 1000
 
 printSummary(course, searchSeconds)
 if (course.printArea) {
-  console.log(`paper: ${course.printArea.paper} ${course.printArea.orientation}`)
+  const { paper, orientation, scale } = course.printArea
+  console.log(`paper: ${paper} ${orientation} 1:${scale}`)
 }
 if (values.legs) printLegs(course)
 const sheet = descriptionSheet(course, {
@@ -241,7 +252,7 @@ function renderPng(c: Course): Buffer {
   const cropHeight = Math.max(...points.map(p => p[1])) + margin - cropMinY
 
   const rendered = renderDescriptionSheet(sheet)
-  const metresPerMm = map.info.scale / 1000
+  const metresPerMm = (area?.scale ?? map.info.scale) / 1000
   const box = area
     ? placeDescriptionBox(
         area,
@@ -251,11 +262,12 @@ function renderPng(c: Course): Buffer {
     : null
   const [boxX, boxY] = box ? toSvg(localPoint(box[0], box[3])) : [cropMinX, cropMinY]
   const paperUnitsPerMm = 100
+  const printToMapScale = (area?.scale ?? map.info.scale) / map.info.scale
   overlay.push(
     rendered.svg.replace(
       /width="[\d.]+mm" height="[\d.]+mm"/,
       `x="${boxX}" y="${boxY}" ` +
-        `width="${rendered.widthMillimetres * paperUnitsPerMm}" height="${rendered.heightMillimetres * paperUnitsPerMm}"`,
+        `width="${rendered.widthMillimetres * paperUnitsPerMm * printToMapScale}" height="${rendered.heightMillimetres * paperUnitsPerMm * printToMapScale}"`,
     ),
   )
   if (area) {

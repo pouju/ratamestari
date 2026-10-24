@@ -7,6 +7,9 @@ import {
   eventLevelSchema,
   formatSchema,
   paperSizeSchema,
+  PRINT_SCALE,
+  printScaleSchema,
+  type PrintScaleChoice,
   sexSchema,
   skillLetterSchema,
   type CourseRequest,
@@ -35,6 +38,8 @@ interface Props {
   onExportXml: () => void
   paper: PaperChoice
   onPaperChange: (paper: PaperChoice) => void
+  printScale: PrintScaleChoice
+  onPrintScaleChange: (scale: PrintScaleChoice) => void
 }
 
 export function CoursePanel({
@@ -55,6 +60,8 @@ export function CoursePanel({
   onExportXml,
   paper,
   onPaperChange,
+  printScale,
+  onPrintScaleChange,
 }: Props) {
   const change = (fields: Partial<CourseRequest>) => onRequestChange({ ...request, ...fields })
   return (
@@ -137,6 +144,26 @@ export function CoursePanel({
           ))}
         </select>
       </label>
+      <label className="pace">
+        Scale{' '}
+        <select
+          value={printScale}
+          onChange={e =>
+            onPrintScaleChange(
+              e.target.value === 'auto' ? 'auto' : printScaleSchema.parse(Number(e.target.value)),
+            )
+          }
+        >
+          <option value="auto">
+            Automatic (1:{PRINT_SCALE.defaultByFormat[request.format].toLocaleString('fi')})
+          </option>
+          {[...printScaleSchema.values].map(scale => (
+            <option key={scale} value={scale}>
+              1:{scale.toLocaleString('fi')}
+            </option>
+          ))}
+        </select>
+      </label>
       {!isPaceValid && <p className="error">Write the pace as minutes:seconds, e.g. 5:00.</p>}
       <div className="buttons">
         <button type="button" disabled={!canGenerate} onClick={() => onGenerate(seed)}>
@@ -187,7 +214,8 @@ function CourseSummary({ course }: { course: Course }) {
         <>
           <dt>Paper</dt>
           <dd>
-            {course.printArea.paper} {course.printArea.orientation}
+            {course.printArea.paper} {course.printArea.orientation}, 1:
+            {course.printArea.scale.toLocaleString('fi')}
           </dd>
         </>
       )}

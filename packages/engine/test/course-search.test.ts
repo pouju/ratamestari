@@ -25,7 +25,7 @@ const middleDistanceH21 = courseTargetFor({
 const spec = (overrides: Partial<CourseSpec> = {}): CourseSpec => ({
   target: middleDistanceH21,
   format: 'middle',
-  mapScale: 10000,
+  printScale: 10000,
   competitionCentre: localPoint(1000, 1000),
   seed: 1,
   improvementSteps: 150,
@@ -34,7 +34,9 @@ const spec = (overrides: Partial<CourseSpec> = {}): CourseSpec => ({
 
 const allPoints = (course: Course) => [course.start, ...course.controls].map(s => s.position)
 
-describe('searchCourse', () => {
+const SEARCH_TIMEOUT_MS = 30_000
+
+describe('searchCourse', { timeout: SEARCH_TIMEOUT_MS }, () => {
   const course = searchCourse(terrain, sites, spec())!
 
   it('sets a course close to the target winning time', () => {

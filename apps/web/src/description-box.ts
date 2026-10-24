@@ -28,8 +28,9 @@ export function descriptionBoxFor(
   const rendered = renderDescriptionSheet(sheet, {
     pixelsPerMillimetre: DISPLAY_PIXELS_PER_MILLIMETRE,
   })
-  const width = paperMillimetresToMeters(rendered.widthMillimetres, map.scale)
-  const height = paperMillimetresToMeters(rendered.heightMillimetres, map.scale)
+  const printScale = course.printArea?.scale ?? map.scale
+  const width = paperMillimetresToMeters(rendered.widthMillimetres, printScale)
+  const height = paperMillimetresToMeters(rendered.heightMillimetres, printScale)
   const extent = course.printArea
     ? placeDescriptionBox(course.printArea, width, height)
     : besideMap(map, width, height)

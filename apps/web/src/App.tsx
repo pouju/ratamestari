@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import type { LocalPoint } from '@ratamestari/core'
 import type { ControlSiteCandidate, Course, LegEvaluation, PaperChoice } from '@ratamestari/engine'
-import type { CourseRequest } from '@ratamestari/rules'
+import type { CourseRequest, PrintScaleChoice } from '@ratamestari/rules'
 import { createCourseTools, type CourseWorkspace, type GenerateOptions } from '@ratamestari/agent'
 import { loadOcadMap, type OcadMap } from '@ratamestari/map-ocad'
 import { renderCostMap, type CostMapImage } from './cost-map-image'
@@ -59,6 +59,7 @@ export function App() {
   const [showLegTool, setShowLegTool] = useState(true)
   const [paceText, setPaceText] = useState(DEFAULT_WINNER_PACE)
   const [paper, setPaper] = useState<PaperChoice>('auto')
+  const [printScale, setPrintScale] = useState<PrintScaleChoice>('auto')
   const paceSecondsPerKm = parsePace(paceText)
 
   async function openFile(file: File) {
@@ -123,6 +124,7 @@ export function App() {
         nextSeed,
         pace,
         paper,
+        printScale,
         progressCallback<Course>(setCourse),
       )
       setCourse(result)
@@ -267,6 +269,8 @@ export function App() {
             descriptionBox={descriptionBox}
             paper={paper}
             onPaperChange={setPaper}
+            printScale={printScale}
+            onPrintScaleChange={setPrintScale}
             onExportXml={() => {
               if (course && descriptionBox && mapInfo) {
                 downloadCourseXml(course, descriptionBox.sheet, request, mapInfo)

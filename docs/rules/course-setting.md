@@ -179,6 +179,7 @@ SSL's colour scale for forest orienteering (RMK 11, also the separate SSL diffic
 
 - Avoid oversized map sheets; children may benefit from smaller sheets (RMK 6.8.2.S).
 - Always show control descriptions on the map too, even when loose descriptions are given (RMK 6.6).
+- **Interpretation:** the course is planned on A4 by default and on A3 only when it does not fit, with a 5 mm print margin. The print scale defaults to 1:15 000 for long distance and 1:10 000 for middle distance (RMK 6.8.1); the user can choose another. The description box (6 mm boxes, IOF CD p. 3) takes a corner of the paper that holds the fewest good control sites, and course lines must not pass under it (D7).
 
 ### Course overprint
 

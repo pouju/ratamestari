@@ -21,7 +21,7 @@ import { secondsFrom } from './time-tree'
 export interface CourseSpec {
   readonly target: CourseTarget
   readonly format: Format
-  readonly mapScale: number
+  readonly printScale: number
   readonly competitionCentre: LocalPoint
   readonly seed: number
   readonly paceSecondsPerKm?: number
@@ -299,7 +299,7 @@ function createEvaluation(
   quality: Float32Array,
   routeChoiceValue: (from: LocalPoint, to: LocalPoint, fastestSeconds: number) => number,
 ) {
-  const spacing = controlSpacingForScale(spec.mapScale)
+  const spacing = controlSpacingForScale(spec.printScale)
   const [minDifficulty, maxDifficulty] = spec.target.siteDifficulty
 
   const score = (startIndex: number, order: readonly number[]): ScoredCourse => {
@@ -522,7 +522,7 @@ function buildGreedy(
   let travelledArc = 0
   const profile = LEG_PROFILES[spec.format]
   const [minDifficulty, maxDifficulty] = spec.target.siteDifficulty
-  const spacing = controlSpacingForScale(spec.mapScale)
+  const spacing = controlSpacingForScale(spec.printScale)
   const order: number[] = []
   let current = startIndex
   let previous = NO_SITE

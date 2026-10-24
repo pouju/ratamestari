@@ -9,6 +9,7 @@ export type Orientation = 'portrait' | 'landscape'
 
 export interface PrintArea {
   readonly paper: PaperSize
+  readonly scale: number
   readonly orientation: Orientation
   readonly extent: LocalExtent
   readonly descriptionBox: LocalExtent
@@ -16,7 +17,7 @@ export interface PrintArea {
 
 export interface PrintAreaRequest {
   readonly paper: PaperSize
-  readonly mapScale: number
+  readonly printScale: number
   readonly competitionCentre: LocalPoint
   readonly descriptionRows: number
 }
@@ -28,23 +29,27 @@ const FINISH_CLEARANCE_METERS = CONTROL_CIRCLE.footprintMeters
 
 const paperToGround = (millimetres: number, scale: number) => (millimetres * scale) / 1000
 
-export function descriptionBoxGroundSize(rows: number, mapScale: number) {
+export function descriptionBoxGroundSize(rows: number, printScale: number) {
   return {
-    width: paperToGround(DESCRIPTION_BOX.columns * DESCRIPTION_BOX.boxMillimetres, mapScale),
-    height: paperToGround(rows * DESCRIPTION_BOX.boxMillimetres, mapScale),
+    width: paperToGround(DESCRIPTION_BOX.columns * DESCRIPTION_BOX.boxMillimetres, printScale),
+    height: paperToGround(rows * DESCRIPTION_BOX.boxMillimetres, printScale),
   }
 }
 
-export function printableGroundSize(paper: PaperSize, orientation: Orientation, mapScale: number) {
+export function printableGroundSize(
+  paper: PaperSize,
+  orientation: Orientation,
+  printScale: number,
+) {
   const [shortSide, longSide] = PAPER.sizesMillimetres[paper]
   const margins = 2 * PAPER.printMarginMillimetres
   const width = paperToGround(
     (orientation === 'portrait' ? shortSide : longSide) - margins,
-    mapScale,
+    printScale,
   )
   const height = paperToGround(
     (orientation === 'portrait' ? longSide : shortSide) - margins,
-    mapScale,
+    printScale,
   )
   return { width, height }
 }
@@ -77,12 +82,12 @@ export function planPrintArea(
   request: PrintAreaRequest,
 ): PrintArea | null {
   const quality = summedQuality(terrain, sites)
-  const box = descriptionBoxGroundSize(request.descriptionRows, request.mapScale)
+  const box = descriptionBoxGroundSize(request.descriptionRows, request.printScale)
   const [cx, cy] = request.competitionCentre
   let best: { area: PrintArea; score: number } | null = null
 
   for (const orientation of ['portrait', 'landscape'] as const) {
-    const { width, height } = printableGroundSize(request.paper, orientation, request.mapScale)
+    const { width, height } = printableGroundSize(request.paper, orientation, request.printScale)
     if (box.width > width || box.height > height) continue
     for (
       let left = cx - width + FINISH_CLEARANCE_METERS;
@@ -101,7 +106,16 @@ export function planPrintArea(
             continue
           const score = usable - quality.sum(shrunk(descriptionBox, -CIRCLE_RADIUS_METERS))
           if (!best || score > best.score) {
-            best = { area: { paper: request.paper, orientation, extent, descriptionBox }, score }
+            best = {
+              area: {
+                paper: request.paper,
+                scale: request.printScale,
+                orientation,
+                extent,
+                descriptionBox,
+              },
+              score,
+            }
           }
         }
       }

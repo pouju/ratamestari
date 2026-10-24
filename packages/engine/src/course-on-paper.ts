@@ -28,7 +28,7 @@ export function setCourseOnPaper(
   for (const size of papers) {
     const printArea = planPrintArea(terrain, sites, {
       paper: size,
-      mapScale: spec.mapScale,
+      printScale: spec.printScale,
       competitionCentre: spec.competitionCentre,
       descriptionRows,
     })
