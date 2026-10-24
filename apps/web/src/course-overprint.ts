@@ -3,6 +3,7 @@ import Circle from 'ol/geom/Circle'
 import LineString from 'ol/geom/LineString'
 import Point from 'ol/geom/Point'
 import Polygon from 'ol/geom/Polygon'
+import { asArray } from 'ol/color'
 import { Fill, Stroke, Style, Text } from 'ol/style'
 import type { FeatureLike } from 'ol/Feature'
 import type { LocalPoint } from '@ratamestari/core'
@@ -10,6 +11,11 @@ import type { Course } from '@ratamestari/engine'
 import { COURSE_OVERPRINT } from '@ratamestari/rules'
 
 export const COURSE_OVERPRINT_PURPLE = COURSE_OVERPRINT.colour
+const FADED_OVERPRINT_OPACITY = 0.3
+const FADED_OVERPRINT_PURPLE = [
+  ...asArray(COURSE_OVERPRINT_PURPLE).slice(0, 3),
+  FADED_OVERPRINT_OPACITY,
+]
 
 const START_TRIANGLE_SIDE_MM = COURSE_OVERPRINT.startTriangleSideMillimetres
 const CONTROL_CIRCLE_DIAMETER_MM = COURSE_OVERPRINT.controlCircleDiameterMillimetres
@@ -33,24 +39,48 @@ export function courseOverprintFeatures(course: Course): Feature[] {
   const finishRadius = courseMm(FINISH_OUTER_DIAMETER_MM) / 2
   const gap = courseMm(COURSE_LINE_GAP_MM)
 
-  const features: Feature[] = [draggable(startTriangle(start, firstTarget, startRadius), 0)]
+  const finishStop = controls.length + 1
+  const features: Feature[] = [
+    draggable(atStop(startTriangle(start, firstTarget, startRadius), 0), 0),
+  ]
   controls.forEach((position, i) => {
-    features.push(draggable(lineFeature(new Circle([...position], controlRadius)), i + 1))
-    features.push(controlNumber(position, i + 1, controlRadius))
+    features.push(
+      draggable(atStop(lineFeature(new Circle([...position], controlRadius)), i + 1), i + 1),
+    )
+    features.push(atStop(controlNumber(position, i + 1, controlRadius), i + 1))
   })
-  features.push(lineFeature(new Circle([...course.finish], courseMm(FINISH_INNER_DIAMETER_MM) / 2)))
-  features.push(lineFeature(new Circle([...course.finish], finishRadius)))
+  features.push(
+    atStop(
+      lineFeature(new Circle([...course.finish], courseMm(FINISH_INNER_DIAMETER_MM) / 2)),
+      finishStop,
+    ),
+  )
+  features.push(atStop(lineFeature(new Circle([...course.finish], finishRadius)), finishStop))
 
   const stops = [start, ...controls, course.finish]
   const radii = [startRadius, ...controls.map(() => controlRadius), finishRadius]
   for (let i = 1; i < stops.length; i++) {
     const leg = shortenedLeg(stops[i - 1]!, stops[i]!, radii[i - 1]! + gap, radii[i]! + gap)
-    if (leg) features.push(lineFeature(new LineString(leg)))
+    if (leg) features.push(onLeg(lineFeature(new LineString(leg)), i - 1))
   }
   return features
 }
 
-export function courseOverprintStyle(feature: FeatureLike, metersPerPixel: number): Style {
+export const courseOverprintStyle =
+  (highlightedLeg: number | null) =>
+  (feature: FeatureLike, metersPerPixel: number): Style => {
+    const colour =
+      highlightedLeg === null || isOnLeg(feature, highlightedLeg)
+        ? COURSE_OVERPRINT_PURPLE
+        : FADED_OVERPRINT_PURPLE
+    return overprintStyle(feature, metersPerPixel, colour)
+  }
+
+function overprintStyle(
+  feature: FeatureLike,
+  metersPerPixel: number,
+  colour: string | number[],
+): Style {
   const kind = feature.get('kind') as Kind
   if (kind === 'label') {
     const pixels = courseMm(CONTROL_NUMBER_HEIGHT_MM) / metersPerPixel
@@ -58,20 +88,44 @@ export function courseOverprintStyle(feature: FeatureLike, metersPerPixel: numbe
       text: new Text({
         text: String(feature.get('label')),
         font: `${Math.max(9, pixels)}px Arial, sans-serif`,
-        fill: new Fill({ color: COURSE_OVERPRINT_PURPLE }),
+        fill: new Fill({ color: colour }),
         stroke: new Stroke({ color: 'white', width: 2 }),
       }),
     })
   }
   return new Style({
     stroke: new Stroke({
-      color: COURSE_OVERPRINT_PURPLE,
+      color: colour,
       width: Math.max(1, courseMm(COURSE_LINE_WIDTH_MM) / metersPerPixel),
     }),
   })
 }
 
 export const STOP_INDEX = 'stopIndex'
+const STOP = 'stop'
+const LEG_INDEX = 'legIndex'
+
+export function legOfFeature(feature: FeatureLike): number | null {
+  const leg = feature.get(LEG_INDEX)
+  if (typeof leg === 'number') return leg
+  const stop = feature.get(STOP)
+  return typeof stop === 'number' ? Math.max(0, stop - 1) : null
+}
+
+function isOnLeg(feature: FeatureLike, leg: number): boolean {
+  const stop = feature.get(STOP)
+  return feature.get(LEG_INDEX) === leg || stop === leg || stop === leg + 1
+}
+
+function atStop(feature: Feature, stop: number): Feature {
+  feature.set(STOP, stop)
+  return feature
+}
+
+function onLeg(feature: Feature, leg: number): Feature {
+  feature.set(LEG_INDEX, leg)
+  return feature
+}
 
 function draggable(feature: Feature, stopIndex: number): Feature {
   feature.set(STOP_INDEX, stopIndex)

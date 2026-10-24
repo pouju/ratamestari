@@ -1,0 +1,69 @@
+import { createContext, useContext, useMemo } from 'react'
+import { en } from './en'
+
+export type { StopName } from './en'
+export type Messages = typeof en
+
+export interface Language {
+  readonly locale: string
+  readonly messages: Messages
+}
+
+export const ENGLISH: Language = { locale: 'en', messages: en }
+
+const LanguageContext = createContext<Language>(ENGLISH)
+export const LanguageProvider = LanguageContext.Provider
+
+export const useMessages = (): Messages => useContext(LanguageContext).messages
+
+export function useFormat(): Format {
+  const language = useContext(LanguageContext)
+  return useMemo(() => formatFor(language), [language])
+}
+
+export interface Format {
+  readonly kilometres: (meters: number) => string
+  readonly metres: (meters: number) => string
+  readonly distance: (meters: number) => string
+  readonly share: (fraction: number) => string
+  readonly duration: (seconds: number) => string
+  readonly timeDifference: (seconds: number) => string
+}
+
+const SECONDS_PER_MINUTE = 60
+const METRES_SHOWN_UP_TO = 1000
+
+export function formatFor({ locale, messages }: Language): Format {
+  const kilometres = new Intl.NumberFormat(locale, {
+    style: 'unit',
+    unit: 'kilometer',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+  const metres = new Intl.NumberFormat(locale, {
+    style: 'unit',
+    unit: 'meter',
+    maximumFractionDigits: 0,
+  })
+  const share = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 })
+  const wholeNumber = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 })
+  const duration = (seconds: number) => {
+    const total = Math.round(seconds)
+    const minutes = Math.floor(total / SECONDS_PER_MINUTE)
+    return `${wholeNumber.format(minutes)}:${String(total % SECONDS_PER_MINUTE).padStart(2, '0')}`
+  }
+  const formatKilometres = (meters: number) => kilometres.format(meters / 1000)
+  const formatMetres = (meters: number) => metres.format(meters)
+  return {
+    kilometres: formatKilometres,
+    metres: formatMetres,
+    distance: meters =>
+      meters < METRES_SHOWN_UP_TO ? formatMetres(meters) : formatKilometres(meters),
+    share: fraction => share.format(fraction),
+    duration,
+    timeDifference: seconds =>
+      Math.round(seconds) < SECONDS_PER_MINUTE
+        ? messages.units.seconds(wholeNumber.format(Math.round(seconds)))
+        : duration(seconds),
+  }
+}

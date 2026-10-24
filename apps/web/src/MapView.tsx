@@ -14,7 +14,9 @@ import VectorSource from 'ol/source/Vector'
 import Projection from 'ol/proj/Projection'
 import Translate, { type TranslateEvent } from 'ol/interaction/Translate'
 import type Geometry from 'ol/geom/Geometry'
-import { Circle as CircleStyle, Fill, RegularShape, Stroke, Style } from 'ol/style'
+import type { FeatureLike } from 'ol/Feature'
+import { asArray } from 'ol/color'
+import { Circle as CircleStyle, Fill, RegularShape, Stroke, Style, Text } from 'ol/style'
 import { localPoint, type LocalExtent, type LocalPoint, type MapInfo } from '@ratamestari/core'
 import type {
   ControlSiteCandidate,
@@ -26,16 +28,20 @@ import {
   COURSE_OVERPRINT_PURPLE,
   courseOverprintFeatures,
   courseOverprintStyle,
+  legOfFeature,
   STOP_INDEX,
 } from './course-overprint'
+import { useMessages } from './i18n'
+import { pointAlong, rankedRoutes, ROUTE_COLOUR_TOKENS } from './leg-routes'
 import type { CostMapImage } from './cost-map-image'
 import type { DescriptionBox } from './description-box'
 import type { MapImage } from './rasterize'
 import 'ol/ol.css'
 
-const ROUTE_BLUE = 'rgba(0, 110, 255, 0.85)'
-const ROUTE_WIDTH_PIXELS = 3
-const ALTERNATIVE_ROUTE_DASH_PIXELS = [8, 6]
+const ROUTE_WIDTH_PIXELS = 10
+const ROUTE_LABEL_RADIUS_PIXELS = 10
+const ROUTE_LABEL_SHARE_OF_ROUTE = 0.45
+const LEG_HIT_TOLERANCE_PIXELS = 6
 const CONTROL_CIRCLE_DIAMETER_MM = 5
 const COURSE_LINE_WIDTH_MM = 0.35
 const INITIAL_CONTROL_OFFSET_METERS = 300
@@ -71,6 +77,37 @@ const siteStyles = Object.fromEntries(
 )
 
 const DRAG_HIT_TOLERANCE_PIXELS = 8
+
+const cssToken = (name: string) =>
+  getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+
+function routeStyle(feature: FeatureLike): Style {
+  const colour = feature.get('colour') as string
+  const letter = feature.get('letter') as string | undefined
+  if (letter === undefined) {
+    const [red = 0, green = 0, blue = 0] = asArray(colour)
+    return new Style({
+      stroke: new Stroke({
+        color: [red, green, blue, Number(cssToken('--route-opacity'))],
+        width: ROUTE_WIDTH_PIXELS,
+        lineCap: 'round',
+        lineJoin: 'round',
+      }),
+    })
+  }
+  return new Style({
+    image: new CircleStyle({
+      radius: ROUTE_LABEL_RADIUS_PIXELS,
+      fill: new Fill({ color: colour }),
+      stroke: new Stroke({ color: 'white', width: 2 }),
+    }),
+    text: new Text({
+      text: letter,
+      font: `bold 12px ${cssToken('--font-family')}`,
+      fill: new Fill({ color: 'white' }),
+    }),
+  })
+}
 
 function centreOf(geometry: Geometry): LocalPoint {
   if (geometry instanceof Circle) {
@@ -125,7 +162,9 @@ export type ControlPair = readonly [LocalPoint, LocalPoint]
 interface Props {
   info: MapInfo
   image: MapImage
-  leg: LegEvaluation | null
+  routes: LegEvaluation | null
+  selectedLeg: number | null
+  onLegSelected: (leg: number) => void
   costMap: CostMapImage | null
   sites: readonly ControlSiteCandidate[] | null
   course: Course | null
@@ -142,7 +181,9 @@ interface Props {
 export function MapView({
   info,
   image,
-  leg,
+  routes,
+  selectedLeg,
+  onLegSelected,
   costMap,
   sites,
   course,
@@ -164,7 +205,7 @@ export function MapView({
   const [siteSource] = useState(() => new VectorSource())
   const [courseSource] = useState(() => new VectorSource())
   const [courseLayer] = useState(
-    () => new VectorLayer({ source: courseSource, style: courseOverprintStyle }),
+    () => new VectorLayer({ source: courseSource, style: courseOverprintStyle(null) }),
   )
   const [courseTranslate] = useState(
     () =>
@@ -186,6 +227,9 @@ export function MapView({
   onCentrePickedRef.current = onCentrePicked
   const isPickingCentreRef = useRef(isPickingCentre)
   isPickingCentreRef.current = isPickingCentre
+  const onLegSelectedRef = useRef(onLegSelected)
+  onLegSelectedRef.current = onLegSelected
+  const routeLetters = useMessages().leg.routeLetters
 
   useEffect(() => {
     if (!target.current) return
@@ -213,20 +257,8 @@ export function MapView({
           source: siteSource,
           style: feature => siteStyles[feature.get('technicalDifficulty')],
         }),
-        new VectorLayer({
-          source: routeSource,
-          style: feature =>
-            new Style({
-              stroke: new Stroke({
-                color: ROUTE_BLUE,
-                width: ROUTE_WIDTH_PIXELS,
-                ...(feature.get('isAlternative')
-                  ? { lineDash: ALTERNATIVE_ROUTE_DASH_PIXELS }
-                  : {}),
-              }),
-            }),
-        }),
         new VectorLayer({ source: printFrameSource, style: printFrameStyle }),
+        new VectorLayer({ source: routeSource, style: routeStyle }),
         courseLayer,
         descriptionLayer,
         legToolLayer,
@@ -249,9 +281,21 @@ export function MapView({
         }),
     )
     map.on('singleclick', event => {
-      if (!isPickingCentreRef.current) return
-      const [x = 0, y = 0] = event.coordinate
-      onCentrePickedRef.current(localPoint(x, y))
+      if (isPickingCentreRef.current) {
+        const [x = 0, y = 0] = event.coordinate
+        onCentrePickedRef.current(localPoint(x, y))
+        return
+      }
+      // Wrapped because the lookup stops only on a truthy result, and the first leg is 0.
+      const hit = map.forEachFeatureAtPixel(
+        event.pixel,
+        feature => {
+          const leg = legOfFeature(feature)
+          return leg === null ? undefined : { leg }
+        },
+        { layerFilter: layer => layer === courseLayer, hitTolerance: LEG_HIT_TOLERANCE_PIXELS },
+      )
+      if (hit) onLegSelectedRef.current(hit.leg)
     })
 
     const centerOf = (control: Feature<Circle>) => {
@@ -301,6 +345,10 @@ export function MapView({
   useEffect(() => {
     courseTranslate.setActive(canEditCourse)
   }, [canEditCourse, courseTranslate])
+
+  useEffect(() => {
+    courseLayer.setStyle(courseOverprintStyle(selectedLeg))
+  }, [selectedLeg, courseLayer])
 
   useEffect(() => {
     legToolLayer.setVisible(showLegTool)
@@ -364,14 +412,23 @@ export function MapView({
 
   useEffect(() => {
     routeSource.clear()
-    if (!leg || !showLegTool) return
-    const toFeature = (points: LegEvaluation['fastest']['points'], isAlternative: boolean) =>
-      new Feature({ geometry: new LineString(points.map(p => [...p])), isAlternative })
-    routeSource.addFeatures([
-      ...leg.alternatives.map(route => toFeature(route.points, true)),
-      toFeature(leg.fastest.points, false),
-    ])
-  }, [leg, routeSource, showLegTool])
+    if (!routes) return
+    const ranked = rankedRoutes(routes).map((ranked, i) => ({
+      ...ranked,
+      colour: cssToken(ROUTE_COLOUR_TOKENS[ranked.rank]),
+      letter: routeLetters[i] ?? '',
+    }))
+    const slowestFirst = [...ranked].reverse()
+    const lines = slowestFirst.map(
+      ({ route, colour }) =>
+        new Feature({ geometry: new LineString(route.points.map(p => [...p])), colour }),
+    )
+    const labels = slowestFirst.flatMap(({ route, colour, letter }) => {
+      const at = pointAlong(route.points, ROUTE_LABEL_SHARE_OF_ROUTE)
+      return at ? [new Feature({ geometry: new Point([...at]), colour, letter })] : []
+    })
+    routeSource.addFeatures([...lines, ...labels])
+  }, [routes, routeSource, routeLetters])
 
   return <div ref={target} className={isPickingCentre ? 'map picking' : 'map'} />
 }

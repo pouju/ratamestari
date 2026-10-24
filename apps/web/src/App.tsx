@@ -26,6 +26,9 @@ import { courseNameOf } from './course-labels'
 import { createEngine, progressCallback } from './engine'
 import { formatDuration, parsePace } from './format'
 import { LegDetails } from './LegDetails'
+import { LegRoutesPanel, type LegRoutesState } from './LegRoutesPanel'
+import { legEnds } from './leg-routes'
+import { useMessages } from './i18n'
 import { DIFFICULTY_COLOURS, MapView, type ControlPair } from './MapView'
 import { rasterizeSvg, type MapImage } from './rasterize'
 import { SOURCE_CODE_URL } from './config'
@@ -60,6 +63,10 @@ export function App() {
   const [controls, setControls] = useState<ControlPair | null>(null)
   const [legState, setLegState] = useState<LegState>({ status: 'none' })
   const latestLegRequest = useRef(0)
+  const [selectedLeg, setSelectedLeg] = useState<number | null>(null)
+  const [legRoutes, setLegRoutes] = useState<LegRoutesState>({ status: 'finding' })
+  const latestLegRoutesRequest = useRef(0)
+  const messages = useMessages()
   const [showCostMap, setShowCostMap] = useState(false)
   const [costMap, setCostMap] = useState<CostMapImage | null>(null)
   const [showSites, setShowSites] = useState(false)
@@ -89,6 +96,7 @@ export function App() {
     setCostMap(null)
     setSites(null)
     setCourse(null)
+    setSelectedLeg(null)
     setCompetitionCentre(null)
     const bytes = new Uint8Array(await file.arrayBuffer())
     const key = await mapKeyOf(bytes)
@@ -122,6 +130,23 @@ export function App() {
   }, [engine, engineState, controls, paceSecondsPerKm])
 
   useEffect(() => {
+    if (engineState !== 'ready' || !course || selectedLeg === null) return
+    const ends = legEnds(course, selectedLeg)
+    if (!ends) {
+      setSelectedLeg(null)
+      return
+    }
+    const request = ++latestLegRoutesRequest.current
+    setLegRoutes({ status: 'finding' })
+    void engine
+      .evaluateLeg(ends[0], ends[1], paceSecondsPerKm ?? parsePace(DEFAULT_WINNER_PACE)!)
+      .then(leg => {
+        if (request !== latestLegRoutesRequest.current) return
+        setLegRoutes(leg ? { status: 'evaluated', leg } : { status: 'unreachable' })
+      })
+  }, [engine, engineState, course, selectedLeg, paceSecondsPerKm])
+
+  useEffect(() => {
     if (!showCostMap || costMap || engineState !== 'ready') return
     void engine.costGrid().then(renderCostMap).then(setCostMap)
   }, [engine, engineState, showCostMap, costMap])
@@ -141,6 +166,7 @@ export function App() {
     setSeed(nextSeed)
     setIsGenerating(true)
     setShowLegTool(false)
+    setSelectedLeg(null)
     try {
       const result = await engine.generateCourse(
         nextRequest,
@@ -266,14 +292,24 @@ export function App() {
           <MapView
             info={state.map.info}
             image={state.image}
-            leg={legState.status === 'evaluated' ? legState.leg : null}
+            routes={
+              selectedLeg !== null
+                ? legRoutes.status === 'evaluated'
+                  ? legRoutes.leg
+                  : null
+                : showLegTool && legState.status === 'evaluated'
+                  ? legState.leg
+                  : null
+            }
+            selectedLeg={selectedLeg}
+            onLegSelected={setSelectedLeg}
             costMap={showCostMap ? costMap : null}
             sites={showSites ? sites : null}
             course={course}
             descriptionBox={descriptionBox}
             competitionCentre={competitionCentre}
             isPickingCentre={isPickingCentre}
-            showLegTool={showLegTool}
+            showLegTool={showLegTool && selectedLeg === null}
             onCentrePicked={centre => {
               setCompetitionCentre(centre)
               setIsPickingCentre(false)
@@ -298,6 +334,14 @@ export function App() {
 
       <aside>
         <h1>Ratamestari</h1>
+        {course && selectedLeg !== null && (
+          <LegRoutesPanel
+            course={course}
+            leg={selectedLeg}
+            routes={legRoutes}
+            onSelectLeg={setSelectedLeg}
+          />
+        )}
         <label className="file">
           Open map
           <input
@@ -391,6 +435,8 @@ export function App() {
             }}
           />
         )}
+
+        {course && selectedLeg === null && <p className="note">{messages.leg.selectHint}</p>}
 
         {editMessage && <p className="error">{editMessage}</p>}
         {printError && <p className="error">The PDF could not be made: {printError}</p>}

@@ -1,0 +1,40 @@
+/* Design tokens (D14). Values and their reasons: docs/site-ux-plan.md › Visual language. */
+@import '@fontsource-variable/atkinson-hyperlegible-next/wght.css';
+
+:root {
+  --colour-map-white: #ffffff;
+  --colour-field-grey: #eceeea;
+  --colour-ink: #000000;
+  --colour-ink-soft: #4d4d4d;
+  --colour-overprint: #a3238e;
+  --colour-overprint-hover: #7e1a6e;
+  --colour-contour-brown: #9c4a12;
+  --colour-open-yellow: #ffba36;
+  --colour-open-yellow-tint: #fff0cc;
+
+  --colour-route-fastest: #1a9641;
+  --colour-route-middle: #2c7bb6;
+  --colour-route-slowest: #d7191c;
+  --route-opacity: 0.55;
+
+  --font-family: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif;
+  --font-size-small: 14px;
+  --font-size-body: 16px;
+  --font-size-lead: 19px;
+  --font-size-title: 34px;
+  --font-weight-body: 400;
+  --font-weight-strong: 700;
+  --font-weight-display: 800;
+  --letter-spacing-display: -0.03em;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --radius-pill: 999px;
+  --touch-target: 44px;
+  --shadow-paper: 0 1px 2px rgb(0 0 0 / 6%), 0 18px 48px -18px rgb(0 0 0 / 30%);
+}
