@@ -1,6 +1,6 @@
 # Spec: Whole-course planning for the course engine
 
-**Project:** Ratamestari, AI orienteering course setter
+**Project:** Ratamestari, orienteering course setter
 **Status:** Proposed, to be recorded as **D13** in [`decisions.md`](decisions.md)
 **Applies to:** `packages/engine` (browser-independent TypeScript, runs in a Web Worker), its config in `packages/rules`, and the agent tools in `packages/agent`
 **Origin:** first drafted outside the repository; this version is aligned with the code as of 2026-10-24. Section 15 lists what changed from the draft.

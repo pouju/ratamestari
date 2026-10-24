@@ -1,6 +1,6 @@
-# Ratamestari: AI Orienteering Course Setter
+# Ratamestari: Orienteering Course Setter
 
-Generates orienteering courses from an OCAD map, following IOF and SSL course-setting rules. Ask in plain language ("SM-level long distance for H21") and get a course on the print page with IOF control descriptions, ready to export.
+Sets orienteering courses automatically from an OCAD map, following IOF and SSL course-setting rules. Choose the class and distance and get a course on the print page with IOF control descriptions, ready to print or export as IOF XML. An optional AI assistant lets you ask for changes in plain language.
 
 **Your map never leaves your computer.** The map is read and processed entirely in the browser. The AI assistant only receives text and numbers, never the map file or coordinates. The source code is open so anyone can verify this.
 

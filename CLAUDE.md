@@ -1,6 +1,6 @@
-# AI Orienteering Course Setter
+# Ratamestari: Orienteering Course Setter
 
-A web app that takes an orienteering map (OCAD `.ocd`) and generates a requested course automatically, following IOF/SSL rules and course-setting guidelines. Users ask in plain language ("SM-level long distance for H21") and get a course drawn on the print page, with IOF control descriptions, ready to export.
+A web app that takes an orienteering map (OCAD `.ocd`) and generates a requested course automatically, following IOF/SSL rules and course-setting guidelines. Users choose the class and distance and get a course drawn on the print page, with IOF control descriptions, ready to export. An optional AI assistant lets them ask in plain language ("SM-level long distance for H21"); the course itself is always set by the engine (D2).
 
 Built as an MVP for a hackathon weekend: a few hours of hacking on Friday and Saturday, demo on Sunday. Favour working end-to-end over completeness.
 

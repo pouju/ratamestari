@@ -1,4 +1,4 @@
-# Decision log: AI Orienteering Course Setter
+# Decision log: Ratamestari
 
 ## D1: Map input uses ocad2geojson; the project is AGPL-3.0 and public
 
