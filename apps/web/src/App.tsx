@@ -14,6 +14,7 @@ import { ChatPanel } from './ChatPanel'
 import { useAssistantKey } from './assistant-key'
 import { SettingsSheet } from './SettingsSheet'
 import { MapStart, PanelHeader, PanelLine } from './WorkspaceStart'
+import { atLeastHalf, SheetHandle, sheetStyle, type SheetSize } from './SheetHandle'
 import { CoursePanel } from './CoursePanel'
 import { descriptionBoxFor } from './description-box'
 import { downloadCourseXml } from './export-xml'
@@ -86,6 +87,8 @@ export function App() {
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const assistantKey = useAssistantKey()
   const fileInput = useRef<HTMLInputElement>(null)
+  const sheet = useRef<HTMLElement>(null)
+  const [sheetSize, setSheetSize] = useState<SheetSize>('peek')
   const [paper, setPaper] = useState<PaperChoice>('auto')
   const [printScale, setPrintScale] = useState<PrintScaleChoice>('auto')
   const [isPreparingPdf, setIsPreparingPdf] = useState(false)
@@ -293,6 +296,7 @@ export function App() {
   }
 
   function startPlanningLeg() {
+    setSheetSize(atLeastHalf)
     setSelectedLeg(null)
     setPlanRoutes({ status: 'finding' })
     setPlannedLeg(EMPTY_PLANNED_LEG)
@@ -309,6 +313,7 @@ export function App() {
   }
 
   function selectLeg(leg: number | null) {
+    if (leg !== null) setSheetSize(atLeastHalf)
     setPlannedLeg(null)
     setSelectedLeg(leg)
   }
@@ -424,7 +429,8 @@ export function App() {
         )}
       </main>
 
-      <aside>
+      <aside ref={sheet} style={sheetStyle(sheetSize)}>
+        <SheetHandle size={sheetSize} onSizeChange={setSheetSize} sheet={sheet} />
         <PanelHeader onOpenSettings={() => setIsSettingsOpen(true)} />
         {course && selectedLeg !== null && (
           <LegRoutesPanel

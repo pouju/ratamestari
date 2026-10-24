@@ -28,6 +28,8 @@ export const en = {
   },
   workspace: {
     settings: 'Settings',
+    showMore: 'Show more of the panel',
+    showLess: 'Show less of the panel',
     openMap: 'Open an OCAD map',
     openMapHint: 'Drop a .ocd file anywhere in this window, or choose one.',
     dropToOpen: 'Drop the map to open it',
@@ -120,6 +122,7 @@ export const en = {
     fix: 'Fix',
     fixControl: (control: number) => `Fix control ${control}`,
     dragHint: 'Drag a control or the start on the map to move it. The rules are checked again.',
+    dragHintTouch: 'Tap a leg, then drag one of its controls. The rules are checked again.',
     setCourse: 'Set course',
     setting: 'Setting the course…',
     downloadPdf: 'Download PDF',

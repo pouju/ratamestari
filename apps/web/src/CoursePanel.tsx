@@ -68,6 +68,9 @@ export function CoursePanel(props: Props) {
   )
 }
 
+const hasCoarsePointer = () =>
+  typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+
 const classValue = (sex: CourseRequest['sex'], age: CourseRequest['ageClass']) => `${sex}${age}`
 
 function RequestSentence({ request, onRequestChange }: Pick<Props, 'request' | 'onRequestChange'>) {
@@ -234,7 +237,7 @@ function Findings({
           ))}
         </ul>
       )}
-      <p className="findings-hint">{m.dragHint}</p>
+      <p className="findings-hint">{hasCoarsePointer() ? m.dragHintTouch : m.dragHint}</p>
     </section>
   )
 }

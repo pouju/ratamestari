@@ -228,11 +228,22 @@ export function MapView({
   const [courseLayer] = useState(
     () => new VectorLayer({ source: courseSource, style: courseOverprintStyle(null) }),
   )
+  const selectedLegRef = useRef(selectedLeg)
+  selectedLegRef.current = selectedLeg
+  const lastPointerType = useRef<string>('mouse')
   const [courseTranslate] = useState(
     () =>
       new Translate({
         layers: [courseLayer],
-        filter: feature => feature.get(STOP_INDEX) !== undefined,
+        // A finger panning the map must not move a control by accident, so on touch only the
+        // ends of the selected leg can be dragged.
+        filter: feature => {
+          const stop = feature.get(STOP_INDEX)
+          if (typeof stop !== 'number') return false
+          if (lastPointerType.current !== 'touch') return true
+          const leg = selectedLegRef.current
+          return leg !== null && (stop === leg || stop === leg + 1)
+        },
         hitTolerance: DRAG_HIT_TOLERANCE_PIXELS,
       }),
   )
@@ -304,6 +315,12 @@ export function MapView({
           }),
         }),
     )
+    const rememberPointerType = (event: PointerEvent) => {
+      lastPointerType.current = event.pointerType
+    }
+    const element = target.current
+    element.addEventListener('pointerdown', rememberPointerType, { capture: true })
+
     map.on('singleclick', event => {
       if (isPickingCentreRef.current) {
         const [x = 0, y = 0] = event.coordinate
@@ -356,6 +373,7 @@ export function MapView({
     return () => {
       courseTranslate.un('translateend', reportStopMoved)
       legToolTranslate.un(['translating', 'translateend'], reportPlannedLeg)
+      element.removeEventListener('pointerdown', rememberPointerType, { capture: true })
       map.setTarget(undefined)
     }
   }, [
