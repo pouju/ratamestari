@@ -2,12 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { localExtent, localPoint } from '@ratamestari/core'
 import type { ControlSiteCandidate } from '../src/control-sites'
 import {
+  fitBoxesToCourse,
   fitPrintAreaToCourse,
+  hasRoomForCentre,
   isUsableInPrintArea,
   lineCrossesExtent,
+  placeBoxesInFrame,
   placeDescriptionBox,
   planPrintArea,
   printableGroundSize,
+  printFrameAround,
+  stopsOutsideFrame,
 } from '../src/print-area'
 import { buildTerrain } from '../src/terrain'
 import { SQUARE_KILOMETRE } from './fixtures'
@@ -145,5 +150,61 @@ describe('fitPrintAreaToCourse', () => {
     const area = fitPrintAreaToCourse(mappedNorthHalf, stops, request)!
     const [, minY] = area.extent
     expect(minY).toBeGreaterThan(stops.reduce((low, [, y]) => Math.min(low, y), Infinity) - 100)
+  })
+})
+
+describe('printFrameAround', () => {
+  it('centres a sheet of the chosen paper, orientation and scale on the point', () => {
+    const frame = printFrameAround(localPoint(400, 600), 'A4', 'landscape', 2000)
+    const { width, height } = printableGroundSize('A4', 'landscape', 2000)
+    const [minX, minY, maxX, maxY] = frame.extent
+    expect(maxX - minX).toBeCloseTo(width)
+    expect(maxY - minY).toBeCloseTo(height)
+    expect((minX + maxX) / 2).toBeCloseTo(400)
+    expect((minY + maxY) / 2).toBeCloseTo(600)
+    expect(width).toBeGreaterThan(height)
+  })
+})
+
+describe('placeBoxesInFrame', () => {
+  const frame = printFrameAround(localPoint(300, 300), 'A4', 'portrait', 2000)
+
+  it('keeps the frame where the user put it and the description box off the centre', () => {
+    const area = placeBoxesInFrame(terrain, clusterAround(800, 800, 0), frame, {
+      competitionCentre: localPoint(250, 250),
+      descriptionRows: 10,
+    })!
+    expect(area.extent).toEqual(frame.extent)
+    expect(area.orientation).toBe('portrait')
+    const [bx0, by0, bx1, by1] = area.descriptionBox
+    expect(250 >= bx0 - 75 && 250 <= bx1 + 75 && 250 >= by0 - 75 && 250 <= by1 + 75).toBe(false)
+  })
+
+  it('refuses a frame that leaves the competition centre outside', () => {
+    const outside = localPoint(900, 900)
+    expect(hasRoomForCentre(frame, outside)).toBe(false)
+    expect(
+      placeBoxesInFrame(terrain, [], frame, { competitionCentre: outside, descriptionRows: 10 }),
+    ).toBeNull()
+  })
+})
+
+describe('fitBoxesToCourse', () => {
+  const stops = [localPoint(300, 300), localPoint(420, 380), localPoint(330, 450)]
+
+  it('does not move the frame, and puts the description box clear of the course', () => {
+    const frame = printFrameAround(localPoint(350, 380), 'A4', 'portrait', 2000)
+    const area = fitBoxesToCourse(terrain, stops, frame, { descriptionRows: 6 })!
+    expect(area.extent).toEqual(frame.extent)
+    stops.forEach((stop, i) => {
+      if (i > 0) expect(lineCrossesExtent(stops[i - 1]!, stop, area.descriptionBox)).toBe(false)
+    })
+    expect(stopsOutsideFrame(stops, area)).toEqual([])
+  })
+
+  it('tells which stops a moved frame leaves outside', () => {
+    const frame = printFrameAround(localPoint(200, 380), 'A4', 'portrait', 2000)
+    const area = fitBoxesToCourse(terrain, stops, frame, { descriptionRows: 6 })!
+    expect(stopsOutsideFrame(stops, area)).toEqual([1])
   })
 })

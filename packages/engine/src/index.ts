@@ -44,6 +44,7 @@ export {
 export { siteAreaQuality, siteAreaQualityOf, type SiteQualityOf } from './site-quality'
 export { difficultyInCourse, flagSideFor, type FlagSide } from './flag-side'
 export {
+  fitCourseToFrame,
   fitCourseToPaper,
   papersFor,
   setCourseOnPaper,
@@ -78,19 +79,29 @@ export {
   type PeripheralLayout,
 } from './peripheral'
 export {
+  centreOfExtent,
   descriptionBoxGroundSize,
+  fitBoxesToCourse,
   fitPrintAreaToCourse,
+  hasRoomForCentre,
+  isInsidePrintFrame,
   isUsableInPrintArea,
   lineCrossesExtent,
   placeDescriptionBox,
+  placeBoxesInFrame,
   planPrintArea,
   printableGroundSize,
+  printFrameAround,
   reservedBoxesOf,
+  stopsOutsideFrame,
   type Orientation,
   type PaperBoxSize,
   type PrintArea,
   type PrintAreaRequest,
+  type PrintFrame,
   type CourseFitRequest,
+  type FrameFitRequest,
+  type FrameRequest,
 } from './print-area'
 export {
   alternation,

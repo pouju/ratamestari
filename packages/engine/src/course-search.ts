@@ -37,8 +37,10 @@ import {
   isUsableInPrintArea,
   lineCrossesExtent,
   reservedBoxesOf,
+  stopsOutsideFrame,
   type PaperBoxSize,
   type PrintArea,
+  type PrintFrame,
 } from './print-area'
 import { siteAreaQualityOf, type SiteQualityOf } from './site-quality'
 import { distanceToSegment, segmentsCross } from './polyline'
@@ -57,6 +59,8 @@ export interface CourseSpec {
   readonly paceSecondsPerKm?: number
   readonly improvementSteps?: number
   readonly printArea?: PrintArea
+  // Placed by the user; when given, the course is set inside it and the paper is not moved.
+  readonly printFrame?: PrintFrame
   readonly peripheralSize?: PaperBoxSize | null
   // The user's wish for the start, as straight-line metres from the finish.
   readonly startDistanceFromFinishMeters?: readonly [number, number] | null
@@ -76,6 +80,7 @@ export interface CourseProblems {
   readonly courseLinesThroughControls: number
   readonly courseLinesOutsideMap: number
   readonly courseLinesOverDescriptions: number
+  readonly stopsOutsidePrintArea: number
   readonly overlappingCircles: number
   readonly finalLegTooLong: boolean
   readonly winningTimeOutsideRange: boolean
@@ -549,6 +554,8 @@ function createEvaluation(
         found('courseLinesOverDescriptions', i, i + 1)
       }
     }
+    const stopsOutsidePrintArea = stopsOutsideFrame(stops, spec.printArea ?? null)
+    stopsOutsidePrintArea.forEach(stop => found('stopsOutsidePrintArea', stop))
     const linesThroughControls = courseLinesThroughControls(stops)
     linesThroughControls.forEach(([leg, control]) =>
       found('courseLinesThroughControls', leg, leg + 1, control),
@@ -577,6 +584,7 @@ function createEvaluation(
       courseLinesThroughControls: linesThroughControls.length,
       courseLinesOutsideMap,
       courseLinesOverDescriptions,
+      stopsOutsidePrintArea: stopsOutsidePrintArea.length,
       overlappingCircles: overlapping.length,
       finalLegTooLong: finalLegPercentOverLimit > 0,
       winningTimeOutsideRange: outsideRangePercent > 0,

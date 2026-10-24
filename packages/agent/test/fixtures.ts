@@ -32,6 +32,7 @@ export const NO_PROBLEMS: CourseProblems = {
   courseLinesThroughControls: 0,
   courseLinesOutsideMap: 0,
   courseLinesOverDescriptions: 0,
+  stopsOutsidePrintArea: 0,
   overlappingCircles: 0,
   finalLegTooLong: false,
   winningTimeOutsideRange: false,

@@ -1,3 +1,4 @@
+import type { LocalPoint } from '@ratamestari/core'
 import { DESCRIPTION_BOX, PAPER, type PaperSize } from '@ratamestari/rules'
 import type { ControlSiteCandidate } from './control-sites'
 import {
@@ -8,7 +9,18 @@ import {
   type CourseSpec,
   type Search,
 } from './course-search'
-import { fitPrintAreaToCourse, planPrintArea, type PaperBoxSize } from './print-area'
+import {
+  fitBoxesToCourse,
+  fitPrintAreaToCourse,
+  lineCrossesExtent,
+  placeBoxesInFrame,
+  planPrintArea,
+  reservedBoxesOf,
+  stopsOutsideFrame,
+  type PaperBoxSize,
+  type PrintArea,
+  type PrintFrame,
+} from './print-area'
 import type { Terrain } from './terrain'
 
 export type PaperChoice = PaperSize | 'auto'
@@ -42,6 +54,7 @@ export function* setCourseOnPaperSteps(
   spec: CourseSpec,
   paper: PaperChoice,
 ): Search {
+  if (spec.printFrame) return yield* setCourseInFrameSteps(terrain, sites, spec, spec.printFrame)
   const papers = papersFor(paper)
   const state = { stopped: false }
   const attempt = function* (size: PaperSize, showsProgress: boolean): Search {
@@ -80,6 +93,82 @@ export function* setCourseOnPaperSteps(
   return fitCourseToPaper(terrain, course, papers, spec.printScale, spec.peripheralSize)
 }
 
+function* setCourseInFrameSteps(
+  terrain: Terrain,
+  sites: readonly ControlSiteCandidate[],
+  spec: CourseSpec,
+  frame: PrintFrame,
+): Search {
+  const printArea = placeBoxesInFrame(terrain, sites, frame, {
+    competitionCentre: spec.competitionCentre,
+    descriptionRows: expectedControlCount(spec.format) + DESCRIPTION_BOX.rowsBesidesControls,
+    peripheralSize: spec.peripheralSize ?? null,
+  })
+  if (!printArea) return null
+  const course = yield* searchCourseSteps(terrain, sites, {
+    ...spec,
+    printScale: frame.scale,
+    printArea,
+  })
+  return course && fitCourseToFrame(terrain, course, frame, spec.peripheralSize)
+}
+
+const stopsOf = (course: Course) => [
+  course.start.position,
+  ...course.controls.map(site => site.position),
+  course.finish,
+]
+
+// The paper stays where the user put it; the boxes may move, and the course is checked against it.
+export function fitCourseToFrame(
+  terrain: Terrain,
+  course: Course,
+  frame: PrintFrame,
+  peripheralSize: PaperBoxSize | null = null,
+): Course {
+  const stops = stopsOf(course)
+  const printArea = fitBoxesToCourse(terrain, stops, frame, {
+    descriptionRows: course.controls.length + DESCRIPTION_BOX.rowsBesidesControls,
+    peripheralSize,
+  })
+  if (!printArea) return course
+  return withPrintAreaChecked(course, stops, printArea)
+}
+
+function withPrintAreaChecked(
+  course: Course,
+  stops: readonly LocalPoint[],
+  printArea: PrintArea,
+): Course {
+  const legsUnderBoxes = stops.flatMap((stop, i) =>
+    i > 0 && reservedBoxesOf(printArea).some(box => lineCrossesExtent(stops[i - 1]!, stop, box))
+      ? [[i - 1, i]]
+      : [],
+  )
+  const outside = stopsOutsideFrame(stops, printArea)
+  return {
+    ...course,
+    printArea,
+    problems: {
+      ...course.problems,
+      courseLinesOverDescriptions: legsUnderBoxes.length,
+      stopsOutsidePrintArea: outside.length,
+    },
+    findings: [
+      ...course.findings.filter(
+        finding =>
+          finding.kind !== 'courseLinesOverDescriptions' &&
+          finding.kind !== 'stopsOutsidePrintArea',
+      ),
+      ...legsUnderBoxes.map(legStops => ({
+        kind: 'courseLinesOverDescriptions' as const,
+        stops: legStops,
+      })),
+      ...outside.map(stop => ({ kind: 'stopsOutsidePrintArea' as const, stops: [stop] })),
+    ],
+  }
+}
+
 export function fitCourseToPaper(
   terrain: Terrain,
   course: Course,
@@ -87,11 +176,7 @@ export function fitCourseToPaper(
   printScale: number,
   peripheralSize: PaperBoxSize | null = null,
 ): Course {
-  const stops = [
-    course.start.position,
-    ...course.controls.map(site => site.position),
-    course.finish,
-  ]
+  const stops = stopsOf(course)
   const fitted = fitPrintAreaToCourse(terrain, stops, {
     papers,
     printScale,
@@ -99,10 +184,5 @@ export function fitCourseToPaper(
     peripheralSize,
   })
   if (!fitted) return course
-  return {
-    ...course,
-    printArea: fitted,
-    problems: { ...course.problems, courseLinesOverDescriptions: 0 },
-    findings: course.findings.filter(finding => finding.kind !== 'courseLinesOverDescriptions'),
-  }
+  return withPrintAreaChecked(course, stops, fitted)
 }

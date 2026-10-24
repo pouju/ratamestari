@@ -17,6 +17,15 @@ export interface PrintArea {
   readonly peripheralBox: LocalExtent | null
 }
 
+// A print area the user placed by hand. The engine keeps it where it is and only chooses the
+// corners for the description box and the peripheral information.
+export interface PrintFrame {
+  readonly paper: PaperSize
+  readonly orientation: Orientation
+  readonly scale: number
+  readonly extent: LocalExtent
+}
+
 export interface PaperBoxSize {
   readonly widthMillimetres: number
   readonly heightMillimetres: number
@@ -77,6 +86,34 @@ export function isUsableInPrintArea(position: LocalPoint, area: PrintArea): bool
   )
 }
 
+export function printFrameAround(
+  centre: LocalPoint,
+  paper: PaperSize,
+  orientation: Orientation,
+  scale: number,
+): PrintFrame {
+  const { width, height } = printableGroundSize(paper, orientation, scale)
+  const [x, y] = centre
+  const extent = localExtent(x - width / 2, y - height / 2, x + width / 2, y + height / 2)
+  return { paper, orientation, scale, extent }
+}
+
+export const centreOfExtent = ([minX, minY, maxX, maxY]: LocalExtent): LocalPoint =>
+  localPoint((minX + maxX) / 2, (minY + maxY) / 2)
+
+export const isInsidePrintFrame = (position: LocalPoint, extent: LocalExtent) =>
+  contains(extent, position, CIRCLE_RADIUS_METERS)
+
+export const stopsOutsideFrame = (
+  stops: readonly LocalPoint[],
+  frame: Pick<PrintFrame, 'extent'> | null,
+): number[] =>
+  frame ? stops.flatMap((stop, i) => (isInsidePrintFrame(stop, frame.extent) ? [] : [i])) : []
+
+// The start and finish sit next to the competition centre, so it needs a circle's room inside.
+export const hasRoomForCentre = (frame: PrintFrame, centre: LocalPoint) =>
+  contains(frame.extent, centre, FINISH_CLEARANCE_METERS)
+
 const overlaps = (a: LocalExtent, b: LocalExtent) =>
   a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]
 
@@ -113,11 +150,16 @@ export function lineCrossesExtent(from: LocalPoint, to: LocalPoint, extent: Loca
   return corners.some((corner, i) => segmentsCross(from, to, corner, corners[(i + 1) % 4]!))
 }
 
-export function planPrintArea(
-  terrain: Terrain,
-  sites: readonly ControlSiteCandidate[],
-  request: PrintAreaRequest,
-): PrintArea | null {
+type BoxRequest = Omit<PrintAreaRequest, 'paper'>
+
+interface PlacedBoxes {
+  readonly descriptionBox: LocalExtent
+  readonly peripheralBox: LocalExtent | null
+  readonly score: number
+}
+
+// Scores a paper extent by the control sites it leaves usable, with the boxes in their best corners.
+function boxPlacer(terrain: Terrain, sites: readonly ControlSiteCandidate[], request: BoxRequest) {
   const quality = summedQuality(terrain, sites)
   const box = descriptionBoxGroundSize(request.descriptionRows, request.printScale)
   const peripheral = request.peripheralSize
@@ -127,12 +169,47 @@ export function planPrintArea(
     !contains(reserved, request.competitionCentre, -FINISH_CLEARANCE_METERS)
   const reservedQuality = (reserved: LocalExtent) =>
     quality.sum(shrunk(reserved, -CIRCLE_RADIUS_METERS))
+  const fits = (width: number, height: number) => box.width <= width && box.height <= height
+
+  const place = (extent: LocalExtent): PlacedBoxes | null => {
+    const usable = quality.sum(shrunk(extent, CIRCLE_RADIUS_METERS))
+    let best: PlacedBoxes | null = null
+    for (const descriptionBox of cornerBoxes(extent, box.width, box.height)) {
+      if (!clearOfCentre(descriptionBox)) continue
+      const peripheralBox = placePeripheralBox(
+        extent,
+        descriptionBox,
+        peripheral,
+        clearOfCentre,
+        reservedQuality,
+      )
+      const score =
+        usable -
+        reservedQuality(descriptionBox) -
+        (peripheralBox
+          ? reservedQuality(peripheralBox)
+          : peripheral
+            ? MISSING_PERIPHERAL_PENALTY
+            : 0)
+      if (!best || score > best.score) best = { descriptionBox, peripheralBox, score }
+    }
+    return best
+  }
+  return { fits, place }
+}
+
+export function planPrintArea(
+  terrain: Terrain,
+  sites: readonly ControlSiteCandidate[],
+  request: PrintAreaRequest,
+): PrintArea | null {
+  const placer = boxPlacer(terrain, sites, request)
   const [cx, cy] = request.competitionCentre
   let best: { area: PrintArea; score: number } | null = null
 
   for (const orientation of ['portrait', 'landscape'] as const) {
     const { width, height } = printableGroundSize(request.paper, orientation, request.printScale)
-    if (box.width > width || box.height > height) continue
+    if (!placer.fits(width, height)) continue
     for (
       let left = cx - width + FINISH_CLEARANCE_METERS;
       left <= cx - FINISH_CLEARANCE_METERS;
@@ -144,42 +221,47 @@ export function planPrintArea(
         bottom += POSITION_STEP_METERS
       ) {
         const extent = localExtent(left, bottom, left + width, bottom + height)
-        const usable = quality.sum(shrunk(extent, CIRCLE_RADIUS_METERS))
-        for (const descriptionBox of cornerBoxes(extent, box.width, box.height)) {
-          if (!clearOfCentre(descriptionBox)) continue
-          const peripheralBox = placePeripheralBox(
-            extent,
-            descriptionBox,
-            peripheral,
-            clearOfCentre,
-            reservedQuality,
-          )
-          const score =
-            usable -
-            reservedQuality(descriptionBox) -
-            (peripheralBox
-              ? reservedQuality(peripheralBox)
-              : peripheral
-                ? MISSING_PERIPHERAL_PENALTY
-                : 0)
-          if (!best || score > best.score) {
-            best = {
-              area: {
-                paper: request.paper,
-                scale: request.printScale,
-                orientation,
-                extent,
-                descriptionBox,
-                peripheralBox,
-              },
-              score,
-            }
+        const placed = placer.place(extent)
+        if (placed && (!best || placed.score > best.score)) {
+          const { descriptionBox, peripheralBox, score } = placed
+          best = {
+            area: {
+              paper: request.paper,
+              scale: request.printScale,
+              orientation,
+              extent,
+              descriptionBox,
+              peripheralBox,
+            },
+            score,
           }
         }
       }
     }
   }
   return best?.area ?? null
+}
+
+export type FrameRequest = Omit<BoxRequest, 'printScale'>
+
+export function placeBoxesInFrame(
+  terrain: Terrain,
+  sites: readonly ControlSiteCandidate[],
+  frame: PrintFrame,
+  request: FrameRequest,
+): PrintArea | null {
+  if (!hasRoomForCentre(frame, request.competitionCentre)) return null
+  const placer = boxPlacer(terrain, sites, { ...request, printScale: frame.scale })
+  const [minX, minY, maxX, maxY] = frame.extent
+  if (!placer.fits(maxX - minX, maxY - minY)) return null
+  const placed = placer.place(frame.extent)
+  return (
+    placed && {
+      ...frame,
+      descriptionBox: placed.descriptionBox,
+      peripheralBox: placed.peripheralBox,
+    }
+  )
 }
 
 const shrunk = ([minX, minY, maxX, maxY]: LocalExtent, by: number) =>
@@ -335,6 +417,46 @@ export function fitPrintAreaToCourse(
     if (best) return best.area
   }
   return null
+}
+
+// Legs and stops the box would cover; zero means the box is clear of the course.
+function courseUnder(box: LocalExtent, stops: readonly LocalPoint[]): number {
+  const coveredStops = stops.filter(stop => contains(box, stop, -CIRCLE_RADIUS_METERS)).length
+  const coveredLegs = stops.filter(
+    (stop, i) => i > 0 && lineCrossesExtent(stops[i - 1]!, stop, box),
+  ).length
+  return coveredStops + coveredLegs
+}
+
+export type FrameFitRequest = Omit<CourseFitRequest, 'papers' | 'printScale'>
+
+// The frame stays put; the boxes take the corners that cover least of the course, then least map.
+export function fitBoxesToCourse(
+  terrain: Terrain,
+  stops: readonly LocalPoint[],
+  frame: PrintFrame,
+  request: FrameFitRequest,
+): PrintArea | null {
+  const mapped = summedMappedArea(terrain)
+  const box = descriptionBoxGroundSize(request.descriptionRows, frame.scale)
+  const [minX, minY, maxX, maxY] = frame.extent
+  if (box.width > maxX - minX || box.height > maxY - minY) return null
+  const cost = (reserved: LocalExtent) => [courseUnder(reserved, stops), mapped.sum(reserved)]
+  const byCost = (a: LocalExtent, b: LocalExtent) => {
+    const [coverA = 0, mapA = 0] = cost(a)
+    const [coverB = 0, mapB = 0] = cost(b)
+    return coverA - coverB || mapA - mapB
+  }
+  const descriptionBox = cornerBoxes(frame.extent, box.width, box.height).sort(byCost)[0]!
+  const peripheral = request.peripheralSize
+    ? peripheralGroundSize(request.peripheralSize, frame.scale)
+    : null
+  const peripheralBox = peripheral
+    ? (cornerBoxes(frame.extent, peripheral.width, peripheral.height)
+        .filter(reserved => !overlaps(reserved, descriptionBox))
+        .sort(byCost)[0] ?? null)
+    : null
+  return { ...frame, descriptionBox, peripheralBox }
 }
 
 export function placeDescriptionBox(area: PrintArea, width: number, height: number): LocalExtent {

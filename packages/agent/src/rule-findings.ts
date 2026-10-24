@@ -76,6 +76,8 @@ export function describeFinding(finding: Finding, controlCount: number): Finding
       )
     case 'courseLinesOverDescriptions':
       return describe('error', `${leg(a, b)} runs under the description box`, 'D7')
+    case 'stopsOutsidePrintArea':
+      return describe('error', `${name(a)} is outside the print area`, 'D7')
     case 'overlappingCircles':
       return describe(
         'error',
@@ -85,7 +87,7 @@ export function describeFinding(finding: Finding, controlCount: number): Finding
     case 'winningTimeOutsideRange':
       return describe(
         'error',
-        "the course cannot reach the class's winning-time range; the terrain within reach of the competition centre may be too small for this class",
+        "the course cannot reach the class's winning-time range; the terrain within reach of the competition centre, or inside the chosen print area, may be too small for this class",
         citations(WINNING_TIME_SOURCES),
       )
     case 'controlsWithoutFeature':
