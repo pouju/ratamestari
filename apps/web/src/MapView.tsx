@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import OlMap from 'ol/Map'
 import View from 'ol/View'
 import Feature from 'ol/Feature'
-import Collection from 'ol/Collection'
 import Circle from 'ol/geom/Circle'
 import LineString from 'ol/geom/LineString'
 import Point from 'ol/geom/Point'
@@ -29,12 +28,14 @@ import {
   courseOverprintFeatures,
   courseOverprintStyle,
   legOfFeature,
+  shortenedLeg,
   STOP_INDEX,
 } from './course-overprint'
 import { useMessages } from './i18n'
 import {
   needsPlacing,
   placeNext,
+  plannedEnds,
   pointAlong,
   rankedRoutes,
   ROUTE_COLOUR_TOKENS,
@@ -223,12 +224,18 @@ export function MapView({
   onStopMovedRef.current = onStopMoved
   const [centreSource] = useState(() => new VectorSource())
   const [legToolLayer] = useState(() => new VectorLayer({ source: new VectorSource() }))
-  const [legToolFeatures] = useState(() => new Collection<Feature>())
-  const [legToolTranslate] = useState(() => new Translate({ features: legToolFeatures }))
   const [plannedLegFeatures] = useState(() => ({
     from: new Feature<Circle>(),
     to: new Feature<Circle>(),
+    line: new Feature<LineString>(),
   }))
+  const [legToolTranslate] = useState(
+    () =>
+      new Translate({
+        layers: [legToolLayer],
+        filter: feature => feature !== plannedLegFeatures.line,
+      }),
+  )
   const plannedLegRef = useRef(plannedLeg)
   plannedLegRef.current = plannedLeg
   const onPlannedLegChangedRef = useRef(onPlannedLegChanged)
@@ -344,7 +351,6 @@ export function MapView({
     courseSource,
     centreSource,
     legToolLayer,
-    legToolFeatures,
     legToolTranslate,
     plannedLegFeatures,
     courseLayer,
@@ -367,7 +373,6 @@ export function MapView({
       const point = plannedLeg?.[role] ?? null
       if (!point) {
         if (source.hasFeature(feature)) source.removeFeature(feature)
-        legToolFeatures.remove(feature)
         continue
       }
       const geometry = feature.getGeometry()
@@ -376,10 +381,16 @@ export function MapView({
       else if (x !== point[0] || y !== point[1] || geometry.getRadius() !== radius)
         geometry.setCenterAndRadius([...point], radius)
       if (!source.hasFeature(feature)) source.addFeature(feature)
-      if (!legToolFeatures.getArray().includes(feature)) legToolFeatures.push(feature)
     }
+    const { line } = plannedLegFeatures
+    const ends = plannedLeg && plannedEnds(plannedLeg)
+    const linePoints = ends && shortenedLeg(ends[0], ends[1], radius, radius)
+    if (linePoints) {
+      line.setGeometry(new LineString(linePoints))
+      if (!source.hasFeature(line)) source.addFeature(line)
+    } else if (source.hasFeature(line)) source.removeFeature(line)
     legToolTranslate.setActive(plannedLeg !== null)
-  }, [plannedLeg, info, legToolLayer, legToolFeatures, legToolTranslate, plannedLegFeatures])
+  }, [plannedLeg, info, legToolLayer, legToolTranslate, plannedLegFeatures])
 
   useEffect(() => {
     courseSource.clear()

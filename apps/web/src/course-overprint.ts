@@ -154,7 +154,7 @@ function controlNumber(position: LocalPoint, number: number, circleRadius: numbe
   })
 }
 
-function shortenedLeg(
+export function shortenedLeg(
   from: LocalPoint,
   to: LocalPoint,
   trimStart: number,
