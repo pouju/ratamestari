@@ -397,3 +397,45 @@ They are built before the new UI (D14), in today's UI.
 
 - The course search must accept locked controls and anchor legs (D13 phases B and C come earlier for user-given anchors).
 - Red and green differ in hue mainly, so routes always carry a letter and a panel row as well.
+
+---
+
+## D16: Public repo, versioned releases and automatic deploys to GitHub Pages
+
+**Date:** 2026-10-24
+**Status:** Decided, to be implemented once the new UI (D14) is ready for a first release
+
+### Decision
+
+- The repository is public on GitHub (required by D1). Pages is set to **Source: GitHub Actions**. There is no `gh-pages` branch.
+- **A release is what goes live.** Pushes to `main` never change the live site, so development continues on `main` while the released version stays untouched.
+- **release-please** (Apache-2.0) keeps a "Release PR" open and up to date from the Conventional Commits on `main`. The PR bumps the version (`feat` → minor, `fix` → patch, `!` → major) and updates `CHANGELOG.md`, grouped by type and scope. **Merging the Release PR is the release:** it creates the `vX.Y.Z` tag and a GitHub Release with the notes.
+- One version for the whole app, kept in the root `package.json` and starting at `0.1.0`. Internal packages are not versioned separately, since they are not published.
+- Three workflows in `.github/workflows/`:
+  - `ci.yml`: `pnpm check` and `pnpm build` on every pull request and push to `main`.
+  - `release-please.yml`: on push to `main`, maintains the Release PR.
+  - `deploy.yml`: on a published release (or started by hand to redeploy), builds `apps/web` and deploys it with `actions/deploy-pages`.
+- The app shows its version next to the "Source code" link, so a bug report says which release it came from.
+- The README gets a header with a one-line pitch, badges (CI, latest release, license, live demo), a screenshot or GIF of the workspace, a short "How it works" diagram showing that the map stays in the browser (D3), and a "Releasing" section.
+
+### Why
+
+- Releasing should take one click and no hand-edited versions or changelogs. The project already uses Conventional Commits, so the version bump and changelog can be derived from them.
+- Deploying from Actions avoids a branch full of build output and extra deploy tooling.
+- A Release PR lets us decide when to release, with the notes visible for review before they go out.
+- The README is the first thing visitors see, and the privacy claim should be easy to check.
+
+### Alternatives considered
+
+- **`gh-pages` branch:** the older way to publish Pages. It mixes build output into the repository's history and needs a deploy tool.
+- **Deploy on every push to `main`:** simplest, but half-finished work would go live during the hackathon.
+- **changesets:** wants a hand-written note per change and suits published libraries with several versions.
+- **semantic-release:** releases on every push to `main`, which removes the choice of when to release.
+
+### Consequences
+
+- Before going public, the history was checked: no map files (`.ocd`, `.omap`, `.xmap`) or source PDFs have ever been committed. `maps/` and `docs/sources` stay git-ignored.
+- Vite already uses `base: './'`, so the build works under the `/ratamestari/` path of a project Pages site.
+- Map-dependent tests skip in CI except those using the committed sample map.
+- Commit types now matter for releases: a user-visible change must be `feat` or `fix` to appear in the changelog, and breaking changes need `!`.
+- The README screenshot waits until the new UI is demo-ready.

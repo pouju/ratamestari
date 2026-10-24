@@ -68,6 +68,7 @@ Out for the weekend: PNG/PDF map input, relay forking, planning a whole event's 
 - [x] ocad2geojson adapter module → internal map format (scale, extent, georef, SVG render, features with ISOM codes and per-map overrides)
 - [x] Bundler config: `buffer` + `string_decoder` polyfills, `fs` aliased to empty module
 - [x] Rules config file (IOF + SSL values): `packages/rules`; winning times and course lengths still to do
+- [ ] Releases and Pages deploy (D16): release-please, CI/release/deploy workflows, version in the app, README polish. Do once the new UI is ready
 
 ## Recording new decisions
 
