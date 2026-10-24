@@ -66,6 +66,8 @@ Put test maps in `maps/`. It is git-ignored, so club maps never end up in the re
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/) with the package as scope, for example `feat(engine): …` or `fix(web): …`. Releases are built from them, so a change users will notice should be a `feat` or a `fix`.
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the ground rules, and [SECURITY.md](SECURITY.md) for reporting vulnerabilities privately.
+
 ## Releasing
 
 Pushes to `main` do not change the live site. [release-please](https://github.com/googleapis/release-please) keeps a Release PR open that bumps the version and updates [`CHANGELOG.md`](CHANGELOG.md) from the commit messages. **Merging the Release PR is the release:** it tags `vX.Y.Z`, publishes a GitHub Release with the notes and deploys that version to GitHub Pages.
