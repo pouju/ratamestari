@@ -87,9 +87,8 @@ export const en = {
     centreLine: 'Competition centre',
     centreChosen: 'Chosen on the map',
     change: 'Change',
-    centreQuestion: 'Where do runners gather?',
-    centreHint:
-      'Click the map where the competition centre is. The course starts and finishes near it.',
+    centreQuestion: 'Where is the competition centre?',
+    centreHint: 'Click it on the map. The course starts and finishes near it.',
     courseLine: 'Course',
     eventLevel: 'Event level',
     eventLevels: { national: 'National level', finnishChampionship: 'SM level' },

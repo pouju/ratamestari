@@ -15,7 +15,7 @@ import Translate, { type TranslateEvent } from 'ol/interaction/Translate'
 import type Geometry from 'ol/geom/Geometry'
 import type { FeatureLike } from 'ol/Feature'
 import { asArray } from 'ol/color'
-import { Circle as CircleStyle, Fill, RegularShape, Stroke, Style, Text } from 'ol/style'
+import { Circle as CircleStyle, Fill, Stroke, Style, Text } from 'ol/style'
 import { localPoint, type LocalExtent, type LocalPoint, type MapInfo } from '@ratamestari/core'
 import type {
   ControlSiteCandidate,
@@ -53,16 +53,23 @@ const LEG_HIT_TOLERANCE_PIXELS = 6
 const CONTROL_CIRCLE_DIAMETER_MM = 5
 const COURSE_LINE_WIDTH_MM = 0.35
 const SITE_DOT_RADIUS_PIXELS = 3
-const CENTRE_MARKER_RADIUS_PIXELS = 9
-const centreStyle = new Style({
-  image: new RegularShape({
-    points: 4,
-    radius: CENTRE_MARKER_RADIUS_PIXELS,
-    angle: Math.PI / 4,
-    fill: new Fill({ color: 'rgba(0, 0, 0, 0.85)' }),
-    stroke: new Stroke({ color: 'white', width: 2 }),
+const CENTRE_MARKER_RADIUS_PIXELS = 11
+const CENTRE_MARKER_DOT_PIXELS = 3.5
+const centreStyle = [
+  new Style({
+    image: new CircleStyle({
+      radius: CENTRE_MARKER_RADIUS_PIXELS,
+      fill: new Fill({ color: 'black' }),
+      stroke: new Stroke({ color: 'white', width: 3 }),
+    }),
   }),
-})
+  new Style({
+    image: new CircleStyle({
+      radius: CENTRE_MARKER_DOT_PIXELS,
+      fill: new Fill({ color: 'white' }),
+    }),
+  }),
+]
 export const DIFFICULTY_COLOURS: Readonly<Record<TechnicalDifficulty, string>> = {
   1: '#2e7d32',
   2: '#7cb342',
