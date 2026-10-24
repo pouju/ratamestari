@@ -18,6 +18,7 @@ import {
 import { describeControl, descriptionSheet, renderDescriptionSheet } from '@ratamestari/iof'
 import { loadOcadMap } from '@ratamestari/map-ocad'
 import { printPageSvg } from '@ratamestari/print'
+import { en } from '../apps/web/src/i18n/en'
 import {
   COURSE_OVERPRINT,
   courseTargetFor,
@@ -36,6 +37,7 @@ const { values } = parseArgs({
     out: { type: 'string', default: 'apps/web/src/landing/sample-run.json' },
     background: { type: 'string', default: 'apps/web/src/landing/sample-page.png' },
     descriptions: { type: 'string', default: 'apps/web/src/landing/sample-descriptions.svg' },
+    preview: { type: 'string', default: 'apps/web/public/social-preview.png' },
     seed: { type: 'string', default: '1' },
   },
 })
@@ -53,6 +55,19 @@ const SHOWN_SITES = 60
 const BACKGROUND_WIDTH_PIXELS = 1200
 const CROP_PADDING_MILLIMETRES = 4
 const DESCRIPTION_HEADING_ROWS = 2
+const PREVIEW_SIZE_PIXELS = [1200, 630] as const
+const PREVIEW_MAP_WIDTH_PIXELS = 700
+const PREVIEW_TERRAIN_MARGIN_MILLIMETRES = 4
+const PREVIEW_COURSE_MARGIN_MILLIMETRES = 8
+// Resvg reads no WOFF2, so the card falls back to a system sans when the app font is not installed.
+const PREVIEW_FONT = 'Atkinson Hyperlegible Next, DejaVu Sans, Arial, sans-serif'
+// Brand colours from apps/web/src/tokens.css.
+const PREVIEW_COLOURS = {
+  ink: '#000000',
+  inkSoft: '#4d4d4d',
+  paper: '#eceeea',
+  overprint: '#a3238e',
+}
 
 const map = await loadOcadMap(new Uint8Array(readFileSync(values.map)))
 const features = map.features()
@@ -97,12 +112,12 @@ const toPageMillimetres = ([x, y]: LocalPoint): [number, number] => [
 // saved on its own, since on the paper it sits in an empty corner far from the sample terrain.
 const onPage = sites.filter(site => isUsableInPrintArea(site.position, area))
 const described = renderDescriptionSheet(sheet)
-const drawn = [
-  ...onPage.map(site => toPageMillimetres(site.position)),
+const stops = [
   toPageMillimetres(course.start.position),
   ...course.controls.map(site => toPageMillimetres(site.position)),
   toPageMillimetres(course.finish),
 ]
+const drawn = [...onPage.map(site => toPageMillimetres(site.position)), ...stops]
 const [shortSide, longSide] = PAPER.sizesMillimetres[area.paper]
 const [pageWidth, pageHeight] =
   area.orientation === 'portrait' ? [shortSide, longSide] : [longSide, shortSide]
@@ -162,7 +177,7 @@ execFileSync(
 const document = new DOMImplementation().createDocument(null, 'svg', null) as unknown as Document
 const svgOf = (includesObject: (objectIndex: number) => boolean) =>
   new XMLSerializer().serializeToString(map.renderSvg(document, includesObject) as unknown as Node)
-const page = printPageSvg({
+const pageInput = {
   mapSvg: svgOf(i => !peripheral.marginObjectIndices.has(i)),
   mapScale: map.info.scale,
   course,
@@ -178,29 +193,123 @@ const page = printPageSvg({
         ? ''
         : ` · contour interval ${peripheral.contourIntervalMetres} m`),
   },
-  withoutCourse: true,
-})!
-const cropWidth = crop.right - crop.left
-const cropHeight = crop.bottom - crop.top
-const croppedSvg = page.svg.replace(
-  /width="[\d.]+mm" height="[\d.]+mm" viewBox="[^"]*"/,
-  `width="${cropWidth}mm" height="${cropHeight}mm"` +
-    ` viewBox="${crop.left} ${crop.top} ${cropWidth} ${cropHeight}"`,
-)
+}
 writeFileSync(
   values.background,
-  new Resvg(croppedSvg, {
-    fitTo: { mode: 'width', value: BACKGROUND_WIDTH_PIXELS },
+  pngOf(printPageSvg({ ...pageInput, withoutCourse: true })!.svg, crop, BACKGROUND_WIDTH_PIXELS),
+)
+
+// The link preview (og:image) is a card: the app's name and promise beside the course on the map.
+const [previewWidth, previewHeight] = PREVIEW_SIZE_PIXELS
+// The map side shows the sample terrain (where the sites are) around the course, so the card has
+// no empty paper beside the map.
+const terrainPoints = onPage.map(site => toPageMillimetres(site.position))
+const terrainBox = {
+  left: Math.min(...terrainPoints.map(([x]) => x)) - PREVIEW_TERRAIN_MARGIN_MILLIMETRES,
+  top: Math.min(...terrainPoints.map(([, y]) => y)) - PREVIEW_TERRAIN_MARGIN_MILLIMETRES,
+  right: Math.max(...terrainPoints.map(([x]) => x)) + PREVIEW_TERRAIN_MARGIN_MILLIMETRES,
+  bottom: Math.max(...terrainPoints.map(([, y]) => y)) + PREVIEW_TERRAIN_MARGIN_MILLIMETRES,
+}
+const mapCropHeight = Math.min(
+  terrainBox.bottom - terrainBox.top,
+  ((terrainBox.right - terrainBox.left) * previewHeight) / PREVIEW_MAP_WIDTH_PIXELS,
+)
+const mapCropWidth = (mapCropHeight * PREVIEW_MAP_WIDTH_PIXELS) / previewHeight
+const centreOf = (values: number[]) => (Math.min(...values) + Math.max(...values)) / 2
+const clamped = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max)
+const shownLeft = Math.min(
+  terrainBox.left,
+  ...stops.map(([x]) => x - PREVIEW_COURSE_MARGIN_MILLIMETRES),
+)
+const shownRight = Math.max(
+  terrainBox.right,
+  ...stops.map(([x]) => x + PREVIEW_COURSE_MARGIN_MILLIMETRES),
+)
+const mapLeft = clamped(
+  centreOf(stops.map(([x]) => x)) - mapCropWidth / 2,
+  shownLeft,
+  shownRight - mapCropWidth,
+)
+const mapTop = clamped(
+  centreOf(stops.map(([, y]) => y)) - mapCropHeight / 2,
+  terrainBox.top,
+  terrainBox.bottom - mapCropHeight,
+)
+const previewMap = pngOf(
+  printPageSvg(pageInput)!.svg,
+  { left: mapLeft, top: mapTop, right: mapLeft + mapCropWidth, bottom: mapTop + mapCropHeight },
+  PREVIEW_MAP_WIDTH_PIXELS,
+)
+writeFileSync(values.preview, previewCard(previewMap))
+console.log(
+  `Wrote ${values.out}, ${values.descriptions}, ${values.background} and ${values.preview}: ` +
+    `${run.controls.length} controls, ` +
+    `${(run.lengthMeters / 1000).toFixed(1)} km, ${run.siteCount} sites on the page`,
+)
+
+function pngOf(
+  pageSvg: string,
+  box: { left: number; top: number; right: number; bottom: number },
+  widthPixels: number,
+) {
+  const width = box.right - box.left
+  const height = box.bottom - box.top
+  const croppedSvg = pageSvg.replace(
+    /width="[\d.]+mm" height="[\d.]+mm" viewBox="[^"]*"/,
+    `width="${width}mm" height="${height}mm" viewBox="${box.left} ${box.top} ${width} ${height}"`,
+  )
+  return new Resvg(croppedSvg, {
+    fitTo: { mode: 'width', value: widthPixels },
     background: 'white',
     font: { loadSystemFonts: true },
   })
     .render()
-    .asPng(),
-)
-console.log(
-  `Wrote ${values.out}, ${values.descriptions} and ${values.background}: ${run.controls.length} controls, ` +
-    `${(run.lengthMeters / 1000).toFixed(1)} km, ${run.siteCount} sites on the page`,
-)
+    .asPng()
+}
+
+function previewCard(mapPng: Buffer) {
+  const textWidth = previewWidth - PREVIEW_MAP_WIDTH_PIXELS
+  const { ink, inkSoft, paper, overprint } = PREVIEW_COLOURS
+  const titleLines = wrapped(en.landing.hero.title, 26)
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${previewWidth}" height="${previewHeight}">
+  <rect width="${previewWidth}" height="${previewHeight}" fill="${paper}"/>
+  <image x="${textWidth}" y="0" width="${PREVIEW_MAP_WIDTH_PIXELS}" height="${previewHeight}"
+    href="data:image/png;base64,${mapPng.toString('base64')}"/>
+  <g fill="none" stroke="${overprint}" stroke-width="6">
+    <path d="M64 136 L92 88 L120 136 Z"/>
+    <circle cx="168" cy="118" r="22"/>
+    <circle cx="232" cy="118" r="22"/>
+    <circle cx="232" cy="118" r="14"/>
+  </g>
+  <text font-family="${PREVIEW_FONT}" fill="${ink}">
+    <tspan x="60" y="248" font-size="64" font-weight="800" letter-spacing="-1.5">Ratamestari</tspan>
+    ${titleLines
+      .map(
+        (line, i) =>
+          `<tspan x="60" y="${316 + i * 40}" font-size="30" fill="${inkSoft}">${line}</tspan>`,
+      )
+      .join('')}
+    <tspan x="60" y="560" font-size="22" font-weight="700" fill="${overprint}">pouju.github.io/ratamestari</tspan>
+  </text>
+  <text x="${previewWidth - 16}" y="${previewHeight - 14}" text-anchor="end"
+    font-family="${PREVIEW_FONT}" font-size="15" fill="${inkSoft}">Map © Vehkalahden Veikot</text>
+</svg>`
+  return new Resvg(svg, { font: { loadSystemFonts: true, defaultFontFamily: 'DejaVu Sans' } })
+    .render()
+    .asPng()
+}
+
+function wrapped(text: string, maxCharacters: number) {
+  return text.split(' ').reduce<string[]>((lines, word) => {
+    const last = lines.at(-1)
+    if (last !== undefined && `${last} ${word}`.length <= maxCharacters) {
+      lines[lines.length - 1] = `${last} ${word}`
+    } else {
+      lines.push(word)
+    }
+    return lines
+  }, [])
+}
 
 function round(value: number) {
   return Math.round(value * 10) / 10
