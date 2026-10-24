@@ -7,6 +7,7 @@ import {
   findControlSites,
   findPeripheralInformation,
   isInPeripheralBlock,
+  fitCourseToFrame,
   fitCourseToPaper,
   fixControl,
   insertControl,
@@ -22,6 +23,7 @@ import {
   setCourseOnPaperSteps,
   type CourseSpec,
   type PaperChoice,
+  type PrintFrame,
   type ReplacementPreference,
   type ControlSiteCandidate,
   type Course,
@@ -109,14 +111,21 @@ function specFor(
   }
 }
 
+function fittedAsSet(
+  course: Course,
+  terrain: Terrain,
+  { spec, paper }: NonNullable<typeof lastSetting>,
+) {
+  return spec.printFrame
+    ? fitCourseToFrame(terrain, course, spec.printFrame, spec.peripheralSize)
+    : fitCourseToPaper(terrain, course, papersFor(paper), spec.printScale, spec.peripheralSize)
+}
+
 function editedCourse(course: Course, edit: (spec: CourseSpec) => Course | null): Course | null {
   if (!terrain || !lastSetting) throw new Error('Set a course before editing it')
-  const { spec, paper } = lastSetting
+  const { spec } = lastSetting
   const edited = edit({ ...spec, ...(course.printArea && { printArea: course.printArea }) })
-  return (
-    edited &&
-    fitCourseToPaper(terrain, edited, papersFor(paper), spec.printScale, spec.peripheralSize)
-  )
+  return edited && fittedAsSet(edited, terrain, lastSetting)
 }
 
 const engine = {
@@ -153,11 +162,12 @@ const engine = {
     paceSecondsPerKm: number,
     paper: PaperChoice,
     printScaleChoice: PrintScaleChoice,
+    printFrame: PrintFrame | null,
     onProgress: (course: Course) => void,
     startDistanceFromFinishMeters: readonly [number, number] | null = null,
   ): Promise<Course | null> {
     if (!terrain) throw new Error('No map loaded in the engine')
-    const spec = specFor(
+    const automatic = specFor(
       request,
       competitionCentre,
       seed,
@@ -165,7 +175,8 @@ const engine = {
       printScaleChoice,
       startDistanceFromFinishMeters,
     )
-    if (!spec) return Promise.resolve(null)
+    if (!automatic) return Promise.resolve(null)
+    const spec = printFrame ? { ...automatic, printFrame, printScale: printFrame.scale } : automatic
     lastSetting = { spec, paper }
     return runSliced(setCourseOnPaperSteps(terrain, sites, spec, paper), onProgress)
   },
@@ -223,12 +234,23 @@ const engine = {
     printScaleChoice: PrintScaleChoice,
   ): Course | null {
     if (!terrain || !lastSetting) throw new Error('Set a course before changing its paper')
+    const { printFrame: _placedByHand, ...automatic } = lastSetting.spec
     const spec = {
-      ...lastSetting.spec,
+      ...automatic,
       printScale: printScaleFor(printScaleChoice, lastSetting.spec.format),
     }
     lastSetting = { spec, paper }
     return fitCourseToPaper(terrain, course, papersFor(paper), spec.printScale)
+  },
+
+  // The course stays as it is; controls the new frame leaves outside become findings.
+  refitToFrame(course: Course, printFrame: PrintFrame): Course {
+    if (!terrain || !lastSetting) throw new Error('Set a course before moving its paper')
+    lastSetting = {
+      spec: { ...lastSetting.spec, printFrame, printScale: printFrame.scale },
+      paper: printFrame.paper,
+    }
+    return fittedAsSet(course, terrain, lastSetting)
   },
 
   moveControl(course: Course, stopIndex: number, to: LocalPoint): Course | null {

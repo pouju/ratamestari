@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { z } from 'zod'
-import type { Course, PaperChoice } from '@ratamestari/engine'
+import type { Course, PaperChoice, PrintFrame } from '@ratamestari/engine'
 import {
   paperSizeSchema,
   PRINT_SCALE,
@@ -127,6 +127,8 @@ export function PlanLegTool({ isActive, isDisabled, onToggle }: PlanLegToolProps
 
 interface PrintLabelProps {
   course: Course | null
+  frame: PrintFrame | null
+  onChooseArea: () => void
   format: Format
   paper: PaperChoice
   printScale: PrintScaleChoice
@@ -137,6 +139,8 @@ interface PrintLabelProps {
 
 export function PrintLabel({
   course,
+  frame,
+  onChooseArea,
   format: courseFormat,
   paper,
   printScale,
@@ -146,14 +150,15 @@ export function PrintLabel({
 }: PrintLabelProps) {
   const m = useMessages().print
   const format = useFormat()
-  const area = course?.printArea
+  const area = frame ?? course?.printArea
   const defaultScale = PRINT_SCALE.defaultByFormat[courseFormat]
-  const summary = area
+  const onPaper = area
     ? m.onPaper(area.paper, m.orientation[area.orientation], format.scale(area.scale))
     : m.beforeCourse(
         paper === 'auto' ? m.automaticPaperShort : paper,
         format.scale(printScale === 'auto' ? defaultScale : printScale),
       )
+  const summary = frame ? m.placedByYou(onPaper) : onPaper
 
   return (
     <div className="print-label">
@@ -191,7 +196,63 @@ export function PrintLabel({
             ))}
           </select>
         </label>
+        <button
+          type="button"
+          className="tool-menu-action"
+          disabled={isDisabled}
+          onClick={onChooseArea}
+        >
+          {frame ? m.moveArea : m.chooseArea}
+        </button>
       </ToolMenu>
+    </div>
+  )
+}
+
+const hasCoarsePointer = () => window.matchMedia('(pointer: coarse)').matches
+
+interface PrintFrameBarProps {
+  isBusy: boolean
+  canSetAgain: boolean
+  onTurn: () => void
+  onAutomatic: () => void
+  onSetAgain: () => void
+  onDone: () => void
+}
+
+export function PrintFrameBar({
+  isBusy,
+  canSetAgain,
+  onTurn,
+  onAutomatic,
+  onSetAgain,
+  onDone,
+}: PrintFrameBarProps) {
+  const m = useMessages().print
+  return (
+    <div className="print-label print-frame-bar" role="group" aria-label={m.chooseArea}>
+      <span className="print-frame-hint">
+        {hasCoarsePointer() ? m.placingHintTouch : m.placingHint}
+      </span>
+      <button type="button" aria-label={m.turnLabel} disabled={isBusy} onClick={onTurn}>
+        {m.turn}
+      </button>
+      <button
+        type="button"
+        aria-label={m.automaticAreaLabel}
+        disabled={isBusy}
+        onClick={onAutomatic}
+      >
+        {m.automaticArea}
+      </button>
+      {canSetAgain && (
+        <button type="button" disabled={isBusy} onClick={onSetAgain}>
+          {m.setAgainInArea}
+        </button>
+      )}
+      <button type="button" className="print-label-adjust" onClick={onDone}>
+        {m.done}
+      </button>
     </div>
   )
 }

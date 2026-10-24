@@ -14,9 +14,16 @@ import Projection from 'ol/proj/Projection'
 import Translate, { type TranslateEvent } from 'ol/interaction/Translate'
 import type Geometry from 'ol/geom/Geometry'
 import type { FeatureLike } from 'ol/Feature'
+import { unByKey } from 'ol/Observable'
 import { asArray } from 'ol/color'
 import { Circle as CircleStyle, Fill, Stroke, Style, Text } from 'ol/style'
-import { localPoint, type LocalExtent, type LocalPoint, type MapInfo } from '@ratamestari/core'
+import {
+  localExtent,
+  localPoint,
+  type LocalExtent,
+  type LocalPoint,
+  type MapInfo,
+} from '@ratamestari/core'
 import type {
   ControlSiteCandidate,
   Course,
@@ -100,6 +107,9 @@ const siteStyles = Object.fromEntries(
 )
 
 const DRAG_HIT_TOLERANCE_PIXELS = 8
+const FRAME_HOLD_MS = 450
+const FRAME_HOLD_TOLERANCE_PIXELS = 8
+const FRAME_HOLD_VIBRATE_MS = 20
 
 const cssToken = (name: string) =>
   getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -189,6 +199,9 @@ interface Props {
   costMap: CostMapImage | null
   sites: readonly ControlSiteCandidate[] | null
   course: Course | null
+  printFrame: LocalExtent | null
+  isPlacingFrame: boolean
+  onFrameMoved: (centre: LocalPoint) => void
   descriptionBox: DescriptionBox | null
   competitionCentre: LocalPoint | null
   isPickingCentre: boolean
@@ -219,6 +232,9 @@ export function MapView({
   costMap,
   sites,
   course,
+  printFrame,
+  isPlacingFrame,
+  onFrameMoved,
   descriptionBox,
   competitionCentre,
   isPickingCentre,
@@ -521,10 +537,97 @@ export function MapView({
 
   useEffect(() => {
     printFrameSource.clear()
-    const area = course?.printArea
-    if (!area) return
-    printFrameSource.addFeature(new Feature(outsideOf(area.extent, info.extent)))
-  }, [course?.printArea, info, printFrameSource])
+    if (printFrame) printFrameSource.addFeature(new Feature(outsideOf(printFrame, info.extent)))
+  }, [printFrame, info, printFrameSource])
+
+  const onFrameMovedRef = useRef(onFrameMoved)
+  onFrameMovedRef.current = onFrameMoved
+  useEffect(() => {
+    const map = mapRef.current
+    const element = target.current
+    if (!map || !element || !printFrame || !isPlacingFrame) return
+    let pendingHold: { timer: number; x: number; y: number } | null = null
+    let drag: { from: LocalPoint; extent: LocalExtent } | null = null
+    const touches = new Set<number>()
+    const cancelHold = () => {
+      if (pendingHold) window.clearTimeout(pendingHold.timer)
+      pendingHold = null
+    }
+    const startDrag = (event: PointerEvent) => {
+      const [x = 0, y = 0] = map.getEventCoordinate(event)
+      drag = { from: localPoint(x, y), extent: printFrame }
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      touches.add(event.pointerId)
+      cancelHold()
+      drag = null
+      const [x = 0, y = 0] = map.getEventCoordinate(event)
+      const [minX, minY, maxX, maxY] = printFrame
+      const isInside = x >= minX && x <= maxX && y >= minY && y <= maxY
+      if (!isInside || touches.size > 1) return
+      if (event.pointerType !== 'touch') {
+        startDrag(event)
+        return
+      }
+      // As with controls, a finger panning the map must not move the paper by accident.
+      pendingHold = {
+        x: event.clientX,
+        y: event.clientY,
+        timer: window.setTimeout(() => {
+          pendingHold = null
+          startDrag(event)
+          navigator.vibrate?.(FRAME_HOLD_VIBRATE_MS)
+        }, FRAME_HOLD_MS),
+      }
+    }
+    const onPointerMove = (event: PointerEvent) => {
+      if (
+        pendingHold &&
+        Math.hypot(event.clientX - pendingHold.x, event.clientY - pendingHold.y) >
+          FRAME_HOLD_TOLERANCE_PIXELS
+      )
+        cancelHold()
+    }
+    const draggedExtent = (event: { coordinate: number[] }): LocalExtent | null => {
+      if (!drag) return null
+      const [x = 0, y = 0] = event.coordinate
+      const dx = x - drag.from[0]
+      const dy = y - drag.from[1]
+      const [minX, minY, maxX, maxY] = drag.extent
+      return localExtent(minX + dx, minY + dy, maxX + dx, maxY + dy)
+    }
+    const onPointerDrag = (event: { coordinate: number[] }) => {
+      const extent = draggedExtent(event)
+      if (!extent) return true
+      printFrameSource.clear()
+      printFrameSource.addFeature(new Feature(outsideOf(extent, info.extent)))
+      return false
+    }
+    const onPointerUp = (event: PointerEvent) => {
+      touches.delete(event.pointerId)
+      cancelHold()
+      if (!drag) return
+      const extent = draggedExtent({ coordinate: map.getEventCoordinate(event) })
+      drag = null
+      if (!extent || extent.every((value, i) => value === printFrame[i])) return
+      const [minX, minY, maxX, maxY] = extent
+      onFrameMovedRef.current(localPoint((minX + maxX) / 2, (minY + maxY) / 2))
+    }
+    // Returning false from a map listener keeps the drag from panning the map.
+    const dragKey = map.on('pointerdrag', onPointerDrag)
+    element.addEventListener('pointerdown', onPointerDown, { capture: true })
+    element.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onPointerUp)
+    window.addEventListener('pointercancel', onPointerUp)
+    return () => {
+      cancelHold()
+      unByKey(dragKey)
+      element.removeEventListener('pointerdown', onPointerDown, { capture: true })
+      element.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('pointercancel', onPointerUp)
+    }
+  }, [printFrame, isPlacingFrame, info, printFrameSource])
 
   useEffect(() => {
     descriptionLayer.setVisible(descriptionBox !== null)
@@ -568,7 +671,10 @@ export function MapView({
   const isPlacing = isPickingCentre || (plannedLeg !== null && needsPlacing(plannedLeg))
   return (
     <div className="map-frame">
-      <div ref={target} className={isPlacing ? 'map picking' : 'map'} />
+      <div
+        ref={target}
+        className={isPlacing ? 'map picking' : isPlacingFrame ? 'map moving-frame' : 'map'}
+      />
       <div className="map-toolbar" role="toolbar" aria-label={messages.map.toolbar}>
         <button
           type="button"

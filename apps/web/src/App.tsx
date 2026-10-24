@@ -1,7 +1,20 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { localPoint, type LocalPoint } from '@ratamestari/core'
-import type { ControlSiteCandidate, Course, PaperChoice } from '@ratamestari/engine'
-import type { CourseRequest, IsomCode, PrintScaleChoice } from '@ratamestari/rules'
+import {
+  centreOfExtent,
+  hasRoomForCentre,
+  printFrameAround,
+  type ControlSiteCandidate,
+  type Course,
+  type Orientation,
+  type PaperChoice,
+} from '@ratamestari/engine'
+import {
+  printScaleFor,
+  type CourseRequest,
+  type IsomCode,
+  type PrintScaleChoice,
+} from '@ratamestari/rules'
 import { createCourseTools, type CourseWorkspace, type GenerateOptions } from '@ratamestari/agent'
 import {
   formatOcadSymbolNumber,
@@ -37,7 +50,7 @@ import { LegRoutesPanel, PlanLegPanel, type LegRoutesState } from './LegRoutesPa
 import { EMPTY_PLANNED_LEG, legEnds, plannedEnds, type PlannedLeg } from './leg-routes'
 import { useFormat, useMessages } from './i18n'
 import { MapView } from './MapView'
-import { LayersMenu, PlanLegTool, PrintLabel } from './MapTools'
+import { LayersMenu, PlanLegTool, PrintFrameBar, PrintLabel } from './MapTools'
 import { rasterizeSvg, type MapImage } from './rasterize'
 import {
   APP_VERSION,
@@ -66,6 +79,11 @@ const DEFAULT_REQUEST: CourseRequest = {
 
 const DEFAULT_WINNER_PACE = '5:00'
 
+interface PlacedFrame {
+  readonly centre: LocalPoint
+  readonly orientation: Orientation
+}
+
 const isSameRequest = (a: CourseRequest, b: CourseRequest) =>
   a.eventLevel === b.eventLevel &&
   a.format === b.format &&
@@ -74,6 +92,17 @@ const isSameRequest = (a: CourseRequest, b: CourseRequest) =>
   a.skillLetter === b.skillLetter
 
 const errorMessage = (e: unknown) => (e instanceof Error ? e.message : String(e))
+
+function frameFor(
+  placed: PlacedFrame | null,
+  paper: PaperChoice,
+  printScale: PrintScaleChoice,
+  request: CourseRequest,
+) {
+  if (!placed || paper === 'auto') return null
+  const scale = printScaleFor(printScale, request.format)
+  return printFrameAround(placed.centre, paper, placed.orientation, scale)
+}
 
 export function App() {
   const [engine] = useState(createEngine)
@@ -128,6 +157,8 @@ export function App() {
   const [sheetSize, setSheetSize] = useState<SheetSize>('peek')
   const [paper, setPaper] = useState<PaperChoice>('auto')
   const [printScale, setPrintScale] = useState<PrintScaleChoice>('auto')
+  const [placedFrame, setPlacedFrame] = useState<PlacedFrame | null>(null)
+  const [isPlacingFrame, setIsPlacingFrame] = useState(false)
   const [isPreparingPdf, setIsPreparingPdf] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [mapKey, setMapKey] = useState<string | null>(null)
@@ -180,6 +211,8 @@ export function App() {
     setPlannedLeg(null)
     setCompetitionCentre(null)
     setStartWish(null)
+    setPlacedFrame(null)
+    setIsPlacingFrame(false)
     const bytes = new Uint8Array(await file.arrayBuffer())
     const key = await mapKeyOf(bytes)
     const storedCorrections = loadCorrections(key)
@@ -251,6 +284,11 @@ export function App() {
     wish = startWish,
   ): Promise<Course | null> {
     if (!centre || pace === null) return null
+    const frame = frameFor(placedFrame, paper, printScale, nextRequest)
+    if (frame && !hasRoomForCentre(frame, centre)) {
+      setEditMessage(messages.print.centreOutside)
+      return null
+    }
     setRequest(nextRequest)
     setSeed(nextSeed)
     setIsGenerating(true)
@@ -265,6 +303,7 @@ export function App() {
         pace,
         paper,
         printScale,
+        frame,
         progressCallback<Course>(setCourse),
         wish,
       )
@@ -401,14 +440,39 @@ export function App() {
     setPlannedLeg(EMPTY_PLANNED_LEG)
   }
 
-  function changePrint(nextPaper: PaperChoice, nextScale: PrintScaleChoice) {
+  // A course already set stays as it is; the paper and description box are fitted again.
+  function changePrint(
+    nextPaper: PaperChoice,
+    nextScale: PrintScaleChoice,
+    nextFrame = nextPaper === 'auto' ? null : placedFrame,
+  ) {
     setPaper(nextPaper)
     setPrintScale(nextScale)
-    if (course)
-      void editCourse(
-        current => engine.refitToPaper(current, nextPaper, nextScale),
-        messages.print.refitFailed,
-      )
+    setPlacedFrame(nextFrame)
+    if (!nextFrame) setIsPlacingFrame(false)
+    if (!course) return
+    const frame = frameFor(nextFrame, nextPaper, nextScale, request)
+    void editCourse(
+      current =>
+        frame
+          ? engine.refitToFrame(current, frame)
+          : engine.refitToPaper(current, nextPaper, nextScale),
+      messages.print.refitFailed,
+    )
+  }
+
+  function startPlacingFrame() {
+    if (state.status !== 'ready') return
+    const area = course?.printArea
+    const startFrame = placedFrame ?? {
+      centre: area
+        ? centreOfExtent(area.extent)
+        : (competitionCentre ?? centreOfExtent(state.map.info.extent)),
+      orientation: area?.orientation ?? 'portrait',
+    }
+    setIsPlacingFrame(true)
+    setPlannedLeg(null)
+    changePrint(area?.paper ?? (paper === 'auto' ? 'A4' : paper), printScale, startFrame)
   }
 
   function selectLeg(leg: number | null) {
@@ -545,6 +609,15 @@ export function App() {
     plannedLeg === null &&
     (isPickingCentre || (state.status === 'ready' && competitionCentre === null))
 
+  const printFrame = useMemo(
+    () => frameFor(placedFrame, paper, printScale, request),
+    [placedFrame, paper, printScale, request],
+  )
+  const isCentreOutsideFrame =
+    printFrame !== null &&
+    competitionCentre !== null &&
+    !hasRoomForCentre(printFrame, competitionCentre)
+
   const descriptionBox = useMemo(
     () => (course && mapInfo ? descriptionBoxFor(course, request, mapInfo) : null),
     [course, request, mapInfo],
@@ -603,6 +676,11 @@ export function App() {
             costMap={showCostMap ? costMap : null}
             sites={showSites ? sites : null}
             course={course}
+            printFrame={printFrame?.extent ?? course?.printArea?.extent ?? null}
+            isPlacingFrame={isPlacingFrame && !isGenerating && !isEditing}
+            onFrameMoved={centre =>
+              placedFrame && changePrint(paper, printScale, { ...placedFrame, centre })
+            }
             descriptionBox={descriptionBox}
             competitionCentre={competitionCentre}
             isPickingCentre={isChoosingCentre}
@@ -632,15 +710,38 @@ export function App() {
             suggestedMove={suggestedMove}
             drawCourseKey={drawCourseKey}
             footer={
-              <PrintLabel
-                course={course}
-                format={request.format}
-                paper={paper}
-                printScale={printScale}
-                isDisabled={isGenerating || isEditing}
-                onPaperChange={next => changePrint(next, printScale)}
-                onPrintScaleChange={next => changePrint(paper, next)}
-              />
+              isPlacingFrame && placedFrame ? (
+                <PrintFrameBar
+                  isBusy={isGenerating || isEditing}
+                  canSetAgain={
+                    course !== null &&
+                    course.problems.stopsOutsidePrintArea > 0 &&
+                    !isCentreOutsideFrame
+                  }
+                  onTurn={() =>
+                    changePrint(paper, printScale, {
+                      ...placedFrame,
+                      orientation:
+                        placedFrame.orientation === 'portrait' ? 'landscape' : 'portrait',
+                    })
+                  }
+                  onAutomatic={() => changePrint('auto', printScale)}
+                  onSetAgain={() => void generateCourse(request, seed, paceSecondsPerKm)}
+                  onDone={() => setIsPlacingFrame(false)}
+                />
+              ) : (
+                <PrintLabel
+                  course={course}
+                  frame={printFrame}
+                  onChooseArea={startPlacingFrame}
+                  format={request.format}
+                  paper={paper}
+                  printScale={printScale}
+                  isDisabled={isGenerating || isEditing}
+                  onPaperChange={next => changePrint(next, printScale)}
+                  onPrintScaleChange={next => changePrint(paper, next)}
+                />
+              )
             }
             onStopMoved={(stopIndex, to) =>
               void editCourse(
@@ -716,6 +817,7 @@ export function App() {
             canSetCourse={
               engineState === 'ready' &&
               competitionCentre !== null &&
+              !isCentreOutsideFrame &&
               paceSecondsPerKm !== null &&
               !isGenerating
             }
@@ -792,6 +894,7 @@ export function App() {
 
         {course && selectedLeg === null && <p className="note">{messages.leg.selectHint}</p>}
 
+        {isCentreOutsideFrame && <p className="error">{messages.print.centreOutside}</p>}
         {editMessage && <p className="error">{editMessage}</p>}
         {printError && <p className="error">{messages.course.pdfFailed(printError)}</p>}
 
