@@ -45,6 +45,7 @@ const { values } = parseArgs({
     seeds: { type: 'string', default: '3' },
     formats: { type: 'string', default: 'long,middle' },
     out: { type: 'string', default: DEFAULT_OUT },
+    only: { type: 'string' },
   },
 })
 const seeds = Array.from({ length: Number(values.seeds) }, (_, i) => i + 1)
@@ -62,7 +63,9 @@ interface Row {
 
 const lines: string[] = []
 const mapFiles = readdirSync(MAPS_FOLDER).filter(name => name.endsWith('.ocd'))
-const courseFiles = readdirSync(MAPS_FOLDER).filter(name => name.endsWith(COURSES_SUFFIX))
+const courseFiles = readdirSync(MAPS_FOLDER).filter(
+  name => name.endsWith(COURSES_SUFFIX) && (!values.only || name.includes(values.only)),
+)
 const loaded = new Map<string, OcadMap>()
 const loadMap = async (file: string) => {
   const cached = loaded.get(file)
