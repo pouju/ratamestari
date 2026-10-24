@@ -24,6 +24,16 @@ export const en = {
     fromSymbols: "Routes are worked out from the map's symbols, not from GPS tracks.",
     selectHint: 'Tap a leg or a control on the map to see its routes.',
   },
+  planLeg: {
+    open: 'Plan a leg',
+    title: 'Plan a leg',
+    done: 'Done',
+    placeFirst: 'Click the map where the leg starts.',
+    placeSecond: 'Now click where it ends.',
+    dragHint: 'Drag either control. The routes follow as you drag.',
+    straightLine: 'Straight line',
+    bearing: 'Bearing',
+  },
   units: {
     seconds: (value: string) => `${value} s`,
   },

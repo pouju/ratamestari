@@ -1,7 +1,14 @@
 import type { Course, LegEvaluation } from '@ratamestari/engine'
 import { ROUTE_CHOICE } from '@ratamestari/rules'
 import { useFormat, useMessages } from './i18n'
-import { legCount, rankedRoutes, ROUTE_COLOUR_TOKENS, stopName } from './leg-routes'
+import {
+  legCount,
+  needsPlacing,
+  rankedRoutes,
+  ROUTE_COLOUR_TOKENS,
+  stopName,
+  type PlannedLeg,
+} from './leg-routes'
 
 export type LegRoutesState =
   | { readonly status: 'finding' }
@@ -61,6 +68,62 @@ export function LegRoutesPanel({ course, leg, routes, onSelectLeg }: Props) {
       {routes.status === 'evaluated' && <RouteTable leg={routes.leg} />}
 
       <p className="leg-view-soft leg-view-small">{m.fromSymbols}</p>
+    </section>
+  )
+}
+
+interface PlanLegProps {
+  plan: PlannedLeg
+  routes: LegRoutesState
+  onDone: () => void
+}
+
+export function PlanLegPanel({ plan, routes, onDone }: PlanLegProps) {
+  const m = useMessages()
+  const format = useFormat()
+  const instruction =
+    plan.from === null
+      ? m.planLeg.placeFirst
+      : needsPlacing(plan)
+        ? m.planLeg.placeSecond
+        : m.planLeg.dragHint
+
+  return (
+    <section className="leg-view" aria-labelledby="plan-leg-title">
+      <button type="button" className="leg-view-back" onClick={onDone}>
+        <Chevron direction="left" />
+        {m.planLeg.done}
+      </button>
+
+      <div>
+        <h2 id="plan-leg-title">{m.planLeg.title}</h2>
+        <p className="leg-view-soft" aria-live="polite">
+          {instruction}
+        </p>
+      </div>
+
+      {!needsPlacing(plan) && (
+        <>
+          {routes.status === 'finding' && <p className="leg-view-soft">{m.leg.findingRoutes}</p>}
+          {routes.status === 'unreachable' && <p className="error">{m.leg.unreachable}</p>}
+          {routes.status === 'evaluated' && (
+            <>
+              <dl className="leg-view-figures">
+                <div>
+                  <dt>{m.planLeg.straightLine}</dt>
+                  <dd>{format.distance(routes.leg.straightMeters)}</dd>
+                </div>
+                <div>
+                  <dt>{m.planLeg.bearing}</dt>
+                  <dd>{format.bearing(routes.leg.bearingDegrees)}</dd>
+                </div>
+              </dl>
+              <RouteTable leg={routes.leg} />
+            </>
+          )}
+          <p className="leg-view-soft leg-view-small">{m.leg.fromSymbols}</p>
+        </>
+      )}
     </section>
   )
 }

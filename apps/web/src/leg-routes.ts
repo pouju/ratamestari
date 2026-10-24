@@ -2,6 +2,23 @@ import { localPoint, type LocalPoint } from '@ratamestari/core'
 import type { Course, LegEvaluation, Route } from '@ratamestari/engine'
 import type { StopName } from './i18n'
 
+export interface PlannedLeg {
+  readonly from: LocalPoint | null
+  readonly to: LocalPoint | null
+}
+
+export const EMPTY_PLANNED_LEG: PlannedLeg = { from: null, to: null }
+
+export const needsPlacing = (plan: PlannedLeg): boolean => plan.from === null || plan.to === null
+
+export function placeNext(plan: PlannedLeg, point: LocalPoint): PlannedLeg {
+  if (plan.from === null) return { ...plan, from: point }
+  return plan.to === null ? { ...plan, to: point } : plan
+}
+
+export const plannedEnds = (plan: PlannedLeg): readonly [LocalPoint, LocalPoint] | null =>
+  plan.from && plan.to ? [plan.from, plan.to] : null
+
 export type RouteRank = 'fastest' | 'middle' | 'slowest'
 
 export interface RankedRoute {

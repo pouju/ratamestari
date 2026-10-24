@@ -32,7 +32,14 @@ import {
   STOP_INDEX,
 } from './course-overprint'
 import { useMessages } from './i18n'
-import { pointAlong, rankedRoutes, ROUTE_COLOUR_TOKENS } from './leg-routes'
+import {
+  needsPlacing,
+  placeNext,
+  pointAlong,
+  rankedRoutes,
+  ROUTE_COLOUR_TOKENS,
+  type PlannedLeg,
+} from './leg-routes'
 import type { CostMapImage } from './cost-map-image'
 import type { DescriptionBox } from './description-box'
 import type { MapImage } from './rasterize'
@@ -44,7 +51,6 @@ const ROUTE_LABEL_SHARE_OF_ROUTE = 0.45
 const LEG_HIT_TOLERANCE_PIXELS = 6
 const CONTROL_CIRCLE_DIAMETER_MM = 5
 const COURSE_LINE_WIDTH_MM = 0.35
-const INITIAL_CONTROL_OFFSET_METERS = 300
 const SITE_DOT_RADIUS_PIXELS = 3
 const CENTRE_MARKER_RADIUS_PIXELS = 9
 const centreStyle = new Style({
@@ -157,8 +163,6 @@ function outsideOf(frame: LocalExtent, map: LocalExtent): Polygon {
 
 const paperMmToGroundMeters = (mm: number, scale: number) => (mm * scale) / 1000
 
-export type ControlPair = readonly [LocalPoint, LocalPoint]
-
 interface Props {
   info: MapInfo
   image: MapImage
@@ -171,8 +175,8 @@ interface Props {
   descriptionBox: DescriptionBox | null
   competitionCentre: LocalPoint | null
   isPickingCentre: boolean
-  showLegTool: boolean
-  onControlsMoved: (controls: ControlPair) => void
+  plannedLeg: PlannedLeg | null
+  onPlannedLegChanged: (plan: PlannedLeg) => void
   onCentrePicked: (centre: LocalPoint) => void
   onStopMoved: (stopIndex: number, to: LocalPoint) => void
   canEditCourse: boolean
@@ -190,8 +194,8 @@ export function MapView({
   descriptionBox,
   competitionCentre,
   isPickingCentre,
-  showLegTool,
-  onControlsMoved,
+  plannedLeg,
+  onPlannedLegChanged,
   onCentrePicked,
   onStopMoved,
   canEditCourse,
@@ -221,8 +225,14 @@ export function MapView({
   const [legToolLayer] = useState(() => new VectorLayer({ source: new VectorSource() }))
   const [legToolFeatures] = useState(() => new Collection<Feature>())
   const [legToolTranslate] = useState(() => new Translate({ features: legToolFeatures }))
-  const onControlsMovedRef = useRef(onControlsMoved)
-  onControlsMovedRef.current = onControlsMoved
+  const [plannedLegFeatures] = useState(() => ({
+    from: new Feature<Circle>(),
+    to: new Feature<Circle>(),
+  }))
+  const plannedLegRef = useRef(plannedLeg)
+  plannedLegRef.current = plannedLeg
+  const onPlannedLegChangedRef = useRef(onPlannedLegChanged)
+  onPlannedLegChangedRef.current = onPlannedLegChanged
   const onCentrePickedRef = useRef(onCentrePicked)
   onCentrePickedRef.current = onCentrePicked
   const isPickingCentreRef = useRef(isPickingCentre)
@@ -236,14 +246,6 @@ export function MapView({
     const extent = [...info.extent]
     const localFrame = new Projection({ code: 'map-local', units: 'm', extent })
     localFrameRef.current = localFrame
-    const [minX, minY, maxX, maxY] = info.extent
-    const centerX = (minX + maxX) / 2
-    const centerY = (minY + maxY) / 2
-    const radius = paperMmToGroundMeters(CONTROL_CIRCLE_DIAMETER_MM, info.scale) / 2
-    const controls = [
-      new Feature(new Circle([centerX - INITIAL_CONTROL_OFFSET_METERS, centerY], radius)),
-      new Feature(new Circle([centerX + INITIAL_CONTROL_OFFSET_METERS, centerY], radius)),
-    ] as const
     const courseLineWidthMeters = paperMmToGroundMeters(COURSE_LINE_WIDTH_MM, info.scale)
 
     const map = new OlMap({
@@ -268,9 +270,6 @@ export function MapView({
     })
     map.getView().fit(extent, { padding: [20, 20, 20, 20] })
 
-    const legToolSource = legToolLayer.getSource()!
-    legToolSource.clear()
-    legToolSource.addFeatures([...controls])
     legToolLayer.setStyle(
       (_feature, metersPerPixel) =>
         new Style({
@@ -286,6 +285,12 @@ export function MapView({
         onCentrePickedRef.current(localPoint(x, y))
         return
       }
+      const plan = plannedLegRef.current
+      if (plan && needsPlacing(plan)) {
+        const [x = 0, y = 0] = event.coordinate
+        onPlannedLegChangedRef.current(placeNext(plan, localPoint(x, y)))
+        return
+      }
       // Wrapped because the lookup stops only on a truthy result, and the first leg is 0.
       const hit = map.forEachFeatureAtPixel(
         event.pixel,
@@ -298,17 +303,20 @@ export function MapView({
       if (hit) onLegSelectedRef.current(hit.leg)
     })
 
-    const centerOf = (control: Feature<Circle>) => {
-      const [x = 0, y = 0] = control.getGeometry()!.getCenter()
-      return localPoint(x, y)
+    const reportPlannedLeg = () => {
+      const plan = plannedLegRef.current
+      if (!plan) return
+      const centreOfPlanned = (feature: Feature<Circle>) => {
+        const geometry = feature.getGeometry()
+        return geometry ? centreOf(geometry) : null
+      }
+      onPlannedLegChangedRef.current({
+        from: plan.from && centreOfPlanned(plannedLegFeatures.from),
+        to: plan.to && centreOfPlanned(plannedLegFeatures.to),
+      })
     }
-    const reportControls = () =>
-      onControlsMovedRef.current([centerOf(controls[0]), centerOf(controls[1])])
-    legToolFeatures.clear()
-    legToolFeatures.extend([...controls])
-    legToolTranslate.on('translateend', reportControls)
+    legToolTranslate.on(['translating', 'translateend'], reportPlannedLeg)
     map.addInteraction(legToolTranslate)
-    reportControls()
 
     const reportStopMoved = (event: TranslateEvent) => {
       const feature = event.features.item(0)
@@ -322,7 +330,7 @@ export function MapView({
 
     return () => {
       courseTranslate.un('translateend', reportStopMoved)
-      legToolTranslate.un('translateend', reportControls)
+      legToolTranslate.un(['translating', 'translateend'], reportPlannedLeg)
       map.setTarget(undefined)
     }
   }, [
@@ -338,6 +346,7 @@ export function MapView({
     legToolLayer,
     legToolFeatures,
     legToolTranslate,
+    plannedLegFeatures,
     courseLayer,
     courseTranslate,
   ])
@@ -351,9 +360,26 @@ export function MapView({
   }, [selectedLeg, courseLayer])
 
   useEffect(() => {
-    legToolLayer.setVisible(showLegTool)
-    legToolTranslate.setActive(showLegTool)
-  }, [showLegTool, legToolLayer, legToolTranslate])
+    const source = legToolLayer.getSource()!
+    const radius = paperMmToGroundMeters(CONTROL_CIRCLE_DIAMETER_MM, info.scale) / 2
+    for (const role of ['from', 'to'] as const) {
+      const feature = plannedLegFeatures[role]
+      const point = plannedLeg?.[role] ?? null
+      if (!point) {
+        if (source.hasFeature(feature)) source.removeFeature(feature)
+        legToolFeatures.remove(feature)
+        continue
+      }
+      const geometry = feature.getGeometry()
+      const [x = 0, y = 0] = geometry?.getCenter() ?? []
+      if (!geometry) feature.setGeometry(new Circle([...point], radius))
+      else if (x !== point[0] || y !== point[1] || geometry.getRadius() !== radius)
+        geometry.setCenterAndRadius([...point], radius)
+      if (!source.hasFeature(feature)) source.addFeature(feature)
+      if (!legToolFeatures.getArray().includes(feature)) legToolFeatures.push(feature)
+    }
+    legToolTranslate.setActive(plannedLeg !== null)
+  }, [plannedLeg, info, legToolLayer, legToolFeatures, legToolTranslate, plannedLegFeatures])
 
   useEffect(() => {
     courseSource.clear()
@@ -430,5 +456,6 @@ export function MapView({
     routeSource.addFeatures([...lines, ...labels])
   }, [routes, routeSource, routeLetters])
 
-  return <div ref={target} className={isPickingCentre ? 'map picking' : 'map'} />
+  const isPlacing = isPickingCentre || (plannedLeg !== null && needsPlacing(plannedLeg))
+  return <div ref={target} className={isPlacing ? 'map picking' : 'map'} />
 }

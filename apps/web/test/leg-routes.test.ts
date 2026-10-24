@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { localPoint } from '@ratamestari/core'
 import type { Course, LegEvaluation, Route } from '@ratamestari/engine'
-import { legCount, legEnds, pointAlong, rankedRoutes, stopName } from '../src/leg-routes'
+import {
+  EMPTY_PLANNED_LEG,
+  legCount,
+  legEnds,
+  needsPlacing,
+  placeNext,
+  plannedEnds,
+  pointAlong,
+  rankedRoutes,
+  stopName,
+} from '../src/leg-routes'
 
 const route = (timeSeconds: number): Route => ({
   points: [localPoint(0, 0), localPoint(100, 0)],
@@ -65,5 +75,22 @@ describe('pointAlong', () => {
   it('measures the share along the whole polyline', () => {
     const points = [localPoint(0, 0), localPoint(100, 0), localPoint(100, 100)]
     expect(pointAlong(points, 0.75)).toEqual(localPoint(100, 50))
+  })
+})
+
+describe('planning a leg', () => {
+  const first = localPoint(10, 20)
+  const second = localPoint(300, 400)
+
+  it('places the start, then the end, then ignores further clicks', () => {
+    const once = placeNext(EMPTY_PLANNED_LEG, first)
+    const twice = placeNext(once, second)
+    expect([needsPlacing(once), needsPlacing(twice)]).toEqual([true, false])
+    expect(placeNext(twice, localPoint(0, 0))).toBe(twice)
+    expect(plannedEnds(twice)).toEqual([first, second])
+  })
+
+  it('has no ends until both controls are placed', () => {
+    expect(plannedEnds(placeNext(EMPTY_PLANNED_LEG, first))).toBeNull()
   })
 })

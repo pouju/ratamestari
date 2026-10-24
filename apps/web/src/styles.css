@@ -311,3 +311,19 @@ button.link {
   border-radius: 4px;
   opacity: 0.8;
 }
+.leg-view-figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4) var(--space-5);
+  margin: 0;
+  font-size: var(--font-size-body);
+}
+.leg-view-figures dt {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--colour-ink-soft);
+}
+.leg-view-figures dd {
+  font-size: 26px;
+  font-weight: var(--font-weight-strong);
+}

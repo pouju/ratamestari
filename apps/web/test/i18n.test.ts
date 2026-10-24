@@ -27,4 +27,8 @@ describe('formatFor', () => {
   it('formats shares as percentages', () => {
     expect(format.share(0.1)).toBe('10%')
   })
+
+  it('rounds bearings to whole degrees', () => {
+    expect(format.bearing(50.6)).toBe('51°')
+  })
 })

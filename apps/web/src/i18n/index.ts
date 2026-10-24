@@ -26,6 +26,7 @@ export interface Format {
   readonly metres: (meters: number) => string
   readonly distance: (meters: number) => string
   readonly share: (fraction: number) => string
+  readonly bearing: (degrees: number) => string
   readonly duration: (seconds: number) => string
   readonly timeDifference: (seconds: number) => string
 }
@@ -47,6 +48,12 @@ export function formatFor({ locale, messages }: Language): Format {
   })
   const share = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 })
   const wholeNumber = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 })
+  const degrees = new Intl.NumberFormat(locale, {
+    style: 'unit',
+    unit: 'degree',
+    unitDisplay: 'narrow',
+    maximumFractionDigits: 0,
+  })
   const duration = (seconds: number) => {
     const total = Math.round(seconds)
     const minutes = Math.floor(total / SECONDS_PER_MINUTE)
@@ -60,6 +67,7 @@ export function formatFor({ locale, messages }: Language): Format {
     distance: meters =>
       meters < METRES_SHOWN_UP_TO ? formatMetres(meters) : formatKilometres(meters),
     share: fraction => share.format(fraction),
+    bearing: value => degrees.format(value),
     duration,
     timeDifference: seconds =>
       Math.round(seconds) < SECONDS_PER_MINUTE

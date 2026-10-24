@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import type { LocalPoint } from '@ratamestari/core'
-import type { ControlSiteCandidate, Course, LegEvaluation, PaperChoice } from '@ratamestari/engine'
+import type { ControlSiteCandidate, Course, PaperChoice } from '@ratamestari/engine'
 import type { CourseRequest, IsomCode, PrintScaleChoice } from '@ratamestari/rules'
 import { createCourseTools, type CourseWorkspace, type GenerateOptions } from '@ratamestari/agent'
 import {
@@ -25,11 +25,10 @@ import {
 import { courseNameOf } from './course-labels'
 import { createEngine, progressCallback } from './engine'
 import { formatDuration, parsePace } from './format'
-import { LegDetails } from './LegDetails'
-import { LegRoutesPanel, type LegRoutesState } from './LegRoutesPanel'
-import { legEnds } from './leg-routes'
+import { LegRoutesPanel, PlanLegPanel, type LegRoutesState } from './LegRoutesPanel'
+import { EMPTY_PLANNED_LEG, legEnds, plannedEnds, type PlannedLeg } from './leg-routes'
 import { useMessages } from './i18n'
-import { DIFFICULTY_COLOURS, MapView, type ControlPair } from './MapView'
+import { DIFFICULTY_COLOURS, MapView } from './MapView'
 import { rasterizeSvg, type MapImage } from './rasterize'
 import { SOURCE_CODE_URL } from './config'
 
@@ -40,9 +39,6 @@ type LoadState =
   | { status: 'ready'; fileName: string; map: OcadMap; image: MapImage; ms: number }
 
 type EngineState = 'idle' | 'loading' | 'ready' | 'error'
-
-type LegState =
-  { status: 'none' } | { status: 'evaluated'; leg: LegEvaluation } | { status: 'unreachable' }
 
 const DEFAULT_REQUEST: CourseRequest = {
   eventLevel: 'finnishChampionship',
@@ -60,9 +56,12 @@ export function App() {
   const [engine] = useState(createEngine)
   const [state, setState] = useState<LoadState>({ status: 'empty' })
   const [engineState, setEngineState] = useState<EngineState>('idle')
-  const [controls, setControls] = useState<ControlPair | null>(null)
-  const [legState, setLegState] = useState<LegState>({ status: 'none' })
-  const latestLegRequest = useRef(0)
+  const [plannedLeg, setPlannedLeg] = useState<PlannedLeg | null>(null)
+  const [planRoutes, setPlanRoutes] = useState<LegRoutesState>({ status: 'finding' })
+  const plannedLegQueue = useRef<{
+    isBusy: boolean
+    next: readonly [LocalPoint, LocalPoint] | null
+  }>({ isBusy: false, next: null })
   const [selectedLeg, setSelectedLeg] = useState<number | null>(null)
   const [legRoutes, setLegRoutes] = useState<LegRoutesState>({ status: 'finding' })
   const latestLegRoutesRequest = useRef(0)
@@ -77,7 +76,6 @@ export function App() {
   const [seed, setSeed] = useState(1)
   const [course, setCourse] = useState<Course | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
-  const [showLegTool, setShowLegTool] = useState(true)
   const [paceText, setPaceText] = useState(DEFAULT_WINNER_PACE)
   const [paper, setPaper] = useState<PaperChoice>('auto')
   const [printScale, setPrintScale] = useState<PrintScaleChoice>('auto')
@@ -88,15 +86,18 @@ export function App() {
   const [editMessage, setEditMessage] = useState<string | null>(null)
   const [printError, setPrintError] = useState<string | null>(null)
   const paceSecondsPerKm = parsePace(paceText)
+  const winnerPace = paceSecondsPerKm ?? parsePace(DEFAULT_WINNER_PACE)!
+  const winnerPaceRef = useRef(winnerPace)
+  winnerPaceRef.current = winnerPace
 
   async function openFile(file: File) {
     setState({ status: 'loading', fileName: file.name })
     setEngineState('loading')
-    setLegState({ status: 'none' })
     setCostMap(null)
     setSites(null)
     setCourse(null)
     setSelectedLeg(null)
+    setPlannedLeg(null)
     setCompetitionCentre(null)
     const bytes = new Uint8Array(await file.arrayBuffer())
     const key = await mapKeyOf(bytes)
@@ -118,16 +119,23 @@ export function App() {
   }
 
   useEffect(() => {
-    if (engineState !== 'ready' || !controls) return
-    const request = ++latestLegRequest.current
-    const [from, to] = controls
-    void engine
-      .evaluateLeg(from, to, paceSecondsPerKm ?? parsePace(DEFAULT_WINNER_PACE)!)
-      .then(leg => {
-        if (request !== latestLegRequest.current) return
-        setLegState(leg ? { status: 'evaluated', leg } : { status: 'unreachable' })
+    const ends = plannedLeg && plannedEnds(plannedLeg)
+    if (engineState !== 'ready' || !ends) return
+    const queue = plannedLegQueue.current
+    queue.next = ends
+    if (queue.isBusy) return
+    const evaluateNext = () => {
+      const next = queue.next
+      queue.next = null
+      queue.isBusy = next !== null
+      if (!next) return
+      void engine.evaluateLeg(next[0], next[1], winnerPaceRef.current).then(leg => {
+        setPlanRoutes(leg ? { status: 'evaluated', leg } : { status: 'unreachable' })
+        evaluateNext()
       })
-  }, [engine, engineState, controls, paceSecondsPerKm])
+    }
+    evaluateNext()
+  }, [engine, engineState, plannedLeg, winnerPace])
 
   useEffect(() => {
     if (engineState !== 'ready' || !course || selectedLeg === null) return
@@ -138,13 +146,11 @@ export function App() {
     }
     const request = ++latestLegRoutesRequest.current
     setLegRoutes({ status: 'finding' })
-    void engine
-      .evaluateLeg(ends[0], ends[1], paceSecondsPerKm ?? parsePace(DEFAULT_WINNER_PACE)!)
-      .then(leg => {
-        if (request !== latestLegRoutesRequest.current) return
-        setLegRoutes(leg ? { status: 'evaluated', leg } : { status: 'unreachable' })
-      })
-  }, [engine, engineState, course, selectedLeg, paceSecondsPerKm])
+    void engine.evaluateLeg(ends[0], ends[1], winnerPace).then(leg => {
+      if (request !== latestLegRoutesRequest.current) return
+      setLegRoutes(leg ? { status: 'evaluated', leg } : { status: 'unreachable' })
+    })
+  }, [engine, engineState, course, selectedLeg, winnerPace])
 
   useEffect(() => {
     if (!showCostMap || costMap || engineState !== 'ready') return
@@ -165,7 +171,7 @@ export function App() {
     setRequest(nextRequest)
     setSeed(nextSeed)
     setIsGenerating(true)
-    setShowLegTool(false)
+    setPlannedLeg(null)
     setSelectedLeg(null)
     try {
       const result = await engine.generateCourse(
@@ -272,6 +278,17 @@ export function App() {
     }
   }
 
+  function startPlanningLeg() {
+    setSelectedLeg(null)
+    setPlanRoutes({ status: 'finding' })
+    setPlannedLeg(EMPTY_PLANNED_LEG)
+  }
+
+  function selectLeg(leg: number | null) {
+    setPlannedLeg(null)
+    setSelectedLeg(leg)
+  }
+
   function onDrop(e: DragEvent) {
     e.preventDefault()
     const file = e.dataTransfer.files[0]
@@ -297,24 +314,24 @@ export function App() {
                 ? legRoutes.status === 'evaluated'
                   ? legRoutes.leg
                   : null
-                : showLegTool && legState.status === 'evaluated'
-                  ? legState.leg
+                : plannedLeg && plannedEnds(plannedLeg) && planRoutes.status === 'evaluated'
+                  ? planRoutes.leg
                   : null
             }
             selectedLeg={selectedLeg}
-            onLegSelected={setSelectedLeg}
+            onLegSelected={selectLeg}
             costMap={showCostMap ? costMap : null}
             sites={showSites ? sites : null}
             course={course}
             descriptionBox={descriptionBox}
             competitionCentre={competitionCentre}
             isPickingCentre={isPickingCentre}
-            showLegTool={showLegTool && selectedLeg === null}
+            plannedLeg={plannedLeg}
+            onPlannedLegChanged={setPlannedLeg}
             onCentrePicked={centre => {
               setCompetitionCentre(centre)
               setIsPickingCentre(false)
             }}
-            onControlsMoved={setControls}
             canEditCourse={course !== null && !isGenerating && !isEditing}
             onStopMoved={(stopIndex, to) =>
               void editCourse(
@@ -339,8 +356,11 @@ export function App() {
             course={course}
             leg={selectedLeg}
             routes={legRoutes}
-            onSelectLeg={setSelectedLeg}
+            onSelectLeg={selectLeg}
           />
+        )}
+        {plannedLeg && (
+          <PlanLegPanel plan={plannedLeg} routes={planRoutes} onDone={() => setPlannedLeg(null)} />
         )}
         <label className="file">
           Open map
@@ -443,26 +463,15 @@ export function App() {
 
         {state.status === 'ready' && (
           <section>
-            <h2>Leg between the two controls</h2>
-            <label className="toggle">
-              <input
-                type="checkbox"
-                checked={showLegTool}
-                onChange={e => setShowLegTool(e.target.checked)}
-              />{' '}
-              Show the leg measuring tool
-            </label>
+            {plannedLeg === null && (
+              <button type="button" disabled={engineState !== 'ready'} onClick={startPlanningLeg}>
+                {messages.planLeg.open}
+              </button>
+            )}
             {engineState === 'loading' && <p className="note">Building the cost map…</p>}
             {engineState === 'error' && (
               <p className="error">The engine could not read this map.</p>
             )}
-            {engineState === 'ready' && legState.status === 'unreachable' && (
-              <p className="error">No route: a control is in an impassable or forbidden area.</p>
-            )}
-            {engineState === 'ready' && legState.status === 'evaluated' && (
-              <LegDetails leg={legState.leg} />
-            )}
-            <p className="note">Drag the purple circles to change the leg.</p>
             <label className="toggle">
               <input
                 type="checkbox"
