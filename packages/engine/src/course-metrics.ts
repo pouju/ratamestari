@@ -178,9 +178,9 @@ export function firstLegTowardsFinish(stops: readonly LocalPoint[]): Metric {
   }
 }
 
-export function convexHullArea(points: readonly LocalPoint[]): number {
+export function convexHull(points: readonly LocalPoint[]): LocalPoint[] {
   const sorted = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1])
-  if (sorted.length < 3) return 0
+  if (sorted.length < 3) return sorted
   const cross = (o: LocalPoint, a: LocalPoint, b: LocalPoint) =>
     (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
   const half = (input: LocalPoint[]) => {
@@ -196,7 +196,12 @@ export function convexHullArea(points: readonly LocalPoint[]): number {
     }
     return hull.slice(0, -1)
   }
-  const hull = [...half(sorted), ...half([...sorted].reverse())]
+  return [...half(sorted), ...half([...sorted].reverse())]
+}
+
+export function convexHullArea(points: readonly LocalPoint[]): number {
+  const hull = convexHull(points)
+  if (hull.length < 3) return 0
   let area = 0
   hull.forEach((point, i) => {
     const next = hull[(i + 1) % hull.length]!

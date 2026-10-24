@@ -10,6 +10,9 @@ import {
   evaluateLeg,
   findControlSites,
   findPeripheralInformation,
+  findTechnicalAreas,
+  isUsableInPrintArea,
+  siteAreaQuality,
   isInPeripheralBlock,
   peripheralLayout,
   setCourseOnPaper,
@@ -22,8 +25,10 @@ import { printPageSvg } from '@ratamestari/print'
 import {
   courseRequestSchema,
   courseTargetFor,
+  PAPER,
   printScaleFor,
   printScaleSchema,
+  TECHNICAL_AREAS,
   type CourseRequest,
 } from '@ratamestari/rules'
 
@@ -46,6 +51,7 @@ const { values } = parseArgs({
     xml: { type: 'string' },
     paper: { type: 'string', default: 'auto' },
     scale: { type: 'string', default: 'auto' },
+    areas: { type: 'boolean', default: false },
   },
 })
 
@@ -211,11 +217,49 @@ function renderPng(c: Course): Buffer {
     peripheral: { blocks, scaleLine },
   })
   if (!page) throw new Error('The course has no print area')
-  return new Resvg(page.svg, {
+  const closing = page.svg.lastIndexOf('</svg>')
+  const svg = values.areas
+    ? `${page.svg.slice(0, closing)}${areaOverlay(c)}${page.svg.slice(closing)}`
+    : page.svg
+  return new Resvg(svg, {
     fitTo: { mode: 'width', value: IMAGE_WIDTH_PIXELS },
     background: 'white',
     font: { loadSystemFonts: true },
   })
     .render()
     .asPng()
+}
+
+// Technical areas (D19) on the page: hulls with their capacity in minutes.
+function areaOverlay(c: Course): string {
+  const area = c.printArea
+  if (!area) return ''
+  const onPaper = sites.filter(site => isUsableInPrintArea(site.position, area))
+  const quality = siteAreaQuality(onPaper)
+  const areas = findTechnicalAreas(
+    onPaper,
+    quality,
+    TECHNICAL_AREAS[request.format],
+    terrain.grid,
+    paceSecondsPerKm,
+  )
+  console.log(
+    `areas: ${areas.length} (${areas.map(a => `${Math.round(a.capacitySeconds / 60)} min`).join(', ')})`,
+  )
+  const margin = PAPER.printMarginMillimetres
+  const [minX, , , maxY] = area.extent
+  const toPage = ([x, y]: LocalPoint) =>
+    `${margin + ((x - minX) * 1000) / area.scale},${margin + ((maxY - y) * 1000) / area.scale}`
+  return areas
+    .map(({ hull, centre, capacitySeconds, meanQuality }) => {
+      const [labelX, labelY] = toPage(centre).split(',')
+      return (
+        `<polygon points="${hull.map(toPage).join(' ')}" fill="rgb(0,120,255)" fill-opacity="0.15" ` +
+        `stroke="rgb(0,90,200)" stroke-width="0.5"/>` +
+        `<text x="${labelX}" y="${labelY}" font-size="4" font-family="sans-serif" ` +
+        `fill="rgb(0,60,160)" text-anchor="middle">${Math.round(capacitySeconds / 60)} min · ` +
+        `q ${meanQuality.toFixed(2)}</text>`
+      )
+    })
+    .join('')
 }

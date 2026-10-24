@@ -35,6 +35,7 @@ export {
   type SearchStep,
 } from './course-search'
 export { mappedAreaMask } from './mapped-area'
+export { findTechnicalAreas, type TechnicalArea } from './areas'
 export {
   courseLengthMeters,
   measureCourse,
@@ -114,6 +115,7 @@ export {
   closeness,
   crowding,
   crowdingCounts,
+  convexHull,
   convexHullArea,
   crossingSeverity,
   directionChanges,

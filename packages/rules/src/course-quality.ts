@@ -145,6 +145,43 @@ export const CROWDING: Readonly<Record<Format, CrowdingRule>> = {
   },
 }
 
+export const technicalAreaRuleSchema = citedSchema.extend({
+  minQuality: z.number().min(0).max(1),
+  clusterRadiusMetres: z.number().positive(),
+  minPoints: z.int().min(2),
+  minAreaSquareMetres: z.number().positive(),
+  maxAreaSquareMetres: z.number().positive(),
+  capacityLegMetres: z.number().positive(),
+})
+
+export type TechnicalAreaRule = z.infer<typeof technicalAreaRuleSchema>
+
+// A course setter first finds the good technical areas, then joins them (RMK 1.2.6.S). Middle
+// distance needs 1.5-2 km² of good terrain (RMK 2.S.2); long distance visits several smaller
+// areas. Starting values for the section planner (D19), to be tuned on the club maps.
+export const TECHNICAL_AREAS: Readonly<Record<Format, TechnicalAreaRule>> = {
+  long: {
+    minQuality: 0.6,
+    clusterRadiusMetres: 175,
+    minPoints: 4,
+    minAreaSquareMetres: 80_000,
+    maxAreaSquareMetres: 1_000_000,
+    capacityLegMetres: 250,
+    sources: [ratamestarikirja('1.2.6.S'), ratamestarikirja('2.S.1')],
+    interpretation: true,
+  },
+  middle: {
+    minQuality: 0.4,
+    clusterRadiusMetres: 110,
+    minPoints: 4,
+    minAreaSquareMetres: 50_000,
+    maxAreaSquareMetres: 2_000_000,
+    capacityLegMetres: 150,
+    sources: [ratamestarikirja('1.2.6.S'), ratamestarikirja('2.S.2')],
+    interpretation: true,
+  },
+}
+
 export const scoreWeightsSchema = citedSchema.extend({
   timeErrorPerPercent: z.number().nonnegative(),
   timeOutsideRangePerPercent: z.number().nonnegative(),
