@@ -25,6 +25,7 @@ const render = (hasCentre: boolean) =>
       canSetCourse={hasCentre}
       isGenerating={false}
       onSetCourse={ignore}
+      onStop={ignore}
       onTryAnother={ignore}
       course={null}
       isEditing={false}

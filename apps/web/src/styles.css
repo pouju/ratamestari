@@ -1066,3 +1066,6 @@ button.link {
   background: none;
   color: var(--colour-overprint);
 }
+.course-actions-status {
+  color: var(--colour-ink-soft);
+}

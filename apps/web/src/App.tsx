@@ -491,6 +491,7 @@ export function App() {
             }
             isGenerating={isGenerating}
             onSetCourse={() => void generateCourse(request, seed, paceSecondsPerKm)}
+            onStop={() => void engine.stopSearch()}
             onTryAnother={() => void generateCourse(request, seed + 1, paceSecondsPerKm)}
             course={course}
             isEditing={isEditing || isGenerating}

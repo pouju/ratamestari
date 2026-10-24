@@ -24,6 +24,7 @@ interface Props {
   canSetCourse: boolean
   isGenerating: boolean
   onSetCourse: () => void
+  onStop: () => void
   onTryAnother: () => void
   course: Course | null
   isEditing: boolean
@@ -270,22 +271,39 @@ function CourseActions({
   isMeasured,
   isAssistantOn,
   onSetCourse,
+  onStop,
   onTryAnother,
   onDownloadPdf,
   onDownloadXml,
 }: Props & { isMeasured: boolean }) {
   const m = useMessages().course
 
-  if (!course || isGenerating) {
+  if (isGenerating) {
+    return (
+      <div className={isAssistantOn ? 'course-actions is-quiet' : 'course-actions'}>
+        <div className="course-actions-row">
+          <button type="button" className="course-primary" onClick={onStop}>
+            {m.stop}
+          </button>
+          <span className="course-actions-status" role="status">
+            {m.setting}
+          </span>
+        </div>
+        <p className="course-actions-note">{m.stopHint}</p>
+      </div>
+    )
+  }
+
+  if (!course) {
     return (
       <div className={isAssistantOn ? 'course-actions is-quiet' : 'course-actions'}>
         <button
           type="button"
           className="course-primary"
-          disabled={!canSetCourse || isGenerating}
+          disabled={!canSetCourse}
           onClick={onSetCourse}
         >
-          {isGenerating ? m.setting : m.setCourse}
+          {m.setCourse}
         </button>
       </div>
     )

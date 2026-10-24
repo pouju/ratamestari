@@ -125,6 +125,8 @@ export const en = {
     dragHintTouch: 'Tap a leg, then drag one of its controls. The rules are checked again.',
     setCourse: 'Set course',
     setting: 'Setting the course…',
+    stop: 'Stop',
+    stopHint: 'Stop keeps the best course found so far.',
     downloadPdf: 'Download PDF',
     preparingPdf: 'Preparing the PDF…',
     downloadXml: 'IOF XML',
