@@ -60,3 +60,16 @@ export {
   type PrintAreaRequest,
   type CourseFitRequest,
 } from './print-area'
+export {
+  alternation,
+  convexHullArea,
+  directionChanges,
+  firstLegTowardsFinish,
+  legLengthDistribution,
+  legLengths,
+  reversals,
+  ring,
+  signedTurns,
+  spread,
+  type Metric,
+} from './course-metrics'
