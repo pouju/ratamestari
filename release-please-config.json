@@ -14,6 +14,6 @@
     { "type": "chore", "section": "Chores", "hidden": true }
   ],
   "packages": {
-    ".": { "package-name": "ratamestari" }
+    ".": { "package-name": "ratamestari", "initial-version": "0.1.0" }
   }
 }
