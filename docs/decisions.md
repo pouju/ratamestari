@@ -294,3 +294,31 @@ The course search is a stochastic optimisation driven by the spec:
 - The worker streams the best course found so far, which gives the live drawing in D5.
 - Every generated course records its seed and spec, so it can be regenerated.
 - Climb estimates are approximate; the 4% climb check is a warning, not an error.
+
+---
+
+## D13: Whole-course planning: shape, rhythm and skeleton before filling in
+
+**Date:** 2026-10-24
+**Status:** Decided
+
+### Decision
+
+Course generation follows [`course-planning-spec.md`](course-planning-spec.md): an explainable whole-course score with shape and rhythm metrics (route doglegs, length-scaled reversals, ring, spread, leg-length distribution, alternation, direction changes), skeleton-first planning (waypoint zones now, route-choice anchor legs next), a stronger search within a fixed time budget, a text-only course report for Claude, and calibration from real courses. It is built in phases A–E; phase A replaces the forced long-distance loop with waypoint zones.
+
+### Why
+
+- Generated courses looked like rings with monotonous legs and out-and-back turns. The old score never looked at leg rhythm or routes, and the loop produced the ring by design.
+- Course setters plan the shape and key legs first, then link them (RMK 1.2.6.S, IOF App. 2 §3.4.1).
+- An explainable score lets course setters and Claude see why a course scored as it did, and lets real courses calibrate the weights.
+
+### Alternatives considered
+
+- **Keep tuning the existing penalties:** the missing terms (rhythm, routes, shape) cannot be reached by tuning.
+- **The original draft as written:** described a different engine and invented thresholds without sources; aligned instead (spec section 15).
+
+### Consequences
+
+- Quality values live in `packages/rules/src/course-quality.ts`, cited or flagged as interpretation until calibrated.
+- A benchmark script measures every phase against the previous one.
+- Real courses for calibration stay in the git-ignored `maps/` folder.
