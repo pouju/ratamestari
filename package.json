@@ -16,7 +16,8 @@
     "format:check": "prettier --check .",
     "check": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
     "render-course": "tsx scripts/render-course.ts",
-    "benchmark-courses": "tsx scripts/benchmark-courses.ts"
+    "benchmark-courses": "tsx scripts/benchmark-courses.ts",
+    "crop-ocad": "tsx scripts/crop-ocad.ts"
   },
   "devDependencies": {
     "@ratamestari/core": "workspace:*",
