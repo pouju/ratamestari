@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { localPoint } from '@ratamestari/core'
 import { ROUTE_CHOICE } from '@ratamestari/rules'
 import { evaluateLeg } from '../src/leg'
+import type { Route } from '../src/router'
 import { buildTerrain } from '../src/terrain'
 import { feature, line, rectangle, SQUARE_KILOMETRE } from './fixtures'
 
@@ -41,6 +42,17 @@ describe('evaluateLeg', () => {
     expect(alternative.timeSeconds).toBeLessThanOrEqual(
       leg.fastest.timeSeconds * (1 + ROUTE_CHOICE.maxExtraTimeShare),
     )
+  })
+
+  it('offers going through a thicket or around either end of it', () => {
+    const thicket = feature('408', rectangle(400, 475, 600, 525))
+    const terrain = buildTerrain([thicket], SQUARE_KILOMETRE, synthetic)
+    const leg = evaluateLeg(terrain, localPoint(500, 200), localPoint(500, 800))!
+    const middleX = (route: Route) => route.points[Math.floor(route.points.length / 2)]![0]
+    expect(middleX(leg.fastest)).toBeCloseTo(500, -1)
+    const sides = leg.alternatives.map(route => Math.sign(middleX(route) - 500)).sort()
+    expect(sides).toEqual([-1, 1])
+    for (const route of leg.alternatives) expect(Math.abs(middleX(route) - 500)).toBeGreaterThan(95)
   })
 
   it('finds no route choice when one way around is clearly longer', () => {

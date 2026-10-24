@@ -4,7 +4,7 @@ import { countContourCrossings } from './contours'
 import type { CostGrid } from './cost-grid'
 import { distanceToSegment } from './polyline'
 import { cellIndexOf } from './raster'
-import { findRoute, routeTimeSeconds, type Route, type RouteOptions } from './router'
+import { findRoute, type Route, type RouteOptions } from './router'
 import type { Terrain } from './terrain'
 
 export interface LegEvaluation {
@@ -22,6 +22,10 @@ export interface LegEvaluation {
 }
 
 const CORRIDOR_SLOWDOWN = 4
+const CORRIDORS_TRIED_PER_ALTERNATIVE = 2
+const RELAXED_CORRIDOR_SHARE_OF_SEPARATION = 1 / 3
+const RELAXATION_STEPS = 4
+const RELAXATION_SETTLED_SHARE = 0.002
 
 export function evaluateLeg(
   terrain: Terrain,
@@ -67,32 +71,111 @@ function findAlternatives(
   )
   const maxSeconds = fastest.timeSeconds * (1 + ROUTE_CHOICE.maxExtraTimeShare)
   const accepted: Route[] = []
-  let penalized = grid
-  let lastRoute = fastest
+  const penalized: CostGrid = { ...grid, speed: grid.speed.slice() }
+  const slowed = new Uint8Array(grid.speed.length)
+  for (const end of [from, to]) {
+    visitCorridor(grid, [end], separationMeters, index => (slowed[index] = 1))
+  }
+  const slowCorridorOf = (route: Route) =>
+    visitCorridor(grid, route.points, separationMeters, index => {
+      if (slowed[index]) return
+      slowed[index] = 1
+      penalized.speed[index]! /= CORRIDOR_SLOWDOWN
+    })
+  slowCorridorOf(fastest)
 
-  for (let attempt = 0; attempt < ROUTE_CHOICE.maxAlternatives; attempt++) {
-    penalized = withCorridorSlowdown(penalized, lastRoute.points, separationMeters)
+  for (
+    let attempt = 0;
+    attempt < CORRIDORS_TRIED_PER_ALTERNATIVE * ROUTE_CHOICE.maxAlternatives &&
+    accepted.length < ROUTE_CHOICE.maxAlternatives;
+    attempt++
+  ) {
     const candidate = findRoute(penalized, from, to, routeOptions)
     if (!candidate) break
-    const timeSeconds = routeTimeSeconds(grid, candidate.points, routeOptions)
-    if (timeSeconds > maxSeconds) break
-    lastRoute = candidate
-    const isSeparate = [fastest, ...accepted].every(
-      route => maxDistanceFrom(candidate.points, route.points) >= separationMeters,
+    slowCorridorOf(candidate)
+    const relaxed = relax(
+      grid,
+      candidate,
+      separationMeters * RELAXED_CORRIDOR_SHARE_OF_SEPARATION,
+      routeOptions,
     )
-    if (isSeparate) accepted.push({ ...candidate, timeSeconds })
+    if (!relaxed || relaxed.timeSeconds > maxSeconds) continue
+    const isSeparate = [fastest, ...accepted].every(
+      route => maxDistanceFrom(relaxed.points, route.points) >= separationMeters,
+    )
+    if (isSeparate) accepted.push(relaxed)
   }
   return accepted
 }
 
-function withCorridorSlowdown(
+// The detour forced by the slowed corridors hugs their edges. Let loose a little at a time, a real
+// route choice settles where it is held by whatever separates it from the others, while a line that
+// is merely parallel drifts back towards a route already found.
+function relax(
+  grid: CostGrid,
+  route: Route,
+  radiusMeters: number,
+  routeOptions: RouteOptions,
+): Route | null {
+  let relaxed = fastestWithinCorridor(grid, route, radiusMeters, routeOptions)
+  for (let step = 1; relaxed && step < RELAXATION_STEPS; step++) {
+    const next = fastestWithinCorridor(grid, relaxed, radiusMeters, routeOptions)
+    if (!next || next.timeSeconds >= relaxed.timeSeconds * (1 - RELAXATION_SETTLED_SHARE)) break
+    relaxed = next
+  }
+  return relaxed
+}
+
+function fastestWithinCorridor(
+  grid: CostGrid,
+  route: Route,
+  radiusMeters: number,
+  routeOptions: RouteOptions,
+): Route | null {
+  const corridor = croppedAround(grid, route.points, radiusMeters)
+  const columnOffset = Math.round((corridor.minX - grid.minX) / grid.cellSizeMeters)
+  const rowOffset = Math.round((corridor.minY - grid.minY) / grid.cellSizeMeters)
+  visitCorridor(corridor, route.points, radiusMeters, index => {
+    const column = (index % corridor.columns) + columnOffset
+    const row = Math.floor(index / corridor.columns) + rowOffset
+    corridor.speed[index] = grid.speed[row * grid.columns + column]!
+  })
+  return findRoute(corridor, route.points[0]!, route.points.at(-1)!, routeOptions)
+}
+
+function croppedAround(
+  grid: CostGrid,
+  points: readonly LocalPoint[],
+  marginMeters: number,
+): CostGrid {
+  const cellOf = (value: number, origin: number, count: number) =>
+    Math.min(count - 1, Math.max(0, Math.floor((value - origin) / grid.cellSizeMeters)))
+  const xs = points.map(([x]) => x)
+  const ys = points.map(([, y]) => y)
+  const minColumn = cellOf(Math.min(...xs) - marginMeters, grid.minX, grid.columns)
+  const maxColumn = cellOf(Math.max(...xs) + marginMeters, grid.minX, grid.columns)
+  const minRow = cellOf(Math.min(...ys) - marginMeters, grid.minY, grid.rows)
+  const maxRow = cellOf(Math.max(...ys) + marginMeters, grid.minY, grid.rows)
+  const columns = maxColumn - minColumn + 1
+  const rows = maxRow - minRow + 1
+  return {
+    minX: grid.minX + minColumn * grid.cellSizeMeters,
+    minY: grid.minY + minRow * grid.cellSizeMeters,
+    cellSizeMeters: grid.cellSizeMeters,
+    columns,
+    rows,
+    speed: new Float32Array(columns * rows),
+    maxSpeed: grid.maxSpeed,
+  }
+}
+
+function visitCorridor(
   grid: CostGrid,
   route: readonly LocalPoint[],
   radiusMeters: number,
-): CostGrid {
-  const speed = grid.speed.slice()
+  visit: (index: number) => void,
+) {
   const radiusCells = Math.ceil(radiusMeters / grid.cellSizeMeters)
-  const slowed = new Uint8Array(speed.length)
   for (const point of route) {
     const center = cellIndexOf(grid, point)
     if (center === null) continue
@@ -104,14 +187,10 @@ function withCorridorSlowdown(
         const r = row + dr
         const c = column + dc
         if (r < 0 || c < 0 || r >= grid.rows || c >= grid.columns) continue
-        const index = r * grid.columns + c
-        if (slowed[index]) continue
-        slowed[index] = 1
-        speed[index]! /= CORRIDOR_SLOWDOWN
+        visit(r * grid.columns + c)
       }
     }
   }
-  return { ...grid, speed }
 }
 
 function maxDistanceFrom(points: readonly LocalPoint[], other: readonly LocalPoint[]): number {
