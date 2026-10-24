@@ -95,6 +95,7 @@ export function App() {
   const [showSites, setShowSites] = useState(false)
   const [sites, setSites] = useState<readonly ControlSiteCandidate[] | null>(null)
   const [competitionCentre, setCompetitionCentre] = useState<LocalPoint | null>(null)
+  const [startWish, setStartWish] = useState<readonly [number, number] | null>(null)
   const [isSampleMap, setIsSampleMap] = useState(false)
   const [drawCourseKey, setDrawCourseKey] = useState(0)
   const [isSampleCoursePending, setIsSampleCoursePending] = useState(false)
@@ -178,6 +179,7 @@ export function App() {
     setSelectedLeg(null)
     setPlannedLeg(null)
     setCompetitionCentre(null)
+    setStartWish(null)
     const bytes = new Uint8Array(await file.arrayBuffer())
     const key = await mapKeyOf(bytes)
     const storedCorrections = loadCorrections(key)
@@ -246,6 +248,7 @@ export function App() {
     nextSeed: number,
     pace: number | null,
     centre = competitionCentre,
+    wish = startWish,
   ): Promise<Course | null> {
     if (!centre || pace === null) return null
     setRequest(nextRequest)
@@ -263,6 +266,7 @@ export function App() {
         paper,
         printScale,
         progressCallback<Course>(setCourse),
+        wish,
       )
       setCourse(result)
       if (result) setDrawCourseKey(key => key + 1)
@@ -280,7 +284,18 @@ export function App() {
     const pace = options.winnerPaceSecondsPerKm ?? paceSecondsPerKm
     if (options.winnerPaceSecondsPerKm !== undefined)
       setPaceText(formatDuration(options.winnerPaceSecondsPerKm))
-    return generateCourse(nextRequest, options.option ?? seed, pace)
+    const wish =
+      options.startDistanceFromFinishMeters === undefined
+        ? startWish
+        : options.startDistanceFromFinishMeters
+    setStartWish(wish)
+    return generateCourse(nextRequest, options.option ?? seed, pace, competitionCentre, wish)
+  }
+
+  async function editedFromChat(edit: Promise<Course | null>) {
+    const edited = await edit
+    if (edited) setCourse(edited)
+    return edited
   }
 
   const latestWorkspace = useRef<CourseWorkspace | null>(null)
@@ -291,15 +306,20 @@ export function App() {
       hasCompetitionCentre: competitionCentre !== null,
       request,
       winnerPaceSecondsPerKm: paceSecondsPerKm,
+      startDistanceFromFinishMeters: startWish,
       course,
+      selectedLeg,
     }),
     generateCourse: generateFromChat,
     showRequest: setRequest,
-    replaceControl: async (current, controlNumber, preference) => {
-      const edited = await engine.fixControl(current, controlNumber, preference)
-      if (edited) setCourse(edited)
-      return edited
-    },
+    replaceControl: (current, controlNumber, preference, direction) =>
+      editedFromChat(engine.fixControl(current, controlNumber, preference, direction ?? null)),
+    removeControl: (current, controlNumber) =>
+      editedFromChat(engine.removeControl(current, controlNumber)),
+    insertControl: (current, afterStop) => editedFromChat(engine.insertControl(current, afterStop)),
+    moveStart: (current, wish) => editedFromChat(engine.moveStart(current, wish)),
+    suggestChanges: current => engine.suggestChanges(current),
+    applyCourse: setCourse,
     mapSymbols: () =>
       state.status === 'ready'
         ? state.map.symbols().map(symbol => ({
@@ -324,8 +344,15 @@ export function App() {
       generateCourse: (nextRequest, options) =>
         latestWorkspace.current!.generateCourse(nextRequest, options),
       showRequest: nextRequest => latestWorkspace.current!.showRequest(nextRequest),
-      replaceControl: (current, controlNumber, preference) =>
-        latestWorkspace.current!.replaceControl(current, controlNumber, preference),
+      replaceControl: (current, controlNumber, preference, direction) =>
+        latestWorkspace.current!.replaceControl(current, controlNumber, preference, direction),
+      removeControl: (current, controlNumber) =>
+        latestWorkspace.current!.removeControl(current, controlNumber),
+      insertControl: (current, afterStop) =>
+        latestWorkspace.current!.insertControl(current, afterStop),
+      moveStart: (current, wish) => latestWorkspace.current!.moveStart(current, wish),
+      suggestChanges: current => latestWorkspace.current!.suggestChanges(current),
+      applyCourse: next => latestWorkspace.current!.applyCourse(next),
       mapSymbols: () => latestWorkspace.current!.mapSymbols(),
       correctSymbol: (symbol, isomCode) => latestWorkspace.current!.correctSymbol(symbol, isomCode),
     }),

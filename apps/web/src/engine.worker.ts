@@ -9,6 +9,13 @@ import {
   isInPeripheralBlock,
   fitCourseToPaper,
   fixControl,
+  insertControl,
+  moveStart,
+  removeControl,
+  suggestChanges,
+  type CompassDirection,
+  type CourseSuggestion,
+  type StartWish,
   moveControl,
   papersFor,
   peripheralLayout,
@@ -85,6 +92,7 @@ function specFor(
   seed: number,
   paceSecondsPerKm: number,
   printScaleChoice: PrintScaleChoice,
+  startDistanceFromFinishMeters: readonly [number, number] | null = null,
 ): CourseSpec | null {
   const validRequest = courseRequestSchema.parse(request)
   const target = courseTargetFor(validRequest)
@@ -97,6 +105,7 @@ function specFor(
     seed,
     paceSecondsPerKm,
     peripheralSize: peripheral && peripheralLayout(peripheral.blocks),
+    startDistanceFromFinishMeters,
   }
 }
 
@@ -145,9 +154,17 @@ const engine = {
     paper: PaperChoice,
     printScaleChoice: PrintScaleChoice,
     onProgress: (course: Course) => void,
+    startDistanceFromFinishMeters: readonly [number, number] | null = null,
   ): Promise<Course | null> {
     if (!terrain) throw new Error('No map loaded in the engine')
-    const spec = specFor(request, competitionCentre, seed, paceSecondsPerKm, printScaleChoice)
+    const spec = specFor(
+      request,
+      competitionCentre,
+      seed,
+      paceSecondsPerKm,
+      printScaleChoice,
+      startDistanceFromFinishMeters,
+    )
     if (!spec) return Promise.resolve(null)
     lastSetting = { spec, paper }
     return runSliced(setCourseOnPaperSteps(terrain, sites, spec, paper), onProgress)
@@ -222,10 +239,41 @@ const engine = {
     course: Course,
     controlNumber: number,
     preference: ReplacementPreference = 'best',
+    direction: CompassDirection | null = null,
   ): Course | null {
     return editedCourse(course, spec =>
-      fixControl(terrain!, sites, spec, course, controlNumber, preference),
+      fixControl(terrain!, sites, spec, course, controlNumber, preference, direction),
     )
+  },
+
+  removeControl(course: Course, controlNumber: number): Course | null {
+    return editedCourse(course, spec => removeControl(terrain!, sites, spec, course, controlNumber))
+  },
+
+  insertControl(course: Course, afterStop: number): Course | null {
+    return editedCourse(course, spec => insertControl(terrain!, sites, spec, course, afterStop))
+  },
+
+  moveStart(course: Course, wish: StartWish): Course | null {
+    return editedCourse(course, spec => moveStart(terrain!, sites, spec, course, wish))
+  },
+
+  suggestChanges(course: Course): CourseSuggestion[] {
+    if (!terrain || !lastSetting) throw new Error('Set a course before asking for changes')
+    const { spec } = lastSetting
+    const suggestions = suggestChanges(
+      terrain,
+      sites,
+      {
+        ...spec,
+        ...(course.printArea && { printArea: course.printArea }),
+      },
+      course,
+    )
+    return suggestions.flatMap(suggestion => {
+      const fitted = editedCourse(course, () => suggestion.course)
+      return fitted ? [{ ...suggestion, course: fitted }] : []
+    })
   },
 
   controlSites(): readonly ControlSiteCandidate[] {

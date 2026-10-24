@@ -1,5 +1,11 @@
 import type { LocalPoint } from '@ratamestari/core'
-import type { ControlSiteCandidate, Course, FlagSide } from '@ratamestari/engine'
+import {
+  compassDirection,
+  type CompassDirection,
+  type ControlSiteCandidate,
+  type Course,
+  type FlagSide,
+} from '@ratamestari/engine'
 import { describeControl, descriptionText } from '@ratamestari/iof'
 import { describeFinding } from './rule-findings'
 
@@ -8,7 +14,14 @@ export interface ControlSummary {
   readonly feature: string
   readonly technicalDifficulty: number
   readonly legStraightMeters: number
+  readonly legDirection: CompassDirection
   readonly legMinutes: number
+}
+
+export interface StartSummary {
+  readonly feature: string
+  readonly straightMetersFromFinish: number
+  readonly directionFromFinish: CompassDirection
 }
 
 export interface CourseSummary {
@@ -19,9 +32,13 @@ export interface CourseSummary {
   readonly lengthKilometers: number | null
   readonly climbMeters: number | null
   readonly ruleProblems: readonly string[]
-  readonly start: string
+  readonly start: StartSummary
   readonly controls: readonly ControlSummary[]
-  readonly finishLeg: { readonly straightMeters: number; readonly minutes: number }
+  readonly finishLeg: {
+    readonly straightMeters: number
+    readonly direction: CompassDirection
+    readonly minutes: number
+  }
 }
 
 export function describeSite(site: ControlSiteCandidate, flagSide: FlagSide | null = null): string {
@@ -29,7 +46,10 @@ export function describeSite(site: ControlSiteCandidate, flagSide: FlagSide | nu
   return description ? descriptionText(description) : 'not describable'
 }
 
-const distance = (a: LocalPoint, b: LocalPoint) => Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]))
+// Rounded, so the assistant learns the course's shape but not exact positions (D3).
+const DISTANCE_STEP_METERS = 10
+const distance = (a: LocalPoint, b: LocalPoint) =>
+  Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / DISTANCE_STEP_METERS) * DISTANCE_STEP_METERS
 const minutes = (seconds: number) => Math.round(seconds / 6) / 10
 
 export function summarizeCourse(course: Course): CourseSummary {
@@ -46,16 +66,22 @@ export function summarizeCourse(course: Course): CourseSummary {
     ruleProblems: course.findings.map(
       finding => describeFinding(finding, course.controls.length).text,
     ),
-    start: describeSite(course.start),
+    start: {
+      feature: describeSite(course.start),
+      straightMetersFromFinish: distance(course.finish, course.start.position),
+      directionFromFinish: compassDirection(course.finish, course.start.position),
+    },
     controls: course.controls.map((site, i) => ({
       number: i + 1,
       feature: describeSite(site, course.flagSides[i] ?? null),
       technicalDifficulty: course.controlDifficulties[i] ?? site.technicalDifficulty,
       legStraightMeters: distance(positions[i]!, site.position),
+      legDirection: compassDirection(positions[i]!, site.position),
       legMinutes: minutes(course.legSeconds[i] ?? 0),
     })),
     finishLeg: {
       straightMeters: distance(positions.at(-1)!, course.finish),
+      direction: compassDirection(positions.at(-1)!, course.finish),
       minutes: minutes(finishLegSeconds),
     },
   }

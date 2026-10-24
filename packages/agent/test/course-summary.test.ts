@@ -16,10 +16,19 @@ describe('summarizeCourse', () => {
       feature: 'Boulder',
       technicalDifficulty: 4,
       legStraightMeters: 500,
+      legDirection: 'NE',
       legMinutes: 2.5,
     })
     expect(summary.controls[1]!.feature).toBe('Re-entrant')
-    expect(summary.finishLeg).toEqual({ straightMeters: 600, minutes: 3 })
+    expect(summary.finishLeg).toEqual({ straightMeters: 600, direction: 'W', minutes: 3 })
+  })
+
+  it('tells how far and which way the start is from the finish', () => {
+    expect(summarizeCourse(COURSE).start).toEqual({
+      feature: 'Path',
+      straightMetersFromFinish: 400,
+      directionFromFinish: 'S',
+    })
   })
 
   it('never contains map coordinates (D3)', () => {

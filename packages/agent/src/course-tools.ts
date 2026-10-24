@@ -1,5 +1,12 @@
 import { z } from 'zod'
-import type { Course, ReplacementPreference } from '@ratamestari/engine'
+import {
+  COMPASS_DIRECTIONS,
+  type CompassDirection,
+  type Course,
+  type CourseSuggestion,
+  type ReplacementPreference,
+  type StartWish,
+} from '@ratamestari/engine'
 import {
   courseRequestSchema,
   courseTargetFor,
@@ -19,12 +26,17 @@ export interface WorkspaceStatus {
   readonly hasCompetitionCentre: boolean
   readonly request: CourseRequest
   readonly winnerPaceSecondsPerKm: number | null
+  readonly startDistanceFromFinishMeters: readonly [number, number] | null
   readonly course: Course | null
+  // The leg the user selected on the map: from stop selectedLeg (0 = start) to the next stop.
+  readonly selectedLeg: number | null
 }
 
 export interface GenerateOptions {
   readonly option?: number
   readonly winnerPaceSecondsPerKm?: number
+  // null drops an earlier wish; undefined keeps it.
+  readonly startDistanceFromFinishMeters?: readonly [number, number] | null
 }
 
 export interface MapSymbolInfo {
@@ -43,7 +55,13 @@ export interface CourseWorkspace {
     course: Course,
     controlNumber: number,
     preference: ReplacementPreference,
+    direction?: CompassDirection | null,
   ): Promise<Course | null>
+  removeControl(course: Course, controlNumber: number): Promise<Course | null>
+  insertControl(course: Course, afterStop: number): Promise<Course | null>
+  moveStart(course: Course, wish: StartWish): Promise<Course | null>
+  suggestChanges(course: Course): Promise<readonly CourseSuggestion[]>
+  applyCourse(course: Course): void
   mapSymbols(): readonly MapSymbolInfo[]
   correctSymbol(symbol: string, isomCode: string | null | undefined): Promise<void>
 }
@@ -83,19 +101,68 @@ const requestFields = {
 const json = (value: unknown) => JSON.stringify(value)
 
 const MAX_FIX_PASSES = 6
+const MAX_START_DISTANCE_METERS = 3000
+const NO_COURSE = 'There is no course yet. Generate one first.'
+
+const directionField = z.enum(COMPASS_DIRECTIONS).describe('Compass direction on the map, north up')
+
+const stopName = (stop: number, controlCount: number) =>
+  stop === 0 ? 'start' : stop === controlCount + 1 ? 'finish' : `control ${stop}`
+
+const legName = (leg: number, controlCount: number) =>
+  `${stopName(leg, controlCount)} to ${stopName(leg + 1, controlCount)}`
+
+// What changed in the course, in the words and numbers the assistant may see (D3).
+const courseChange = (before: Course, after: Course) => {
+  const [was, now] = [summarizeCourse(before), summarizeCourse(after)]
+  return {
+    controlCount: { before: was.controlCount, after: now.controlCount },
+    estimatedWinningMinutes: {
+      before: was.estimatedWinningMinutes,
+      after: now.estimatedWinningMinutes,
+      target: now.targetWinningMinutes,
+    },
+    ruleProblems: { before: was.ruleProblems.length, after: now.ruleProblems },
+  }
+}
 const AUTOMATIC = 'automatic'
 const IGNORE = 'none'
 
+const describeSuggestion = (course: Course, { kind, stop, course: changed }: CourseSuggestion) => {
+  const controls = summarizeCourse(changed).controls
+  if (kind === 'remove') return { action: `remove control ${stop}` }
+  if (kind === 'replace') {
+    return {
+      action: `move control ${stop}`,
+      from: summarizeCourse(course).controls[stop - 1]!.feature,
+      to: controls[stop - 1]!.feature,
+    }
+  }
+  return {
+    action: `add a control on the leg ${legName(stop, course.controls.length)}`,
+    newControl: controls[stop]!.feature,
+  }
+}
+
 export function createCourseTools(workspace: CourseWorkspace): AgentTool[] {
+  let lastSuggestions: {
+    course: Course
+    suggestions: readonly CourseSuggestion[]
+  } | null = null
   return [
     defineTool({
       name: 'get_workspace',
       description:
-        'Tells whether a map is open, its scale, whether the competition centre is set, the current course request, the winner pace and a summary of the current course. Call it before answering questions about the current state.',
+        'Tells whether a map is open, its scale, whether the competition centre is set, the current course request, the winner pace, the start wish, the leg the user has selected on the map, and a summary of the current course. Call it before answering questions about the current state, and when the user says "here", "this leg" or "this control".',
       inputSchema: z.object({}),
       run: async () => {
-        const { course, ...status } = workspace.status()
-        return json({ ...status, course: course && summarizeCourse(course) })
+        const { course, selectedLeg, ...status } = workspace.status()
+        return json({
+          ...status,
+          selectedLeg:
+            course && selectedLeg !== null ? legName(selectedLeg, course.controls.length) : null,
+          course: course && summarizeCourse(course),
+        })
       },
     }),
     defineTool({
@@ -111,21 +178,22 @@ export function createCourseTools(workspace: CourseWorkspace): AgentTool[] {
     defineTool({
       name: 'replace_control',
       description:
-        'Moves one control of the current course to another control site within about 400 m, chosen by the engine: the best by the rules, or a harder or easier site. Returns the old and new control and the course summary.',
+        'Moves one control of the current course to another control site within about 400 m, chosen by the engine: the best by the rules, a harder or easier site, or one in a compass direction ("move 5 north"). Returns the old and new control and the course summary.',
       inputSchema: z.object({
         control: z.int().min(1).describe('Control number on the course'),
         preference: z
           .enum(['best', 'harder', 'easier'])
           .default('best')
           .describe('best = best by the rules; harder or easier than the current control'),
+        direction: directionField.optional().describe('Move the control this way, north up'),
       }),
-      run: async ({ control, preference }) => {
+      run: async ({ control, preference, direction }) => {
         const before = workspace.status().course
-        if (!before) return 'There is no course yet. Generate one first.'
+        if (!before) return NO_COURSE
         if (control > before.controls.length) {
           return `The course has only ${before.controls.length} controls.`
         }
-        const after = await workspace.replaceControl(before, control, preference)
+        const after = await workspace.replaceControl(before, control, preference, direction)
         if (!after) return 'The control could not be replaced.'
         const describeControlAt = (course: Course) => summarizeCourse(course).controls[control - 1]
         const unchanged = after.controls[control - 1]!.id === before.controls[control - 1]!.id
@@ -144,7 +212,7 @@ export function createCourseTools(workspace: CourseWorkspace): AgentTool[] {
       inputSchema: z.object({}),
       run: async () => {
         let course = workspace.status().course
-        if (!course) return 'There is no course yet. Generate one first.'
+        if (!course) return NO_COURSE
         const before = summarizeCourse(course).ruleProblems
         for (let pass = 0; pass < MAX_FIX_PASSES; pass++) {
           const fixable = course.findings
@@ -225,8 +293,23 @@ export function createCourseTools(workspace: CourseWorkspace): AgentTool[] {
           .describe(
             'Course option number. The same number gives the same course; use a different one for another alternative. Omit to keep the current option.',
           ),
+        startDistanceFromFinishMeters: z
+          .object({
+            min: z.int().min(0).max(MAX_START_DISTANCE_METERS),
+            max: z.int().min(0).max(MAX_START_DISTANCE_METERS),
+          })
+          .nullable()
+          .optional()
+          .describe(
+            'Where the user wants the start, as straight-line metres from the finish (the competition centre), e.g. {min: 0, max: 200} for "start near the centre" or {min: 800, max: 1500} for "start far away". The wish stays for later courses. Omit to keep the current wish; null to let the engine choose (5-20% of the winning time from the finish).',
+          ),
       }),
-      run: async ({ winnerPaceSecondsPerKm, option, ...requestInput }) => {
+      run: async ({
+        winnerPaceSecondsPerKm,
+        option,
+        startDistanceFromFinishMeters,
+        ...requestInput
+      }) => {
         const status = workspace.status()
         if (!status.mapLoaded) return 'No map is open. Ask the user to open an OCAD map first.'
         const request = courseRequestSchema.parse(requestInput)
@@ -239,9 +322,132 @@ export function createCourseTools(workspace: CourseWorkspace): AgentTool[] {
         const course = await workspace.generateCourse(request, {
           ...(option !== undefined && { option }),
           ...(winnerPaceSecondsPerKm !== undefined && { winnerPaceSecondsPerKm }),
+          ...(startDistanceFromFinishMeters !== undefined && {
+            startDistanceFromFinishMeters:
+              startDistanceFromFinishMeters &&
+              ([
+                Math.min(startDistanceFromFinishMeters.min, startDistanceFromFinishMeters.max),
+                Math.max(startDistanceFromFinishMeters.min, startDistanceFromFinishMeters.max),
+              ] as const),
+          }),
         })
         if (!course) return 'The engine could not find a course for this request on this map.'
         return json({ rules: targetFacts(target), course: summarizeCourse(course) })
+      },
+    }),
+    defineTool({
+      name: 'remove_control',
+      description:
+        'Removes one control from the current course; the controls after it are renumbered. The engine re-measures the course and re-checks the rules. Returns what changed and the course summary.',
+      inputSchema: z.object({
+        control: z.int().min(1).describe('Control number on the course'),
+      }),
+      run: async ({ control }) => {
+        const before = workspace.status().course
+        if (!before) return NO_COURSE
+        if (control > before.controls.length) {
+          return `The course has only ${before.controls.length} controls.`
+        }
+        const after = await workspace.removeControl(before, control)
+        if (!after) return 'The control could not be removed.'
+        return json({ change: courseChange(before, after), course: summarizeCourse(after) })
+      },
+    }),
+    defineTool({
+      name: 'insert_control',
+      description:
+        'Adds a control on one leg of the current course, at the site the engine finds best by the rules. The leg is given by the stop it leaves: 0 = the leg from the start, 3 = the leg from control 3 to control 4 (or to the finish if 3 is the last control). Controls after it are renumbered. If the user says "here" or "this leg", call get_workspace for the selected leg first.',
+      inputSchema: z.object({
+        afterStop: z.int().min(0).describe('The stop the leg leaves: 0 = start, n = control n'),
+      }),
+      run: async ({ afterStop }) => {
+        const before = workspace.status().course
+        if (!before) return NO_COURSE
+        if (afterStop > before.controls.length) {
+          return `The course has only ${before.controls.length} controls; use 0 to ${before.controls.length}.`
+        }
+        const after = await workspace.insertControl(before, afterStop)
+        if (!after) return 'No control site was found on that leg.'
+        return json({
+          inserted: summarizeCourse(after).controls[afterStop],
+          change: courseChange(before, after),
+          course: summarizeCourse(after),
+        })
+      },
+    }),
+    defineTool({
+      name: 'move_start',
+      description:
+        'Moves the start of the current course to another clear site chosen by the engine: within a straight-line distance range from the finish (the competition centre), and/or in a compass direction from the current start. The controls stay. Returns the new start and the course summary.',
+      inputSchema: z.object({
+        minMetersFromFinish: z.int().min(0).max(MAX_START_DISTANCE_METERS).optional(),
+        maxMetersFromFinish: z.int().min(0).max(MAX_START_DISTANCE_METERS).optional(),
+        direction: directionField.optional().describe('Move the start this way, north up'),
+      }),
+      run: async ({ minMetersFromFinish, maxMetersFromFinish, direction }) => {
+        const before = workspace.status().course
+        if (!before) return NO_COURSE
+        const hasDistance = minMetersFromFinish !== undefined || maxMetersFromFinish !== undefined
+        if (!hasDistance && !direction) return 'Give a distance from the finish or a direction.'
+        const low = minMetersFromFinish ?? 0
+        const high = maxMetersFromFinish ?? MAX_START_DISTANCE_METERS
+        const wish: StartWish = {
+          ...(hasDistance && {
+            distanceFromFinishMeters: [Math.min(low, high), Math.max(low, high)] as const,
+          }),
+          ...(direction && { direction }),
+        }
+        const after = await workspace.moveStart(before, wish)
+        if (!after) return 'No clear site for the start was found there.'
+        return json({
+          start: { before: summarizeCourse(before).start, after: summarizeCourse(after).start },
+          change: courseChange(before, after),
+          course: summarizeCourse(after),
+        })
+      },
+    }),
+    defineTool({
+      name: 'suggest_changes',
+      description:
+        'Asks the engine for up to five changes that make the current course better by the rules: replacing, removing or adding a control. Nothing changes yet. Returns numbered suggestions with their effect on rule problems and winning time; present them to the user and apply the ones they choose with apply_suggestion.',
+      inputSchema: z.object({}),
+      run: async () => {
+        const course = workspace.status().course
+        if (!course) return NO_COURSE
+        const suggestions = await workspace.suggestChanges(course)
+        lastSuggestions = { course, suggestions }
+        if (suggestions.length === 0) {
+          return 'The engine found no change that makes this course better by the rules.'
+        }
+        return json(
+          suggestions.map((suggestion, i) => ({
+            number: i + 1,
+            ...describeSuggestion(course, suggestion),
+            change: courseChange(course, suggestion.course),
+          })),
+        )
+      },
+    }),
+    defineTool({
+      name: 'apply_suggestion',
+      description:
+        'Applies one suggestion from the latest suggest_changes to the current course and draws it. Suggestions are for the course they were made for; after any other change, ask for new ones.',
+      inputSchema: z.object({
+        number: z.int().min(1).describe('Suggestion number from suggest_changes'),
+      }),
+      run: async ({ number }) => {
+        const course = workspace.status().course
+        if (!lastSuggestions || lastSuggestions.course !== course) {
+          return 'The course has changed since the suggestions were made. Call suggest_changes again.'
+        }
+        const suggestion = lastSuggestions.suggestions[number - 1]
+        if (!suggestion) return `There are only ${lastSuggestions.suggestions.length} suggestions.`
+        workspace.applyCourse(suggestion.course)
+        lastSuggestions = null
+        return json({
+          applied: describeSuggestion(course, suggestion),
+          course: summarizeCourse(suggestion.course),
+        })
       },
     }),
   ]

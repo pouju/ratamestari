@@ -443,3 +443,32 @@ They are built before the new UI (D14), in today's UI.
 - pnpm stops `install` on unapproved build scripts, which would fail CI. `pnpm-workspace.yaml` denies esbuild's script, which only verifies its binary.
 - The app version comes from the root `package.json` through Vite's `define`.
 - The README screenshot waits until the new UI is demo-ready.
+
+## D17: What the assistant may know about the map and course
+
+**Date:** 2026-10-24
+**Status:** Decided
+
+### Decision
+
+- The assistant edits courses by number: it names controls ("control 5"), legs ("the leg from control 3") and compass directions, and the engine picks every site. Tools: `replace_control` (best, harder, easier or in a direction), `remove_control`, `insert_control`, `move_start`, `suggest_changes` + `apply_suggestion`, and a start-distance wish on `generate_course`.
+- Tools return only what describes the course: feature descriptions in IOF words, distances rounded to 10 m, the eight compass points with map north up, times, rule-check results and score changes. Never coordinates, and never anything about sites that are not on the course or suggested for it.
+- `suggest_changes` returns at most five suggestions, each a complete course the engine has already checked.
+- "Here" means the leg the user has selected on the map; `get_workspace` names it ("control 3 to control 4"), not where it is.
+- The start wish is a straight-line distance range from the finish. It stays for later courses ("Set course", "Try another course") until the assistant drops it or another map is opened.
+
+### Why
+
+- Users want to say "delete 5", "add a control here", "start near the centre" or "how could this be better?" in the chat (D2, D5), and a small model like Haiku needs tools that do exactly that.
+- D3 forbids sending map geometry. Numbers and directions about the course's own stops let the assistant explain and edit the course, but a list of candidate sites or exact positions would let it rebuild the map.
+
+### Alternatives considered
+
+- **Coordinates in tool results:** the assistant could reason about places, but the map could be reconstructed from them. Rejected (D3).
+- **Listing candidate sites around a control:** gives the assistant choice, but leaks the map's features site by site. The engine chooses instead.
+- **No directions:** safest, but "move 5 north" and "the start is 300 m south-east of the finish" are natural ways to talk about a course, and the coarse course shape is not map content.
+
+### Consequences
+
+- Wishes that need the map's content ("start near the road") cannot be met from the chat; the assistant says so and offers a distance, a direction or dragging on the map.
+- Suggestions are tied to the course they were made for; after any other change the assistant asks for new ones.
