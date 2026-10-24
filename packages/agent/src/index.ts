@@ -15,6 +15,7 @@ export {
   createCourseTools,
   type CourseWorkspace,
   type GenerateOptions,
+  type MapSymbolInfo,
   type WorkspaceStatus,
 } from './course-tools'
 export { CLAUDE_MODEL, createClaudeProvider, TruncatedToolCallError } from './claude-provider'

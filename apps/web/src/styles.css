@@ -181,3 +181,20 @@ button.link {
   margin-top: 2px;
   font-size: 12px;
 }
+.symbols table {
+  font-size: 12px;
+  border-collapse: collapse;
+  width: 100%;
+}
+.symbols td {
+  vertical-align: top;
+  padding: 3px 4px;
+  border-bottom: 1px solid #eee;
+}
+.symbols tr.corrected {
+  background: #fff6d6;
+}
+.symbols select {
+  max-width: 100%;
+  font-size: 12px;
+}

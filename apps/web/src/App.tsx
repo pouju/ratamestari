@@ -1,15 +1,27 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import type { LocalPoint } from '@ratamestari/core'
 import type { ControlSiteCandidate, Course, LegEvaluation, PaperChoice } from '@ratamestari/engine'
-import type { CourseRequest, PrintScaleChoice } from '@ratamestari/rules'
+import type { CourseRequest, IsomCode, PrintScaleChoice } from '@ratamestari/rules'
 import { createCourseTools, type CourseWorkspace, type GenerateOptions } from '@ratamestari/agent'
-import { loadOcadMap, type OcadMap } from '@ratamestari/map-ocad'
+import {
+  formatOcadSymbolNumber,
+  isomCodeForOcadSymbol,
+  loadOcadMap,
+  type OcadMap,
+} from '@ratamestari/map-ocad'
 import { renderCostMap, type CostMapImage } from './cost-map-image'
 import { ChatPanel } from './ChatPanel'
 import { CoursePanel } from './CoursePanel'
 import { descriptionBoxFor } from './description-box'
 import { downloadCourseXml } from './export-xml'
 import { savePrintPdf } from './print-pdf'
+import { SymbolPanel } from './SymbolPanel'
+import {
+  loadCorrections,
+  mapKeyOf,
+  saveCorrections,
+  type SymbolCorrections,
+} from './symbol-corrections'
 import { courseNameOf } from './course-labels'
 import { createEngine, progressCallback } from './engine'
 import { formatDuration, parsePace } from './format'
@@ -64,6 +76,8 @@ export function App() {
   const [printScale, setPrintScale] = useState<PrintScaleChoice>('auto')
   const [isPreparingPdf, setIsPreparingPdf] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+  const [mapKey, setMapKey] = useState<string | null>(null)
+  const [corrections, setCorrections] = useState<SymbolCorrections>(new Map())
   const [editMessage, setEditMessage] = useState<string | null>(null)
   const [printError, setPrintError] = useState<string | null>(null)
   const paceSecondsPerKm = parsePace(paceText)
@@ -77,8 +91,12 @@ export function App() {
     setCourse(null)
     setCompetitionCentre(null)
     const bytes = new Uint8Array(await file.arrayBuffer())
+    const key = await mapKeyOf(bytes)
+    const storedCorrections = loadCorrections(key)
+    setMapKey(key)
+    setCorrections(storedCorrections)
     engine
-      .loadMap(bytes)
+      .loadMap(bytes, storedCorrections)
       .then(() => setEngineState('ready'))
       .catch(() => setEngineState('error'))
     try {
@@ -158,12 +176,31 @@ export function App() {
       course,
     }),
     generateCourse: generateFromChat,
+    mapSymbols: () =>
+      state.status === 'ready'
+        ? state.map.symbols().map(symbol => ({
+            symbol: formatOcadSymbolNumber(symbol.number),
+            name: symbol.name,
+            objects: symbol.objectCount,
+            isomCode: corrections.has(symbol.number)
+              ? corrections.get(symbol.number)!
+              : isomCodeForOcadSymbol(symbol.number),
+            corrected: corrections.has(symbol.number),
+          }))
+        : [],
+    correctSymbol: async (label, isomCode) => {
+      if (state.status !== 'ready') return
+      const symbol = state.map.symbols().find(s => formatOcadSymbolNumber(s.number) === label)
+      if (symbol) await correctSymbol(symbol.number, isomCode)
+    },
   }
   const [chatTools] = useState(() =>
     createCourseTools({
       status: () => latestWorkspace.current!.status(),
       generateCourse: (nextRequest, options) =>
         latestWorkspace.current!.generateCourse(nextRequest, options),
+      mapSymbols: () => latestWorkspace.current!.mapSymbols(),
+      correctSymbol: (symbol, isomCode) => latestWorkspace.current!.correctSymbol(symbol, isomCode),
     }),
   )
 
@@ -181,6 +218,24 @@ export function App() {
       setEditMessage(errorMessage(e))
     } finally {
       setIsEditing(false)
+    }
+  }
+
+  async function correctSymbol(symbolNumber: number, isomCode: IsomCode | null | undefined) {
+    const next = new Map(corrections)
+    if (isomCode === undefined) next.delete(symbolNumber)
+    else next.set(symbolNumber, isomCode)
+    setCorrections(next)
+    if (mapKey) saveCorrections(mapKey, next)
+    setEngineState('loading')
+    setCourse(null)
+    setCostMap(null)
+    setSites(null)
+    try {
+      await engine.applySymbolCorrections(next)
+      setEngineState('ready')
+    } catch {
+      setEngineState('error')
     }
   }
 
@@ -370,6 +425,15 @@ export function App() {
               </p>
             )}
           </section>
+        )}
+
+        {state.status === 'ready' && (
+          <SymbolPanel
+            symbols={state.map.symbols()}
+            corrections={corrections}
+            isApplying={engineState === 'loading'}
+            onCorrect={(symbolNumber, isomCode) => void correctSymbol(symbolNumber, isomCode)}
+          />
         )}
 
         {state.status === 'ready' && (

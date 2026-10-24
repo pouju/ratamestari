@@ -3,11 +3,13 @@ import type { Course } from '@ratamestari/engine'
 import {
   courseRequestSchema,
   courseTargetFor,
+  isomSymbolRule,
   type CourseRequest,
   type CourseTarget,
   type Source,
 } from '@ratamestari/rules'
 import { summarizeCourse } from './course-summary'
+import { isomEffect } from './map-symbols'
 import { defineTool, type AgentTool } from './llm-provider'
 
 export interface WorkspaceStatus {
@@ -24,9 +26,19 @@ export interface GenerateOptions {
   readonly winnerPaceSecondsPerKm?: number
 }
 
+export interface MapSymbolInfo {
+  readonly symbol: string
+  readonly name: string
+  readonly objects: number
+  readonly isomCode: string | null
+  readonly corrected: boolean
+}
+
 export interface CourseWorkspace {
   status(): WorkspaceStatus
   generateCourse(request: CourseRequest, options: GenerateOptions): Promise<Course | null>
+  mapSymbols(): readonly MapSymbolInfo[]
+  correctSymbol(symbol: string, isomCode: string | null | undefined): Promise<void>
 }
 
 const MIN_PACE_SECONDS_PER_KM = 120
@@ -63,6 +75,9 @@ const requestFields = {
 
 const json = (value: unknown) => JSON.stringify(value)
 
+const AUTOMATIC = 'automatic'
+const IGNORE = 'none'
+
 export function createCourseTools(workspace: CourseWorkspace): AgentTool[] {
   return [
     defineTool({
@@ -83,6 +98,52 @@ export function createCourseTools(workspace: CourseWorkspace): AgentTool[] {
       run: async input => {
         const target = courseTargetFor(courseRequestSchema.parse(input))
         return target ? json(targetFacts(target)) : NO_RULES_FOR_CLASS
+      },
+    }),
+    defineTool({
+      name: 'list_map_symbols',
+      description:
+        "Lists the OCAD symbols used in the user's map: symbol number, the club's own symbol name (often Finnish), object count, the ISOM 2017-2 symbol it is read as and what that means for running and control sites. Use it to find symbols read wrongly, e.g. a motorway drawn with a road symbol.",
+      inputSchema: z.object({}),
+      run: async () =>
+        json(
+          workspace.mapSymbols().map(symbol => ({
+            ...symbol,
+            isomName: symbol.isomCode && (isomSymbolRule(symbol.isomCode)?.name ?? null),
+            effect: isomEffect(symbol.isomCode),
+          })),
+        ),
+    }),
+    defineTool({
+      name: 'correct_map_symbol',
+      description:
+        'Changes which ISOM 2017-2 symbol an OCAD symbol of this map is read as. The cost map and control sites are rebuilt and the current course is cleared, so generate the course again afterwards. Only correct symbols the user asked about or agreed to. For example, a motorway that may only be crossed at bridges and tunnels fits 529 (prominent uncrossable line feature), and a forbidden yard fits 520 (out-of-bounds area).',
+      inputSchema: z.object({
+        symbol: z
+          .string()
+          .describe('The OCAD symbol number as list_map_symbols gives it, e.g. "502.0"'),
+        isomCode: z
+          .string()
+          .describe(
+            `ISOM 2017-2 symbol code such as "520"; "${IGNORE}" to ignore the symbol; "${AUTOMATIC}" to undo a correction`,
+          ),
+      }),
+      run: async ({ symbol, isomCode }) => {
+        if (!workspace.mapSymbols().some(s => s.symbol === symbol)) {
+          return `The map has no symbol ${symbol}. Use the numbers from list_map_symbols.`
+        }
+        const code = isomCode === AUTOMATIC ? undefined : isomCode === IGNORE ? null : isomCode
+        if (typeof code === 'string' && !isomSymbolRule(code)) {
+          return `${isomCode} is not an ISOM 2017-2 symbol the rules config knows.`
+        }
+        await workspace.correctSymbol(symbol, code)
+        const now = workspace.mapSymbols().find(s => s.symbol === symbol)!
+        return json({
+          symbol,
+          readAs: now.isomCode,
+          effect: isomEffect(now.isomCode),
+          courseCleared: true,
+        })
       },
     }),
     defineTool({

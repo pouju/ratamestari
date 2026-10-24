@@ -17,7 +17,7 @@ import {
   type Terrain,
 } from '@ratamestari/engine'
 import { describeControl } from '@ratamestari/iof'
-import { loadOcadMap } from '@ratamestari/map-ocad'
+import { loadOcadMap, type IsomCodeOverrides, type OcadMap } from '@ratamestari/map-ocad'
 import {
   courseRequestSchema,
   courseTargetFor,
@@ -27,6 +27,7 @@ import {
 } from '@ratamestari/rules'
 import type { CostGridSnapshot } from './cost-map-image'
 
+let map: OcadMap | null = null
 let terrain: Terrain | null = null
 let sites: readonly ControlSiteCandidate[] = []
 let lastSetting: { spec: CourseSpec; paper: PaperChoice } | null = null
@@ -39,10 +40,16 @@ function editedCourse(course: Course, edit: (spec: CourseSpec) => Course | null)
 }
 
 const engine = {
-  async loadMap(bytes: Uint8Array): Promise<void> {
-    const map = await loadOcadMap(bytes)
-    terrain = buildTerrain(map.features(), map.info.extent)
-    sites = findControlSites(map.features(), terrain).filter(site => describeControl(site) !== null)
+  async loadMap(bytes: Uint8Array, corrections: IsomCodeOverrides): Promise<void> {
+    map = await loadOcadMap(bytes)
+    engine.applySymbolCorrections(corrections)
+  },
+
+  applySymbolCorrections(corrections: IsomCodeOverrides): void {
+    if (!map) throw new Error('No map loaded in the engine')
+    const features = map.features(corrections)
+    terrain = buildTerrain(features, map.info.extent)
+    sites = findControlSites(features, terrain).filter(site => describeControl(site) !== null)
   },
 
   evaluateLeg(from: LocalPoint, to: LocalPoint, paceSecondsPerKm: number): LegEvaluation | null {

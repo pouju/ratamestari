@@ -4,6 +4,7 @@ import {
   createCourseTools,
   type CourseWorkspace,
   type GenerateOptions,
+  type MapSymbolInfo,
   type WorkspaceStatus,
 } from '../src/course-tools'
 import { COURSE, H21_LONG_SM } from './fixtures'
@@ -19,15 +20,27 @@ const READY: WorkspaceStatus = {
 
 function workspaceWith(status: Partial<WorkspaceStatus> = {}) {
   const calls: { request: CourseRequest; options: GenerateOptions }[] = []
+  const symbols: MapSymbolInfo[] = [
+    { symbol: '502.0', name: 'Moottoritie', objects: 12, isomCode: '502', corrected: false },
+  ]
   const workspace: CourseWorkspace = {
     status: () => ({ ...READY, ...status }),
     generateCourse: async (request, options) => {
       calls.push({ request, options })
       return COURSE
     },
+    mapSymbols: () => symbols,
+    correctSymbol: async (symbol, isomCode) => {
+      const index = symbols.findIndex(s => s.symbol === symbol)
+      symbols[index] = {
+        ...symbols[index]!,
+        isomCode: isomCode === undefined ? '502' : isomCode,
+        corrected: isomCode !== undefined,
+      }
+    },
   }
   const tools = Object.fromEntries(createCourseTools(workspace).map(tool => [tool.name, tool]))
-  return { tools, calls }
+  return { tools, calls, symbols }
 }
 
 describe('generate_course', () => {
@@ -94,5 +107,35 @@ describe('get_workspace', () => {
     const status = JSON.parse(await tools.get_workspace!.run({}))
     expect(status.hasCompetitionCentre).toBe(true)
     expect(status.course.controlCount).toBe(2)
+  })
+})
+
+describe('map symbol tools', () => {
+  it('lists symbols with what they mean for the course', async () => {
+    const { tools } = workspaceWith()
+    const [symbol] = JSON.parse(await tools.list_map_symbols!.run({}))
+    expect(symbol).toMatchObject({ symbol: '502.0', name: 'Moottoritie', isomName: 'Wide road' })
+    expect(symbol.effect).toMatch(/easy running/)
+  })
+
+  it('corrects a symbol and reports its new effect', async () => {
+    const { tools, symbols } = workspaceWith()
+    const result = JSON.parse(
+      await tools.correct_map_symbol!.run({ symbol: '502.0', isomCode: '520' }),
+    )
+    expect(symbols[0]!.isomCode).toBe('520')
+    expect(result.effect).toMatch(/^forbidden to enter/)
+    expect(result.courseCleared).toBe(true)
+  })
+
+  it('refuses unknown symbols and ISOM codes', async () => {
+    const { tools, symbols } = workspaceWith()
+    expect(await tools.correct_map_symbol!.run({ symbol: '999.0', isomCode: '520' })).toMatch(
+      /no symbol/,
+    )
+    expect(await tools.correct_map_symbol!.run({ symbol: '502.0', isomCode: '777' })).toMatch(
+      /not an ISOM/,
+    )
+    expect(symbols[0]!.isomCode).toBe('502')
   })
 })
