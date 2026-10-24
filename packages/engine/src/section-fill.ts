@@ -142,6 +142,11 @@ export function fillSection(
       )
     )
       return false
+    if (
+      !isEndpoint(finish) &&
+      distanceToSegment(finish, from, to) < FINISH_OUTER_CIRCLE_FOOTPRINT_RADIUS_METERS
+    )
+      return false
     if (isExit) return true
     const candidate = pool[site]!
     if (legs.some(([a, b]) => distanceToSegment(to, a, b) < CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS))

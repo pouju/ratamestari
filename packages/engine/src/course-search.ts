@@ -1312,13 +1312,19 @@ function courseLineCrossings(stops: readonly LocalPoint[]): Pair[] {
   return crossings
 }
 
+// Lines through other controls' circles, or through the finish circle on the way elsewhere.
 function courseLinesThroughControls(stops: readonly LocalPoint[]): Pair[] {
   const throughControls: Pair[] = []
+  const finish = stops.length - 1
+  const radiusOf = (stop: number) =>
+    stop === finish
+      ? FINISH_OUTER_CIRCLE_FOOTPRINT_RADIUS_METERS
+      : CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS
   for (let leg = 0; leg + 1 < stops.length; leg++) {
-    for (let control = 1; control < stops.length - 1; control++) {
+    for (let control = 1; control < stops.length; control++) {
       if (control === leg || control === leg + 1) continue
       const distance = distanceToSegment(stops[control]!, stops[leg]!, stops[leg + 1]!)
-      if (distance < CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS) throughControls.push([leg, control])
+      if (distance < radiusOf(control)) throughControls.push([leg, control])
     }
   }
   return throughControls

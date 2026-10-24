@@ -109,6 +109,25 @@ describe('course editing', { timeout: EDITING_TIMEOUT_MS }, () => {
     const harder = fixControl(pathTerrain, pathSites, spec, easy, 1, 'harder')
     expect(harder.controlDifficulties[0]).toBeGreaterThan(easy.controlDifficulties[0]!)
   })
+  it('reports a leg through the finish circle on the way to another control', () => {
+    const near = (x: number, y: number) =>
+      sites.reduce((a, b) =>
+        Math.hypot(b.position[0] - x, b.position[1] - y) <
+        Math.hypot(a.position[0] - x, a.position[1] - y)
+          ? b
+          : a,
+      )
+    const crossing = recheckCourse(terrain, sites, spec, {
+      start: near(1000, 700),
+      controls: [near(850, course.finish[1]), near(1150, course.finish[1]), near(1000, 1300)],
+      finish: course.finish,
+    })
+    expect(crossing.findings).toContainEqual({
+      kind: 'courseLinesThroughControls',
+      stops: [1, 2, 4],
+    })
+  })
+
   it('names compass directions with map north up', () => {
     expect(compassDirection(localPoint(0, 0), localPoint(0, 100))).toBe('N')
     expect(compassDirection(localPoint(0, 0), localPoint(100, 100))).toBe('NE')
