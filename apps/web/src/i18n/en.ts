@@ -1,3 +1,5 @@
+import type { Course } from '@ratamestari/engine'
+
 export type StopName = number | 'start' | 'finish'
 
 const stopWord = (stop: StopName) => (typeof stop === 'number' ? String(stop) : stop)
@@ -194,6 +196,35 @@ export const en = {
       sourceCode: 'Source code',
       language: 'English',
     },
+  },
+  scoreBreakdown: {
+    summary: (total: string) => `Quality score ${total} (lower is better)`,
+    terms: {
+      timeErrorPerPercent: 'Winning time',
+      timeOutsideRangePerPercent: 'Outside time range',
+      spacing: 'Control spacing',
+      acuteAngleWarning: 'Sharp angles',
+      acuteAngleNote: 'Angles under 60°',
+      difficultyOutsideRange: 'Difficulty',
+      courseLineCrossing: 'Crossing lines',
+      courseLineThroughControl: 'Lines through circles',
+      finalLegPerPercentOverLimit: 'Last leg',
+      courseLineOutsideMap: 'Lines off the map',
+      courseLineOverDescriptions: 'Lines under descriptions',
+      overlappingCircles: 'Overlapping circles',
+      areaQuality: 'Terrain quality',
+      routeChoicePerKeyLeg: 'Route choice',
+      reversals: 'Reversals',
+      ring: 'Ring shape',
+      legLengths: 'Leg length mix',
+      alternation: 'Monotonous legs',
+      directionChanges: 'Direction changes',
+      firstLeg: 'First leg',
+      spread: 'Use of terrain',
+      parallelLegs: 'Legs side by side',
+      closeness: 'Passing close again',
+      legCount: 'Number of legs',
+    } satisfies Record<keyof Course['breakdown']['terms'], string>,
   },
   units: {
     seconds: (value: string) => `${value} s`,
