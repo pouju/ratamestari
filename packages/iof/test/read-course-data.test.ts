@@ -33,6 +33,8 @@ describe('readCourseData', () => {
       id: '33',
       type: 'Control',
       mapPositionMillimetres: [-352, 60.1],
+      longitudeLatitude: [27.2, 60.6],
+      projected: null,
     })
     expect(data.controls.get('M1')!.mapPositionMillimetres).toEqual([-370, 40])
     expect(data.courses).toEqual([
@@ -82,5 +84,36 @@ describe('readCourseData', () => {
     const data = readCourseData(xml)
     expect(data.courses[0]!.controlIds).toEqual(['S1', '31', 'F1'])
     expect(data.controls.get('31')!.mapPositionMillimetres).toEqual([30, 40])
+  })
+
+  it('reads the older IOF XML 2.0.3 that OCAD still writes', () => {
+    const data = readCourseData(`<?xml version="1.0" encoding="UTF-8" ?>
+<CourseData>
+  <IOFVersion version="2.0.3" />
+  <Map><Scale> 15000 </Scale></Map>
+  <StartPoint><StartPointCode> L1 </StartPointCode><ControlPosition x="506337.774" y="6718325.210"/><MapPosition x="-47.3" y="13.5"/></StartPoint>
+  <Control><ControlCode> 33 </ControlCode><ControlPosition x="506112.8" y="6718391.4"/><MapPosition x="-62.8" y="15.2"/></Control>
+  <FinishPoint><FinishPointCode> M1 </FinishPointCode><MapPosition x="-50" y="10"/></FinishPoint>
+  <Course>
+    <CourseName> Rata A </CourseName>
+    <CourseVariation>
+      <CourseLength> 6210 </CourseLength>
+      <StartPointCode> L1 </StartPointCode>
+      <CourseControl><Sequence> 1 </Sequence><ControlCode> 33 </ControlCode></CourseControl>
+      <FinishPointCode> M1 </FinishPointCode>
+    </CourseVariation>
+  </Course>
+</CourseData>`)
+    expect(data.mapScale).toBe(15000)
+    expect(data.controls.get('L1')).toEqual({
+      id: 'L1',
+      type: 'Start',
+      mapPositionMillimetres: [-47.3, 13.5],
+      longitudeLatitude: null,
+      projected: [506337.774, 6718325.21],
+    })
+    expect(data.courses).toEqual([
+      { name: 'Rata A', lengthMeters: 6210, controlIds: ['L1', '33', 'M1'] },
+    ])
   })
 })

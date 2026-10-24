@@ -1,7 +1,13 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
-import { localPoint, type LocalExtent, type LocalPoint } from '@ratamestari/core'
+import {
+  localPoint,
+  localToProjected,
+  projectedToGeographic,
+  type LocalExtent,
+  type LocalPoint,
+} from '@ratamestari/core'
 import {
   buildTerrain,
   convexHullArea,
@@ -16,7 +22,7 @@ import {
   signedTurns,
   type Terrain,
 } from '@ratamestari/engine'
-import { describeControl, readCourseData } from '@ratamestari/iof'
+import { describeControl, readCourseData, type ImportedCourseData } from '@ratamestari/iof'
 import { loadOcadMap, type OcadMap } from '@ratamestari/map-ocad'
 import {
   COURSE_SHAPE,
@@ -30,6 +36,9 @@ const MAPS_FOLDER = 'maps'
 const COURSES_SUFFIX = '.Courses.xml'
 const DEFAULT_OUT = join(MAPS_FOLDER, 'renders', 'benchmark.md')
 const PACE_SECONDS_PER_KM = 300
+const MATCH_TOLERANCE_DEGREES = 0.001
+const METRES_PER_DEGREE = 111_000
+const MIN_STOPS = 3
 
 const { values } = parseArgs({
   options: {
@@ -70,19 +79,14 @@ for (const courseFile of courseFiles) {
     const position = data.controls.get(id)?.mapPositionMillimetres
     return position ? localPoint((position[0] * scale) / 1000, (position[1] * scale) / 1000) : null
   }
-  const references = data.courses.map(course => ({
-    name: course.name,
-    stops: course.controlIds.map(toLocal).filter((stop): stop is LocalPoint => stop !== null),
-  }))
+  const references = data.courses
+    .map(course => ({
+      name: course.name,
+      stops: course.controlIds.map(toLocal).filter((stop): stop is LocalPoint => stop !== null),
+    }))
+    .filter(reference => reference.stops.length >= MIN_STOPS)
   const firstStops = references[0]?.stops ?? []
-  let mapFile: string | undefined
-  for (const file of mapFiles) {
-    const [minX, minY, maxX, maxY] = (await loadMap(file)).info.extent
-    if (firstStops.every(([x, y]) => x >= minX && x <= maxX && y >= minY && y <= maxY)) {
-      mapFile = file
-      break
-    }
-  }
+  const mapFile = await mapContaining(data, scale)
   if (!mapFile) continue
   const map = await loadMap(mapFile)
   const terrain = buildTerrain(map.features(), map.info.extent)
@@ -152,6 +156,42 @@ for (const courseFile of courseFiles) {
 mkdirSync(join(MAPS_FOLDER, 'renders'), { recursive: true })
 writeFileSync(values.out, `# Course benchmark\n\n${legend()}\n\n${lines.join('\n')}\n`)
 console.log(`Wrote ${values.out}`)
+
+// Each OCAD file has its own paper coordinates, so match maps by where the controls land on the
+// ground: the right map turns the course's map positions into the course's own longitudes and
+// latitudes. Without georeferences, fall back to a map whose extent holds the course.
+async function mapContaining(data: ImportedCourseData, scale: number): Promise<string | undefined> {
+  const controls = [...data.controls.values()].filter(c => c.mapPositionMillimetres !== null)
+  if (controls.length === 0) return undefined
+  let best: { file: string; error: number } | undefined
+  for (const file of mapFiles) {
+    const { georef, extent } = (await loadMap(file)).info
+    const errors = controls.map(control => {
+      const [x, y] = control.mapPositionMillimetres!
+      const local = localPoint((x * scale) / 1000, (y * scale) / 1000)
+      if (georef && control.projected) {
+        const [easting, northing] = localToProjected(local, georef)
+        const metres = Math.hypot(easting - control.projected[0], northing - control.projected[1])
+        return metres / METRES_PER_DEGREE
+      }
+      if (!georef || !control.longitudeLatitude) {
+        const inside =
+          local[0] >= extent[0] &&
+          local[0] <= extent[2] &&
+          local[1] >= extent[1] &&
+          local[1] <= extent[3]
+        return inside ? 0 : Number.POSITIVE_INFINITY
+      }
+      const ground = projectedToGeographic(localToProjected(local, georef), georef.epsg)
+      if (!ground) return Number.POSITIVE_INFINITY
+      const [longitude, latitude] = control.longitudeLatitude
+      return Math.hypot(ground.longitudeDegrees - longitude, ground.latitudeDegrees - latitude)
+    })
+    const error = errors.reduce((sum, e) => sum + e, 0) / Math.max(1, errors.length)
+    if (!best || error < best.error) best = { file, error }
+  }
+  return best && best.error < MATCH_TOLERANCE_DEGREES ? best.file : undefined
+}
 
 function table(rows: readonly Row[], terrain: Terrain): string {
   const header = [
