@@ -58,6 +58,8 @@ export interface CourseSpec {
   readonly improvementSteps?: number
   readonly printArea?: PrintArea
   readonly peripheralSize?: PaperBoxSize | null
+  // The user's wish for the start, as straight-line metres from the finish.
+  readonly startDistanceFromFinishMeters?: readonly [number, number] | null
 }
 
 export interface Finding {
@@ -118,6 +120,7 @@ export function expectedControlCount(format: Format): number {
 
 const START_DISTANCE_FROM_FINISH: readonly [number, number] = [0.05, 0.2]
 const MAX_START_DIFFICULTY = 2
+const MAX_SITE_DIFFICULTY = 5
 const DEFAULT_IMPROVEMENT_STEPS: Readonly<Record<Format, number>> = { long: 800, middle: 400 }
 const TREE_LIMIT_SHARE_OF_TARGET = 0.25
 const SWAP_LEG_TIME_RANGE: readonly [number, number] = [0.5, 1.6]
@@ -278,7 +281,16 @@ export function* searchCourseSteps(
       FORMAT_QUALITY[spec.format],
       random,
     )
-    const draftStart = pickStart(pool, toFinish, targetSeconds, waypoints, finish, core, random)
+    const draftStart = pickStart(
+      pool,
+      toFinish,
+      targetSeconds,
+      waypoints,
+      finish,
+      core,
+      spec.startDistanceFromFinishMeters ?? null,
+      random,
+    )
     if (draftStart === NO_SITE) continue
     const draftOrder = buildGreedy(
       draftStart,
@@ -720,20 +732,31 @@ function pickStart(
   waypoints: readonly LocalPoint[],
   finish: LocalPoint,
   core: LocalPoint | null,
+  wishedDistance: readonly [number, number] | null,
   random: Random,
 ): number {
+  const [nearShare, farShare] = START_DISTANCE_FROM_FINISH
+  const metresOutsideWish = (i: number) => {
+    if (!wishedDistance) return 0
+    const distance = distanceBetween(pool[i]!.position, finish)
+    return Math.max(0, wishedDistance[0] - distance, distance - wishedDistance[1])
+  }
+  const fitsDistance = (i: number) =>
+    wishedDistance
+      ? metresOutsideWish(i) === 0
+      : toFinish[i]! >= nearShare * targetSeconds && toFinish[i]! <= farShare * targetSeconds
+  const reachable = (i: number) => Number.isFinite(toFinish[i]!)
+  const sitesUpTo = (maxDifficulty: number) =>
+    pool.flatMap((site, i) =>
+      site.technicalDifficulty <= maxDifficulty && reachable(i) ? [i] : [],
+    )
   if (core) {
-    const inCore = pool.flatMap((site, i) =>
-      site.technicalDifficulty <= MAX_START_DIFFICULTY &&
-      toFinish[i]! >= START_DISTANCE_FROM_FINISH[0] * targetSeconds &&
-      distanceBetween(site.position, core) <= MIDDLE_CORE_RADIUS_METERS
-        ? [i]
-        : [],
+    const inCore = sitesUpTo(MAX_START_DIFFICULTY).filter(
+      i => fitsDistance(i) && distanceBetween(pool[i]!.position, core) <= MIDDLE_CORE_RADIUS_METERS,
     )
     const start = random.pick(inCore)
     if (start !== undefined) return start
   }
-  const [nearShare, farShare] = START_DISTANCE_FROM_FINISH
   const firstWaypoint = waypoints[0]
   const towardsFirstWaypoint = (site: ControlSiteCandidate) => {
     if (!firstWaypoint) return 0
@@ -743,17 +766,15 @@ function pickStart(
     const by = firstWaypoint[1] - finish[1]
     return (ax * bx + ay * by) / (Math.hypot(ax, ay) * Math.hypot(bx, by) || 1)
   }
-  const inRange = (maxDifficulty: number) =>
-    pool.flatMap((site, i) =>
-      site.technicalDifficulty <= maxDifficulty &&
-      toFinish[i]! >= nearShare * targetSeconds &&
-      toFinish[i]! <= farShare * targetSeconds
-        ? [i]
-        : [],
-    )
-  const candidates = inRange(MAX_START_DIFFICULTY)
-  const pickable = candidates.length > 0 ? candidates : inRange(5)
-  if (pickable.length === 0) return NO_SITE
+  const easy = sitesUpTo(MAX_START_DIFFICULTY)
+  const inRange = easy.filter(fitsDistance)
+  const pickable =
+    inRange.length > 0 ? inRange : sitesUpTo(MAX_SITE_DIFFICULTY).filter(fitsDistance)
+  if (pickable.length === 0) {
+    // No site meets the user's wish, so the start comes as near to it as the map allows.
+    if (!wishedDistance || easy.length === 0) return NO_SITE
+    return easy.reduce((a, b) => (metresOutsideWish(b) < metresOutsideWish(a) ? b : a))
+  }
   const preference = (i: number) =>
     START_TOWARDS_WAYPOINT_PREFERENCE * towardsFirstWaypoint(pool[i]!) + random.next()
   return pickable.reduce((a, b) => (preference(b) > preference(a) ? b : a))

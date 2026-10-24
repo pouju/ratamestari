@@ -98,6 +98,16 @@ describe('searchCourse', { timeout: SEARCH_TIMEOUT_MS }, () => {
     expect(course.finish).toEqual([1000, 1000])
   })
 
+  it('puts the start where the user wants it', () => {
+    const distanceToFinish = (c: Course) =>
+      Math.hypot(c.start.position[0] - c.finish[0], c.start.position[1] - c.finish[1])
+    const near = searchCourse(terrain, sites, spec({ startDistanceFromFinishMeters: [0, 150] }))!
+    expect(distanceToFinish(near)).toBeLessThanOrEqual(150)
+    const far = searchCourse(terrain, sites, spec({ startDistanceFromFinishMeters: [600, 800] }))!
+    expect(distanceToFinish(far)).toBeGreaterThanOrEqual(600)
+    expect(distanceToFinish(far)).toBeLessThanOrEqual(800)
+  })
+
   it('repeats the same course for the same seed', () => {
     const again = searchCourse(terrain, sites, spec())!
     expect(allPoints(again)).toEqual(allPoints(course))
