@@ -1,9 +1,11 @@
 import { useMessages } from '../i18n'
 import {
   APP_PATH,
+  APP_VERSION,
   AUTHOR_URL,
   FEEDBACK_URL,
   OCAD2GEOJSON_URL,
+  RELEASE_URL,
   SAMPLE_QUERY,
   SOURCE_CODE_URL,
 } from '../config'
@@ -174,6 +176,7 @@ export function Landing() {
         </span>
         <span>{m.footer.licence}</span>
         <a href={SOURCE_CODE_URL}>{m.footer.sourceCode}</a>
+        <a href={RELEASE_URL}>{m.footer.version(APP_VERSION)}</a>
         <span className="landing-footer-language">{m.footer.language}</span>
       </footer>
     </div>

@@ -1,3 +1,5 @@
+declare const __APP_VERSION__: string
+
 export const SOURCE_CODE_URL = 'https://github.com/pouju/ratamestari'
 export const AUTHOR_URL = 'https://github.com/pouju'
 export const FEEDBACK_URL = `${SOURCE_CODE_URL}/issues`
@@ -19,3 +21,6 @@ export const SAMPLE_MAP = {
     skillLetter: 'A',
   },
 } as const
+
+export const APP_VERSION = __APP_VERSION__
+export const RELEASE_URL = `${SOURCE_CODE_URL}/releases/tag/v${APP_VERSION}`

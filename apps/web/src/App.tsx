@@ -39,7 +39,14 @@ import { useFormat, useMessages } from './i18n'
 import { MapView } from './MapView'
 import { LayersMenu, PlanLegTool, PrintLabel } from './MapTools'
 import { rasterizeSvg, type MapImage } from './rasterize'
-import { OCAD2GEOJSON_URL, SAMPLE_MAP, SAMPLE_QUERY, SOURCE_CODE_URL } from './config'
+import {
+  APP_VERSION,
+  OCAD2GEOJSON_URL,
+  RELEASE_URL,
+  SAMPLE_MAP,
+  SAMPLE_QUERY,
+  SOURCE_CODE_URL,
+} from './config'
 
 type LoadState =
   | { status: 'empty' }
@@ -771,6 +778,9 @@ export function App() {
         <footer className="panel-footer">
           <a href={SOURCE_CODE_URL} target="_blank" rel="noreferrer">
             {messages.workspace.sourceCode}
+          </a>
+          <a href={RELEASE_URL} target="_blank" rel="noreferrer">
+            {messages.workspace.version(APP_VERSION)}
           </a>
           <span>{messages.workspace.licence}</span>
           <span>
