@@ -21,3 +21,4 @@ export {
   LOCATION_PICTOGRAMS,
   START_TRIANGLE,
 } from './pictograms'
+export { courseDataXml, type CourseDataOptions } from './iof-xml'
