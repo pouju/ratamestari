@@ -1,5 +1,11 @@
 import type { LocalExtent, LocalPoint } from '@ratamestari/core'
-import { COURSE_SHAPE, FORMAT_QUALITY, type Format, type LegLengthTarget } from '@ratamestari/rules'
+import {
+  ACUTE_ANGLE,
+  COURSE_SHAPE,
+  FORMAT_QUALITY,
+  type Format,
+  type LegLengthTarget,
+} from '@ratamestari/rules'
 import { cellCenterOf } from './raster'
 import type { Terrain } from './terrain'
 
@@ -117,12 +123,15 @@ export function alternation(stops: readonly LocalPoint[]): Metric {
 
 export function directionChanges(stops: readonly LocalPoint[], targetRate: number): Metric {
   const turns = signedTurns(stops)
+  const sharpestTurn = 180 - ACUTE_ANGLE.warningBelowDegrees
   const rate =
-    turns.filter(turn => Math.abs(turn) > COURSE_SHAPE.directionChangeDegrees).length /
-    Math.max(1, turns.length)
+    turns.filter(turn => {
+      const angle = Math.abs(turn)
+      return angle > COURSE_SHAPE.directionChangeDegrees && angle <= sharpestTurn
+    }).length / Math.max(1, turns.length)
   return {
     value: Math.max(0, targetRate - rate),
-    note: `${Math.round(rate * 100)}% of controls turn more than ${COURSE_SHAPE.directionChangeDegrees}°`,
+    note: `${Math.round(rate * 100)}% of controls turn ${COURSE_SHAPE.directionChangeDegrees}–${sharpestTurn}°`,
   }
 }
 

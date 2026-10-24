@@ -58,6 +58,8 @@ describe('course metrics', () => {
 
   it('compares the share of real direction changes with the target', () => {
     expect(directionChanges(square, 0.75).value).toBe(0)
+    const doubledBack = course([0, 0], [500, 0], [0, 40], [500, 80])
+    expect(directionChanges(doubledBack, 0.75).value).toBe(0.75)
     expect(directionChanges(course([0, 0], [500, 0], [1000, 50], [1500, 0]), 0.75).value).toBe(0.75)
   })
 

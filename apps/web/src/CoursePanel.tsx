@@ -185,6 +185,7 @@ export function CoursePanel({
         <p className="note">Set the competition centre first. The finish goes there.</p>
       )}
       {course && <CourseSummary course={course} />}
+      {course && course.lengthMeters !== null && <ScoreBreakdownView course={course} />}
       {course && course.lengthMeters !== null && (
         <RuleChecks course={course} onFixControl={onFixControl} isEditing={isEditing} />
       )}
@@ -303,5 +304,54 @@ function RuleChecks({
         Drag a control or the start on the map to move it; the rules are checked again.
       </p>
     </>
+  )
+}
+
+const SCORE_TERM_LABELS: Readonly<Record<keyof Course['breakdown']['terms'], string>> = {
+  timeErrorPerPercent: 'Winning time',
+  timeOutsideRangePerPercent: 'Outside time range',
+  spacing: 'Control spacing',
+  acuteAngleWarning: 'Sharp angles',
+  acuteAngleNote: 'Angles under 60°',
+  difficultyOutsideRange: 'Difficulty',
+  courseLineCrossing: 'Crossing lines',
+  courseLineThroughControl: 'Lines through circles',
+  finalLegPerPercentOverLimit: 'Last leg',
+  courseLineOutsideMap: 'Lines off the map',
+  courseLineOverDescriptions: 'Lines under descriptions',
+  overlappingCircles: 'Overlapping circles',
+  areaQuality: 'Terrain quality',
+  routeChoicePerKeyLeg: 'Route choice',
+  reversals: 'Reversals',
+  ring: 'Ring shape',
+  legLengths: 'Leg length mix',
+  alternation: 'Monotonous legs',
+  directionChanges: 'Direction changes',
+  firstLeg: 'First leg',
+  spread: 'Use of terrain',
+}
+
+function ScoreBreakdownView({ course }: { course: Course }) {
+  const terms = Object.entries(course.breakdown.terms)
+    .filter(([, term]) => term.weight > 0 && Math.abs(term.contribution) >= 0.05)
+    .sort(([, a], [, b]) => b.contribution - a.contribution)
+  return (
+    <details className="breakdown">
+      <summary>Quality score {course.breakdown.total.toFixed(0)} (lower is better)</summary>
+      <table>
+        <tbody>
+          {terms.map(([name, term]) => (
+            <tr key={name}>
+              <td>{SCORE_TERM_LABELS[name as keyof typeof SCORE_TERM_LABELS]}</td>
+              <td className="number">
+                {term.contribution > 0 ? '+' : ''}
+                {term.contribution.toFixed(1)}
+              </td>
+              <td className="note">{term.note}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </details>
   )
 }

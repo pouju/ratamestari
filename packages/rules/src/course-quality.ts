@@ -44,6 +44,11 @@ export const formatQualityProfileSchema = citedSchema.extend({
   legLengths: legLengthTargetSchema,
   directionChangeRateTarget: z.number().min(0).max(1),
   spreadTarget: z.number().min(0).max(1),
+  waypoints: z.object({
+    count: z.tuple([z.int().min(1), z.int().min(1)]),
+    minSeparationMetres: z.number().positive(),
+    reachedWithinMetres: z.number().positive(),
+  }),
 })
 
 export type LegLengthTarget = z.infer<typeof legLengthTargetSchema>
@@ -61,6 +66,7 @@ export const FORMAT_QUALITY: Readonly<Record<Format, FormatQualityProfile>> = {
     },
     directionChangeRateTarget: 0.6,
     spreadTarget: 0.5,
+    waypoints: { count: [3, 5], minSeparationMetres: 700, reachedWithinMetres: 250 },
     sources: [ratamestarikirja('2.S.1'), iofRules('App. 2 §3.4.1')],
     interpretation: true,
   },
@@ -73,6 +79,7 @@ export const FORMAT_QUALITY: Readonly<Record<Format, FormatQualityProfile>> = {
     },
     directionChangeRateTarget: 0.75,
     spreadTarget: 0.4,
+    waypoints: { count: [2, 3], minSeparationMetres: 300, reachedWithinMetres: 120 },
     sources: [ratamestarikirja('2.S.2'), iofRules('App. 2 §3.4.1')],
     interpretation: true,
   },
@@ -80,6 +87,7 @@ export const FORMAT_QUALITY: Readonly<Record<Format, FormatQualityProfile>> = {
 
 export const scoreWeightsSchema = citedSchema.extend({
   timeErrorPerPercent: z.number().nonnegative(),
+  timeOutsideRangePerPercent: z.number().nonnegative(),
   spacing: z.number().nonnegative(),
   acuteAngleWarning: z.number().nonnegative(),
   acuteAngleNote: z.number().nonnegative(),
@@ -104,18 +112,20 @@ export const scoreWeightsSchema = citedSchema.extend({
 export type ScoreWeights = z.infer<typeof scoreWeightsSchema>
 export type ScoreTermName = Exclude<keyof ScoreWeights, 'sources' | 'interpretation'>
 
+// Hard rules outweigh anything the quality terms can earn, so the search never trades them away.
 const RULE_PENALTIES = {
   timeErrorPerPercent: 2,
-  spacing: 50,
-  acuteAngleWarning: 20,
+  timeOutsideRangePerPercent: 20,
+  spacing: 200,
+  acuteAngleWarning: 100,
   acuteAngleNote: 5,
   difficultyOutsideRange: 4,
-  courseLineCrossing: 15,
-  courseLineThroughControl: 10,
+  courseLineCrossing: 30,
+  courseLineThroughControl: 40,
   finalLegPerPercentOverLimit: 5,
-  courseLineOutsideMap: 30,
-  courseLineOverDescriptions: 30,
-  overlappingCircles: 15,
+  courseLineOutsideMap: 150,
+  courseLineOverDescriptions: 150,
+  overlappingCircles: 150,
 }
 
 const WEIGHT_SOURCES = [

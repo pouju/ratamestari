@@ -198,3 +198,15 @@ button.link {
   max-width: 100%;
   font-size: 12px;
 }
+.breakdown table {
+  font-size: 12px;
+  border-collapse: collapse;
+}
+.breakdown td {
+  padding: 2px 4px;
+  vertical-align: top;
+}
+.breakdown .number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
