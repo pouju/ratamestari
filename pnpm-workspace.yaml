@@ -4,3 +4,7 @@ packages:
 
 # Only install package versions that have been public for two weeks (minutes).
 minimumReleaseAge: 20160
+
+# esbuild's install script only verifies its binary; tsx works without it.
+allowBuilds:
+  esbuild: false
