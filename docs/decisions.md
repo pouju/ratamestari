@@ -362,3 +362,38 @@ The site and app follow [`site-ux-plan.md`](site-ux-plan.md):
 - New conventions in `CLAUDE.md`: message catalogues, one design-token file, and the sample map as the only committed map.
 - Engine and rules output stays language-free (structured findings). The UI writes the text.
 - Map-dependent tests can run against the sample map in CI.
+
+---
+
+## D15: Course setter tools: routes, leg planning, locks and checking own courses
+
+**Date:** 2026-10-24
+**Status:** Decided
+
+### Decision
+
+The app gets four tools for course setters, described in [`site-ux-plan.md`](site-ux-plan.md) › Course setter tools:
+
+- **Routes on a leg:** the fastest route and its alternatives are drawn green, blue and red (fastest to slowest), with letters and a row each in the panel.
+- **Plan a leg:** the two-control dev tool becomes a user tool, and its leg can seed a generated course.
+- **Lock controls and legs:** the search keeps locked controls in place and locked legs in order when it tries another course.
+- **Check a course you set:** an IOF XML course file can be opened next to the map. It gets rule findings, routes, measured length and climb, and proposed descriptions. Fixes are only suggested.
+
+They are built before the new UI (D14), in today's UI.
+
+### Why
+
+- Course setters want to see what the algorithm considered on a leg, and to plan the key legs themselves.
+- Checking courses set in OCAD or Purple Pen widens the users from "wants a generated course" to every course setter and controller.
+- The engine already has route alternatives, the IOF XML reader, recheckCourse and description generation. These tools are mostly UI.
+
+### Alternatives considered
+
+- **Green, yellow and red for routes:** the usual route-analysis colours, but yellow disappears on open land, so blue replaces it.
+- **Fix that edits an imported course directly:** the course belongs to its setter, so fixes only suggest.
+- **Lock every dragged control automatically:** surprising. Locking is an explicit choice.
+
+### Consequences
+
+- The course search must accept locked controls and anchor legs (D13 phases B and C come earlier for user-given anchors).
+- Red and green differ in hue mainly, so routes always carry a letter and a panel row as well.

@@ -44,7 +44,7 @@ Motion rules: only to show what the engine is actually doing, never decoration; 
 Sections, top to bottom (see the "Landing page" and "Phone · landing" artboards):
 
 1. **Header:** wordmark, How it works, Status, Privacy, Source code, **Open the app**. On a phone only the wordmark and Open the app; the other links are in the footer.
-2. **Hero:** "A first course in minutes, set by the rules." One paragraph, **Try it with a sample map** (primary), _Open your own map_, the privacy line, and the hero demo next to it (under it on a phone).
+2. **Hero:** "A first course in minutes, set by the rules." One paragraph, **Try it with a sample map** (primary), _Open your own map_ and _Check a course you set_, the privacy line, and the hero demo next to it (under it on a phone).
 3. **How it works:** four steps drawn as course symbols (start triangle, control 2, control 3, finish).
 4. **Every check names its rule:** one short paragraph (measured, not guessed; you stay the course setter) next to a real finding with its citation, instead of a three-up principles band.
 5. **Status:** _Works now / Coming next / Later_, kept in one data file (one per language) so it is easy to update.
@@ -95,13 +95,13 @@ Earlier choices stay visible as one line each and are changed in place. Changing
 | File info list (scale, objects, CRS, image size) | Settings › Map file (scale also on the Map line)                 |
 | Event level, format, sex, age, skill selects     | Request sentence: each underlined word opens its own small menu  |
 | Pick centre button                               | State 2; "change" link on the centre line                        |
-| Generate / Try another                           | Set course → Stop → Another                                      |
+| Generate / Try another                           | Set course → Stop → Try another course (keeps locked controls)   |
 | Pace field                                       | Settings (default 5:00/km); the assistant can also set it        |
 | Paper and print scale selects                    | Label under the page: "A4 portrait · 1:15 000 · Adjust"          |
 | Rule checks with Fix                             | Findings: "2 things to check", severity word, basis, Fix         |
 | Control descriptions section                     | Only on the map and in the PDF                                   |
 | Print PDF, Export XML                            | Export row at the bottom of the panel                            |
-| Leg tool and leg details                         | Map toolbar › Measure (off by default)                           |
+| Leg tool and leg details                         | Map toolbar › Plan a leg (see Course setter tools)               |
 | Cost map and candidate site toggles, legends     | Map toolbar › Layers                                             |
 | Symbol panel                                     | Settings › How map symbols are read › Review (full-height sheet) |
 | Chat panel                                       | Only when the assistant is on                                    |
@@ -115,6 +115,38 @@ Tabs at the top of the panel (H21 Long, D21 Long, +); a picker on phones. Each i
 - **Off (default):** the panel is the form described above. No chat, no key prompt, no "AI" badge anywhere.
 - **Turning it on:** Settings › Assistant. "Connect with" offers _Your own Claude API key_ now and _Ratamestari service_ (disabled, "needs the hosted version") so the server option has a place later. The key is kept in this browser only. The sheet says plainly what the assistant receives and what it never receives (D3).
 - **On:** the request sentence and figures shrink to two lines at the top; the conversation fills the middle; the composer is at the bottom and becomes the primary input. What the assistant did shows as one short grey sentence above each answer ("Set the course and kept the best of 3 drafts"). PDF and XML stay one click away. On a phone the composer sits at the bottom of the sheet.
+
+## Course setter tools (D15)
+
+Three tools for course setters who want to plan or check legs themselves, not just take a generated course. They share one way of drawing routes, and they also make Ratamestari a **checker for courses set in OCAD or Purple Pen**.
+
+### Routes on a leg
+
+- The engine already finds the fastest route and up to two clearly different alternatives for every leg (`evaluateLeg`, `ROUTE_CHOICE` in `packages/rules`). We show them.
+- **Colours, as in route analysis:** green is the fastest, blue the middle, red the slowest. We use blue rather than yellow because yellow vanishes on open land. Routes are drawn as wide, see-through strokes under the overprint, so the map stays readable. Each route also has a letter (A, B, C) and a row in the panel, so they can be told apart without seeing colour.
+- **Selecting a leg:** tap a leg line or its end control. The other legs fade and the panel shows the leg view: "Leg 5–6", with a row per route giving length, time, climb and how much slower it is than the fastest. Next and previous buttons (swipe on a phone) walk through the course leg by leg.
+- The panel says once, in a short line, that routes come from the map's symbols, not from GPS tracks.
+
+### Plan a leg
+
+The current two-control dev tool becomes a user tool, **Plan a leg**, in the map toolbar.
+
+- Place two controls anywhere (tap twice, then drag to adjust). The routes and figures update as you drag: straight distance, length and time of each route, climb, and whether it counts as a route-choice leg.
+- Its main action is **Set a course around this leg**. The leg is locked and the engine fills in the rest of the course for the chosen class.
+
+### Lock controls and legs
+
+- In a generated course, tap a control and choose **Keep this control**, or tap a leg and choose **Keep this leg**. Locked controls get a small lock mark next to their number.
+- **Try another course** then searches again, keeping every locked control in its place and every locked leg in its order. The engine treats a locked leg as a fixed anchor (D13 phase B) and locked controls as locks (D13 phase C).
+- Dragging a control doesn't lock it automatically. Locking is always the user's choice, and it can be undone.
+
+### Check a course you set
+
+- Open the map, then the course file (IOF XML 3.0 or the 2.0.3 that OCAD writes), or drop both at once. Each course in the file becomes its own tab. The class is guessed from the course name, and the user confirms the event level and distance in the request sentence, because winning-time checks need them.
+- For each course: rule findings with sources, routes on every leg, length and climb measured again and compared with the file ("Your file says 11.2 km, measured 11.4 km"), and proposed IOF control descriptions.
+- A control with no map feature under it is a finding of its own: "No map feature found within 15 m. Check the position."
+- **Fix only suggests here.** The course is the setter's own, so a suggestion shows the proposed spot on the map with **Move here** and **Keep mine**. Nothing changes without the user's tap.
+- The course file stays on the computer, like the map (D3). Exports work as for generated courses.
 
 ## Localisation
 
@@ -190,16 +222,20 @@ The tokens go into one CSS custom-property file in `apps/web` (convention agreed
 
 ## Build order
 
-The demo is tomorrow, so the workspace comes first and the cheap foundations go in from the start:
+The demo is tomorrow. The course setter tools come first, in today's UI, because they are mostly UI on engine parts that already exist. The new UI follows.
 
-1. Message catalogue and visual tokens (cheap now, costly to retrofit).
-2. Panel and map layout with the state-based primary button (incl. Stop); request sentence and centre line.
-3. Findings and export row; move pace, file info and symbols into Settings; Layers and Measure into the map toolbar.
-4. Sample map and the "Try it with a sample map" path.
-5. Phone layout: bottom sheet, press-and-hold drag, file picker.
-6. Assistant behind the Settings switch.
-7. Landing page as the second Vite entry with the recorded hero demo, status list and credits; GitHub Pages deploy.
-8. After the demo: course tabs, centre suggestions, Finnish catalogue, guide pages.
+1. Routes on a leg: select a leg, coloured routes, leg view in the panel, step through legs.
+2. Plan a leg: turn the two-control dev tool into the user tool.
+3. Check a course you set: open an IOF XML course file next to the map, tabs per course, compare length and climb, suggestions with Move here and Keep mine.
+4. Lock controls and legs, and Set a course around this leg (needs the search to respect locks; the riskiest step, so last).
+5. Message catalogue and visual tokens.
+6. Panel and map layout with the state-based primary button (incl. Stop); request sentence and centre line.
+7. Findings and export row; move pace, file info and symbols into Settings; Layers and Plan a leg into the map toolbar.
+8. Sample map and the "Try it with a sample map" path.
+9. Phone layout: bottom sheet, press-and-hold drag, file picker.
+10. Assistant behind the Settings switch.
+11. Landing page as the second Vite entry with the recorded hero demo, status list and credits; GitHub Pages deploy.
+12. After the demo: centre suggestions, Finnish catalogue, guide pages.
 
 ## Open questions
 
