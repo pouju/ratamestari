@@ -41,6 +41,7 @@ export { difficultyInCourse, flagSideFor, type FlagSide } from './flag-side'
 export { setCourseOnPaper, type PaperChoice } from './course-on-paper'
 export {
   descriptionBoxGroundSize,
+  fitPrintAreaToCourse,
   isUsableInPrintArea,
   lineCrossesExtent,
   placeDescriptionBox,
@@ -49,4 +50,5 @@ export {
   type Orientation,
   type PrintArea,
   type PrintAreaRequest,
+  type CourseFitRequest,
 } from './print-area'

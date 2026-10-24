@@ -1,12 +1,13 @@
 import { DESCRIPTION_BOX, PAPER, type PaperSize } from '@ratamestari/rules'
 import type { ControlSiteCandidate } from './control-sites'
 import { expectedControlCount, searchCourse, type Course, type CourseSpec } from './course-search'
-import { planPrintArea } from './print-area'
+import { fitPrintAreaToCourse, planPrintArea } from './print-area'
 import type { Terrain } from './terrain'
 
 export type PaperChoice = PaperSize | 'auto'
 
 const FITS_WITHIN_SHARE_OF_TARGET = 0.05
+const CLEARLY_BETTER_SHARE_OF_TARGET = 0.05
 
 const timeError = (course: Course) =>
   Math.abs(course.estimatedSeconds - course.targetSeconds) / course.targetSeconds
@@ -23,20 +24,46 @@ export function setCourseOnPaper(
   onProgress: (course: Course) => void = () => {},
 ): Course | null {
   const papers = paper === 'auto' ? PAPER.preferenceOrder : [paper]
-  const descriptionRows = expectedControlCount(spec.format) + DESCRIPTION_BOX.rowsBesidesControls
-  let best: Course | null = null
-  for (const size of papers) {
+  const attempt = (size: PaperSize, report: (course: Course) => void) => {
     const printArea = planPrintArea(terrain, sites, {
       paper: size,
       printScale: spec.printScale,
       competitionCentre: spec.competitionCentre,
-      descriptionRows,
+      descriptionRows: expectedControlCount(spec.format) + DESCRIPTION_BOX.rowsBesidesControls,
     })
-    if (!printArea) continue
-    const course = searchCourse(terrain, sites, { ...spec, printArea }, onProgress)
-    if (!course) continue
-    if (fitsOnPaper(course)) return course
-    if (!best || timeError(course) < timeError(best)) best = course
+    return printArea ? searchCourse(terrain, sites, { ...spec, printArea }, report) : null
   }
-  return best
+
+  const [first, ...larger] = papers
+  let course = first ? attempt(first, onProgress) : null
+  for (const size of larger) {
+    if (course && fitsOnPaper(course)) break
+    // A larger sheet helps only when the paper, not the terrain, was the limit.
+    const alternative = attempt(size, () => {})
+    if (
+      alternative &&
+      (!course || timeError(alternative) < timeError(course) - CLEARLY_BETTER_SHARE_OF_TARGET)
+    ) {
+      course = alternative
+    }
+  }
+  if (!course) return null
+
+  const stops = [
+    course.start.position,
+    ...course.controls.map(site => site.position),
+    course.finish,
+  ]
+  const fitted = fitPrintAreaToCourse(terrain, stops, {
+    papers,
+    printScale: spec.printScale,
+    descriptionRows: course.controls.length + DESCRIPTION_BOX.rowsBesidesControls,
+  })
+  return fitted
+    ? {
+        ...course,
+        printArea: fitted,
+        problems: { ...course.problems, courseLinesOverDescriptions: 0 },
+      }
+    : course
 }

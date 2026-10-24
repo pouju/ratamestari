@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { localExtent, localPoint } from '@ratamestari/core'
 import type { ControlSiteCandidate } from '../src/control-sites'
 import {
+  fitPrintAreaToCourse,
   isUsableInPrintArea,
   lineCrossesExtent,
   placeDescriptionBox,
@@ -90,5 +91,44 @@ describe('placeDescriptionBox', () => {
       descriptionBox: localExtent(300, 0, 400, 300),
     } as const
     expect(placeDescriptionBox(area, 100, 200)).toEqual([300, 0, 400, 200])
+  })
+})
+
+describe('fitPrintAreaToCourse', () => {
+  const stops = [
+    localPoint(300, 300),
+    localPoint(500, 450),
+    localPoint(420, 250),
+    localPoint(320, 320),
+  ]
+  const request = { papers: ['A4', 'A3'] as const, printScale: 2000, descriptionRows: 8 }
+
+  it('frames the whole course on the smallest paper that holds it', () => {
+    const area = fitPrintAreaToCourse(terrain, stops, request)!
+    expect(area.paper).toBe('A4')
+    expect(stops.every(stop => isUsableInPrintArea(stop, area))).toBe(true)
+  })
+
+  it('keeps the description box clear of controls and course lines', () => {
+    const area = fitPrintAreaToCourse(terrain, stops, request)!
+    stops.forEach((stop, i) => {
+      if (i > 0) expect(lineCrossesExtent(stops[i - 1]!, stop, area.descriptionBox)).toBe(false)
+    })
+  })
+
+  it('moves up to A3 when the course is too big for A4', () => {
+    const wide = [...stops, localPoint(850, 300)]
+    expect(fitPrintAreaToCourse(terrain, wide, request)!.paper).toBe('A3')
+  })
+
+  it('places the paper over the mapped area', () => {
+    const mappedNorthHalf = buildTerrain([], SQUARE_KILOMETRE, { restrictToMappedArea: false })
+    mappedNorthHalf.mappedArea.forEach((_, i) => {
+      const row = Math.floor(i / mappedNorthHalf.grid.columns)
+      mappedNorthHalf.mappedArea[i] = row * mappedNorthHalf.grid.cellSizeMeters >= 300 ? 1 : 0
+    })
+    const area = fitPrintAreaToCourse(mappedNorthHalf, stops, request)!
+    const [, minY] = area.extent
+    expect(minY).toBeGreaterThan(stops.reduce((low, [, y]) => Math.min(low, y), Infinity) - 100)
   })
 })

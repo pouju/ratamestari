@@ -1,6 +1,7 @@
 import { localExtent, localPoint, type LocalExtent, type LocalPoint } from '@ratamestari/core'
 import { CONTROL_CIRCLE, DESCRIPTION_BOX, PAPER, type PaperSize } from '@ratamestari/rules'
 import type { ControlSiteCandidate } from './control-sites'
+import { cellCenterOf } from './raster'
 import { segmentsCross } from './polyline'
 import { siteAreaQuality } from './site-quality'
 import type { Terrain } from './terrain'
@@ -136,18 +137,25 @@ function cornerBoxes([minX, minY, maxX, maxY]: LocalExtent, width: number, heigh
   ]
 }
 
-function summedQuality(terrain: Terrain, sites: readonly ControlSiteCandidate[]) {
+interface SummedArea {
+  sum(extent: LocalExtent): number
+}
+
+function summedAreaTable(
+  terrain: Terrain,
+  cellMeters: number,
+  addWeights: (add: (position: LocalPoint, weight: number) => void) => void,
+): SummedArea {
   const { minX, minY, columns: gridColumns, rows: gridRows, cellSizeMeters } = terrain.grid
-  const columns = Math.ceil((gridColumns * cellSizeMeters) / QUALITY_CELL_METERS)
-  const rows = Math.ceil((gridRows * cellSizeMeters) / QUALITY_CELL_METERS)
+  const columns = Math.ceil((gridColumns * cellSizeMeters) / cellMeters)
+  const rows = Math.ceil((gridRows * cellSizeMeters) / cellMeters)
   const table = new Float64Array((columns + 1) * (rows + 1))
   const at = (column: number, row: number) => row * (columns + 1) + column
-  const weights = siteAreaQuality(sites)
-  sites.forEach((site, i) => {
-    const column = Math.floor((site.position[0] - minX) / QUALITY_CELL_METERS)
-    const row = Math.floor((site.position[1] - minY) / QUALITY_CELL_METERS)
+  addWeights(([x, y], weight) => {
+    const column = Math.floor((x - minX) / cellMeters)
+    const row = Math.floor((y - minY) / cellMeters)
     if (column < 0 || row < 0 || column >= columns || row >= rows) return
-    table[at(column + 1, row + 1)]! += weights[i]!
+    table[at(column + 1, row + 1)]! += weight
   })
   for (let row = 1; row <= rows; row++) {
     for (let column = 1; column <= columns; column++) {
@@ -159,11 +167,10 @@ function summedQuality(terrain: Terrain, sites: readonly ControlSiteCandidate[])
     }
   }
   const clampColumn = (x: number) =>
-    Math.min(columns, Math.max(0, Math.round((x - minX) / QUALITY_CELL_METERS)))
-  const clampRow = (y: number) =>
-    Math.min(rows, Math.max(0, Math.round((y - minY) / QUALITY_CELL_METERS)))
+    Math.min(columns, Math.max(0, Math.round((x - minX) / cellMeters)))
+  const clampRow = (y: number) => Math.min(rows, Math.max(0, Math.round((y - minY) / cellMeters)))
   return {
-    sum([x0, y0, x1, y1]: LocalExtent): number {
+    sum([x0, y0, x1, y1]) {
       const c0 = clampColumn(x0)
       const c1 = clampColumn(x1)
       const r0 = clampRow(y0)
@@ -172,6 +179,83 @@ function summedQuality(terrain: Terrain, sites: readonly ControlSiteCandidate[])
       return table[at(c1, r1)]! - table[at(c0, r1)]! - table[at(c1, r0)]! + table[at(c0, r0)]!
     },
   }
+}
+
+function summedQuality(terrain: Terrain, sites: readonly ControlSiteCandidate[]): SummedArea {
+  const weights = siteAreaQuality(sites)
+  return summedAreaTable(terrain, QUALITY_CELL_METERS, add =>
+    sites.forEach((site, i) => add(site.position, weights[i]!)),
+  )
+}
+
+function summedMappedArea(terrain: Terrain): SummedArea {
+  const { grid, mappedArea } = terrain
+  return summedAreaTable(terrain, grid.cellSizeMeters, add => {
+    mappedArea.forEach((isMapped, index) => {
+      if (isMapped) add(cellCenterOf(grid, index), 1)
+    })
+  })
+}
+
+export interface CourseFitRequest {
+  readonly papers: readonly PaperSize[]
+  readonly printScale: number
+  readonly descriptionRows: number
+}
+
+const FIT_STEP_METERS = 25
+
+export function fitPrintAreaToCourse(
+  terrain: Terrain,
+  stops: readonly LocalPoint[],
+  request: CourseFitRequest,
+): PrintArea | null {
+  const mapped = summedMappedArea(terrain)
+  const box = descriptionBoxGroundSize(request.descriptionRows, request.printScale)
+  const xs = stops.map(([x]) => x)
+  const ys = stops.map(([, y]) => y)
+  const needed = localExtent(
+    Math.min(...xs) - CIRCLE_RADIUS_METERS,
+    Math.min(...ys) - CIRCLE_RADIUS_METERS,
+    Math.max(...xs) + CIRCLE_RADIUS_METERS,
+    Math.max(...ys) + CIRCLE_RADIUS_METERS,
+  )
+  const courseCentreX = (needed[0] + needed[2]) / 2
+  const courseCentreY = (needed[1] + needed[3]) / 2
+  const cellArea = terrain.grid.cellSizeMeters ** 2
+  const cellsPerFrame = (width: number, height: number) => (width * height) / cellArea
+  const isClearOfCourse = (descriptionBox: LocalExtent) =>
+    stops.every(stop => !contains(descriptionBox, stop, -CIRCLE_RADIUS_METERS)) &&
+    stops.every((stop, i) => i === 0 || !lineCrossesExtent(stops[i - 1]!, stop, descriptionBox))
+
+  for (const paper of request.papers) {
+    let best: { area: PrintArea; score: number } | null = null
+    for (const orientation of ['portrait', 'landscape'] as const) {
+      const { width, height } = printableGroundSize(paper, orientation, request.printScale)
+      for (let left = needed[2] - width; left <= needed[0]; left += FIT_STEP_METERS) {
+        for (let bottom = needed[3] - height; bottom <= needed[1]; bottom += FIT_STEP_METERS) {
+          const extent = localExtent(left, bottom, left + width, bottom + height)
+          const coverageShare = mapped.sum(extent) / cellsPerFrame(width, height)
+          const offCentreShare =
+            Math.hypot(left + width / 2 - courseCentreX, bottom + height / 2 - courseCentreY) /
+            Math.hypot(width / 2, height / 2)
+          const score = coverageShare - offCentreShare
+          if (best && score <= best.score) continue
+          const descriptionBox = cornerBoxes(extent, box.width, box.height)
+            .filter(isClearOfCourse)
+            .sort((a, b) => mapped.sum(a) - mapped.sum(b))[0]
+          if (descriptionBox) {
+            best = {
+              area: { paper, scale: request.printScale, orientation, extent, descriptionBox },
+              score,
+            }
+          }
+        }
+      }
+    }
+    if (best) return best.area
+  }
+  return null
 }
 
 export function placeDescriptionBox(area: PrintArea, width: number, height: number): LocalExtent {
