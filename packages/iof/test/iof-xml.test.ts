@@ -93,4 +93,20 @@ describe('courseDataXml', () => {
   it('leaves out geographic positions when the map has no known georeference', () => {
     expect(xmlFor({ georef: null })).not.toContain('<Position ')
   })
+
+  it('writes a course with no controls yet, as one being set by hand', () => {
+    const empty = { ...course, controls: [], controlDifficulties: [], flagSides: [] }
+    const xml = courseDataXml({
+      eventName: 'Club night',
+      className: 'H21',
+      course: empty,
+      sheet: descriptionSheet(empty, { title: 'Long distance', courseName: 'H21' }),
+      map,
+      createdAt: new Date('2026-10-25T09:00:00Z'),
+    })
+    const controls = [
+      ...xml.matchAll(/<CourseControl type="(\w+)"[^>]*><Control>(\w+)<\/Control>/g),
+    ].map(match => `${match[1]}:${match[2]}`)
+    expect(controls).toEqual(['Start:S1', 'Finish:F1'])
+  })
 })

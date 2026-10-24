@@ -53,15 +53,21 @@ export {
 } from './course-on-paper'
 export { checkSetCourse, CONTROL_FEATURE_MATCH_METRES, type SetCourseStops } from './course-check'
 export {
+  addControl,
   COMPASS_DIRECTIONS,
   compassDirection,
   fixControl,
   insertControl,
+  insertControlAt,
+  isFeatureless,
   moveControl,
   moveStart,
   nearestSite,
   recheckCourse,
   removeControl,
+  setFinish,
+  siteForPoint,
+  startCourse,
   suggestChanges,
   type CompassDirection,
   type CourseSuggestion,

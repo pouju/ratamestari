@@ -1,6 +1,6 @@
 import { localPoint, type LocalPoint } from '@ratamestari/core'
 import { REFERENCE_PACE_SECONDS_PER_KM } from '@ratamestari/rules'
-import type { ControlSiteCandidate } from './control-sites'
+import type { ControlSiteCandidate, TechnicalDifficulty } from './control-sites'
 import {
   assembleCourse,
   evaluationFor,
@@ -8,6 +8,7 @@ import {
   type Course,
   type CourseContext,
   type CourseSpec,
+  type Finding,
 } from './course-search'
 import { difficultyInCourse } from './flag-side'
 import { isUsableInPrintArea } from './print-area'
@@ -93,8 +94,104 @@ export function recheckCourse(
   { start, controls, finish }: Pick<Course, 'start' | 'controls' | 'finish'>,
 ): Course {
   const context = editingContext(terrain, sites, spec, finish, [start, ...controls])
-  return assembleCourse(context, 0, controlOrder(controls.length), true)
+  const checked = assembleCourse(context, 0, controlOrder(controls.length), true)
+  const withoutFeature = controls.flatMap((site, i) => (isFeatureless(site) ? [i + 1] : []))
+  if (withoutFeature.length === 0) return checked
+  const findings: Finding[] = withoutFeature.map(stop => ({
+    kind: 'controlsWithoutFeature',
+    stops: [stop],
+  }))
+  return {
+    ...checked,
+    problems: { ...checked.problems, controlsWithoutFeature: withoutFeature.length },
+    findings: [...checked.findings, ...findings],
+  }
 }
+
+const FEATURELESS_SITE_ID = -1
+
+export const isFeatureless = (site: ControlSiteCandidate) => site.isomCode === ''
+
+// Without a feature the control cannot be described; its difficulty is taken as the class's
+// highest so that it raises no difficulty finding of its own.
+export function featurelessSite(
+  position: LocalPoint,
+  difficulty: TechnicalDifficulty,
+): ControlSiteCandidate {
+  return {
+    id: FEATURELESS_SITE_ID,
+    position,
+    isomCode: '',
+    symbolNumber: 0,
+    placement: 'point',
+    contourForm: null,
+    distanceToLeadingFeatureMeters: 0,
+    leadingFeatureDistance: 'far',
+    inSlowTerrain: false,
+    technicalDifficulty: difficulty,
+    orientation: null,
+    similarFeatureOffsets: [],
+    flagSide: null,
+  }
+}
+
+// A clicked point snaps to a nearby control site as a dragged control does; with none near, the
+// control stays where it was clicked and is flagged as having no feature to describe.
+export function siteForPoint(
+  sites: readonly ControlSiteCandidate[],
+  spec: CourseSpec,
+  position: LocalPoint,
+): ControlSiteCandidate {
+  return (
+    nearestSite(sites, position) ??
+    featurelessSite(position, spec.target.siteDifficulty[1] as TechnicalDifficulty)
+  )
+}
+
+export function startCourse(
+  terrain: Terrain,
+  sites: readonly ControlSiteCandidate[],
+  spec: CourseSpec,
+  start: LocalPoint,
+  finish: LocalPoint,
+): Course {
+  return recheckCourse(terrain, sites, spec, {
+    start: siteForPoint(sites, spec, start),
+    controls: [],
+    finish,
+  })
+}
+
+// afterStopIndex 0 puts the new control first; the number of controls puts it last.
+export function insertControlAt(
+  terrain: Terrain,
+  sites: readonly ControlSiteCandidate[],
+  spec: CourseSpec,
+  course: Course,
+  afterStopIndex: number,
+  point: LocalPoint,
+): Course | null {
+  if (afterStopIndex < 0 || afterStopIndex > course.controls.length) return null
+  const controls = [...course.controls]
+  controls.splice(afterStopIndex, 0, siteForPoint(sites, spec, point))
+  return recheckCourse(terrain, sites, spec, { ...course, controls })
+}
+
+export const addControl = (
+  terrain: Terrain,
+  sites: readonly ControlSiteCandidate[],
+  spec: CourseSpec,
+  course: Course,
+  point: LocalPoint,
+): Course => insertControlAt(terrain, sites, spec, course, course.controls.length, point)!
+
+export const setFinish = (
+  terrain: Terrain,
+  sites: readonly ControlSiteCandidate[],
+  spec: CourseSpec,
+  course: Course,
+  point: LocalPoint,
+): Course => recheckCourse(terrain, sites, spec, { ...course, finish: point })
 
 export function nearestSite(
   sites: readonly ControlSiteCandidate[],

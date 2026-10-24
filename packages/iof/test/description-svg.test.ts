@@ -55,4 +55,9 @@ describe('renderDescriptionSheet', () => {
     )
     expect(thickRowYs).toEqual([12, 36, 42])
   })
+
+  it('draws a sheet with no controls yet', () => {
+    const rendered = renderDescriptionSheet({ ...sheet, controls: [] }, { boxMillimetres: 6 })
+    expect(rendered.heightMillimetres).toBe((2 + 1 + 1) * 6)
+  })
 })

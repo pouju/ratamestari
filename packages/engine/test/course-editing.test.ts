@@ -3,15 +3,21 @@ import { localExtent, localPoint, type MapFeature } from '@ratamestari/core'
 import { courseTargetFor, type CourseRequest } from '@ratamestari/rules'
 import { findControlSites } from '../src/control-sites'
 import {
+  addControl,
   compassDirection,
   fixControl,
   insertControl,
+  insertControlAt,
   moveControl,
   moveStart,
   recheckCourse,
   removeControl,
+  setFinish,
+  startCourse,
   suggestChanges,
 } from '../src/course-editing'
+import { fitCourseToFrame, fitCourseToPaper } from '../src/course-on-paper'
+import { printFrameAround } from '../src/print-area'
 import { searchCourse, type CourseSpec } from '../src/course-search'
 import { buildTerrain } from '../src/terrain'
 import { feature, line, point } from './fixtures'
@@ -158,5 +164,79 @@ describe('course editing', { timeout: EDITING_TIMEOUT_MS }, () => {
     const gains = suggestions.map(suggestion => suggestion.scoreGain)
     expect(gains).toEqual([...gains].sort((a, b) => b - a))
     expect(suggestions[0]!.course.problems.spacing).toBe(0)
+  })
+})
+
+describe('setting a course by hand', { timeout: EDITING_TIMEOUT_MS }, () => {
+  const centre = localPoint(1000, 1000)
+  const empty = startCourse(terrain, sites, spec, localPoint(1210, 1090), centre)
+  const withOne = addControl(terrain, sites, spec, empty, localPoint(1490, 1490))
+  const withTwo = addControl(terrain, sites, spec, withOne, localPoint(700, 1400))
+
+  it('starts with no controls and a measured start-to-finish leg', () => {
+    expect(empty.controls).toHaveLength(0)
+    expect(empty.legSeconds).toHaveLength(1)
+    expect(empty.lengthMeters).toBeGreaterThan(0)
+    expect(empty.finish).toEqual(centre)
+    expect(Number.isFinite(empty.score)).toBe(true)
+  })
+
+  it('snaps the start and controls to the nearest control site', () => {
+    expect(empty.start.isomCode).toBe('204')
+    expect(empty.start.position).toEqual(localPoint(1230, 1110))
+    expect(withOne.controls[0]!.position).toEqual(localPoint(1470, 1470))
+  })
+
+  it('keeps the clicked point when no control site is near and flags it', () => {
+    const open = buildTerrain([], extent)
+    const course = addControl(
+      open,
+      [],
+      spec,
+      startCourse(open, [], spec, localPoint(900, 900), centre),
+      localPoint(500, 500),
+    )
+    expect(course.controls[0]!.position).toEqual(localPoint(500, 500))
+    expect(course.problems.controlsWithoutFeature).toBe(1)
+    expect(course.findings).toContainEqual({ kind: 'controlsWithoutFeature', stops: [1] })
+  })
+
+  it('inserts a control into a leg', () => {
+    const inserted = insertControlAt(terrain, sites, spec, withTwo, 1, localPoint(1100, 1600))!
+    expect(inserted.controls.map(site => site.position)).toEqual([
+      withTwo.controls[0]!.position,
+      localPoint(1110, 1590),
+      withTwo.controls[1]!.position,
+    ])
+    expect(inserted.legSeconds).toHaveLength(4)
+    expect(insertControlAt(terrain, sites, spec, withTwo, 3, centre)).toBeNull()
+  })
+
+  it('moves the finish', () => {
+    const finished = setFinish(terrain, sites, spec, withTwo, localPoint(950, 1020))
+    expect(finished.finish).toEqual(localPoint(950, 1020))
+    expect(finished.controls).toEqual(withTwo.controls)
+  })
+
+  it("flags a control added outside the user's print frame", () => {
+    const frame = printFrameAround(centre, 'A4', 'portrait', 4000)
+    const framed = fitCourseToFrame(terrain, empty, frame)
+    expect(framed.printArea).not.toBeNull()
+    expect(framed.problems.stopsOutsidePrintArea).toBe(0)
+    const inFrame = { ...spec, printArea: framed.printArea!, printFrame: frame }
+    const outside = fitCourseToFrame(
+      terrain,
+      addControl(terrain, sites, inFrame, framed, localPoint(1790, 1790)),
+      frame,
+    )
+    expect(outside.problems.stopsOutsidePrintArea).toBe(1)
+    expect(outside.findings).toContainEqual({ kind: 'stopsOutsidePrintArea', stops: [1] })
+  })
+
+  it('fits a course with no or few controls on paper', () => {
+    for (const course of [empty, withOne, withTwo]) {
+      const fitted = fitCourseToPaper(terrain, course, ['A4'], spec.printScale)
+      expect(fitted.printArea).not.toBeNull()
+    }
   })
 })
