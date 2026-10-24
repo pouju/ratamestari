@@ -196,26 +196,12 @@ export function* searchCourseSteps(
   sites: readonly ControlSiteCandidate[],
   spec: CourseSpec,
 ): Search {
-  const { grid } = terrain
   const random = seededRandom(spec.seed)
-  const pace = spec.paceSecondsPerKm ?? REFERENCE_PACE_SECONDS_PER_KM.value
-  const targetSeconds = spec.target.winningTime.targetMinutes * 60
-  const openCentre = nearestOpenPoint(grid, spec.competitionCentre)
-  if (!openCentre) return null
-  const finish: LocalPoint = openCentre
-
-  const toFinishGrid = secondsFrom(grid, finish, pace, Number.POSITIVE_INFINITY)
-  const qualityOf = siteAreaQualityOf(sites)
-  const secondsToFinish = (site: ControlSiteCandidate) => {
-    const index = routableCellOf(grid, site.position)
-    return index === null ? Number.POSITIVE_INFINITY : toFinishGrid[index]!
-  }
-  const { printArea } = spec
-  const reachable = sites.filter(
-    site =>
-      (!printArea || isUsableInPrintArea(site.position, printArea)) &&
-      secondsToFinish(site) <= targetSeconds / 2,
-  )
+  const prepared = prepareSearch(terrain, sites, spec)
+  if (!prepared) return null
+  const { grid } = terrain
+  const { finish, targetSeconds, qualityOf, secondsToFinish, reachable } = prepared
+  const pace = prepared.paceSecondsPerKm
   const core =
     spec.format === 'middle'
       ? densestCore(
@@ -237,40 +223,9 @@ export function* searchCourseSteps(
           secondsToFinish(site) <= FINAL_LEG_MAX_SHARE_OF_TARGET * targetSeconds,
       )
   if (pool.length === 0) return null
-  const poolCells = pool.map(site => routableCellOf(grid, site.position))
-  const toFinish = Float32Array.from(poolCells, cell =>
-    cell === null ? Number.POSITIVE_INFINITY : toFinishGrid[cell]!,
-  )
-  const quality = Float32Array.from(pool, qualityOf)
-
-  const treeLimit = targetSeconds * TREE_LIMIT_SHARE_OF_TARGET
-  const timesCache = new Map<number, Float32Array>()
-  const timesFrom = (poolIndex: number): Float32Array => {
-    const cached = timesCache.get(poolIndex)
-    if (cached) return cached
-    const tree = secondsFrom(grid, pool[poolIndex]!.position, pace, treeLimit)
-    const times = Float32Array.from(poolCells, cell =>
-      cell === null ? Number.POSITIVE_INFINITY : tree[cell]!,
-    )
-    timesCache.set(poolIndex, times)
-    return times
-  }
-  // Costs are symmetric. When neither end has a tree yet, build it from the later stop: that is
-  // a control of the course, reused by the next move, while the earlier one is often a candidate.
-  const legSeconds = (from: number, to: number): number => {
-    if (timesCache.has(from)) return timesFrom(from)[to]!
-    return timesFrom(to)[from]!
-  }
-
-  const { evaluation, isAllowedCourseLine, routeChoiceValue } = evaluationFor(
-    terrain,
-    spec,
-    pool,
-    finish,
-    toFinish,
-    legSeconds,
-    quality,
-  )
+  const planning = planningContextFor(terrain, spec, prepared, pool)
+  const { toFinish, quality, timesFrom, evaluation, isAllowedCourseLine, routeChoiceValue } =
+    planning
   const context: CourseContext = { terrain, spec, pool, finish, targetSeconds, evaluation }
   let startIndex = NO_SITE
   let order: number[] = []
@@ -352,6 +307,142 @@ export function* searchCourseSteps(
 
   function toCourse(scored: ScoredCourse, withLength = false): Course {
     return assembleCourse(context, startIndex, scored.order, withLength)
+  }
+}
+
+interface PreparedSearch {
+  readonly finish: LocalPoint
+  readonly targetSeconds: number
+  readonly paceSecondsPerKm: number
+  readonly toFinishGrid: Float32Array
+  readonly qualityOf: SiteQualityOf
+  readonly secondsToFinish: (site: ControlSiteCandidate) => number
+  // Sites on the usable paper within half the winning time of the finish.
+  readonly reachable: readonly ControlSiteCandidate[]
+}
+
+function prepareSearch(
+  terrain: Terrain,
+  sites: readonly ControlSiteCandidate[],
+  spec: CourseSpec,
+): PreparedSearch | null {
+  const { grid } = terrain
+  const paceSecondsPerKm = spec.paceSecondsPerKm ?? REFERENCE_PACE_SECONDS_PER_KM.value
+  const targetSeconds = spec.target.winningTime.targetMinutes * 60
+  const finish = nearestOpenPoint(grid, spec.competitionCentre)
+  if (!finish) return null
+  const toFinishGrid = secondsFrom(grid, finish, paceSecondsPerKm, Number.POSITIVE_INFINITY)
+  const secondsToFinish = (site: ControlSiteCandidate) => {
+    const index = routableCellOf(grid, site.position)
+    return index === null ? Number.POSITIVE_INFINITY : toFinishGrid[index]!
+  }
+  const { printArea } = spec
+  const reachable = sites.filter(
+    site =>
+      (!printArea || isUsableInPrintArea(site.position, printArea)) &&
+      secondsToFinish(site) <= targetSeconds / 2,
+  )
+  return {
+    finish,
+    targetSeconds,
+    paceSecondsPerKm,
+    toFinishGrid,
+    qualityOf: siteAreaQualityOf(sites),
+    secondsToFinish,
+    reachable,
+  }
+}
+
+// Everything the planner and the search need to know about a pool of candidate sites, with
+// time trees built on demand and cached.
+export interface PlanningContext {
+  readonly terrain: Terrain
+  readonly spec: CourseSpec
+  readonly pool: readonly ControlSiteCandidate[]
+  readonly finish: LocalPoint
+  readonly targetSeconds: number
+  readonly paceSecondsPerKm: number
+  readonly toFinish: Float32Array
+  readonly quality: Float32Array
+  readonly timesFrom: (poolIndex: number) => Float32Array
+  readonly legSeconds: (from: number, to: number) => number
+  readonly straightSeconds: (from: LocalPoint, to: LocalPoint) => number
+  readonly routeChoiceValue: (from: LocalPoint, to: LocalPoint, fastestSeconds: number) => number
+  readonly isAllowedCourseLine: (from: LocalPoint, to: LocalPoint) => boolean
+  readonly evaluation: ReturnType<typeof createEvaluation>
+  readonly pickStart: (
+    towards: readonly LocalPoint[],
+    excluded: (poolIndex: number) => boolean,
+    random: Random,
+  ) => number
+}
+
+function planningContextFor(
+  terrain: Terrain,
+  spec: CourseSpec,
+  { finish, targetSeconds, paceSecondsPerKm, toFinishGrid, qualityOf }: PreparedSearch,
+  pool: readonly ControlSiteCandidate[],
+): PlanningContext {
+  const { grid } = terrain
+  const poolCells = pool.map(site => routableCellOf(grid, site.position))
+  const toFinish = Float32Array.from(poolCells, cell =>
+    cell === null ? Number.POSITIVE_INFINITY : toFinishGrid[cell]!,
+  )
+  const quality = Float32Array.from(pool, qualityOf)
+  const treeLimit = targetSeconds * TREE_LIMIT_SHARE_OF_TARGET
+  const timesCache = new Map<number, Float32Array>()
+  const timesFrom = (poolIndex: number): Float32Array => {
+    const cached = timesCache.get(poolIndex)
+    if (cached) return cached
+    const tree = secondsFrom(grid, pool[poolIndex]!.position, paceSecondsPerKm, treeLimit)
+    const times = Float32Array.from(poolCells, cell =>
+      cell === null ? Number.POSITIVE_INFINITY : tree[cell]!,
+    )
+    timesCache.set(poolIndex, times)
+    return times
+  }
+  // Costs are symmetric. When neither end has a tree yet, build it from the later stop: that is
+  // a control of the course, reused by the next move, while the earlier one is often a candidate.
+  const legSeconds = (from: number, to: number): number => {
+    if (timesCache.has(from)) return timesFrom(from)[to]!
+    return timesFrom(to)[from]!
+  }
+  const { evaluation, isAllowedCourseLine, routeChoiceValue } = evaluationFor(
+    terrain,
+    spec,
+    pool,
+    finish,
+    toFinish,
+    legSeconds,
+    quality,
+  )
+  return {
+    terrain,
+    spec,
+    pool,
+    finish,
+    targetSeconds,
+    paceSecondsPerKm,
+    toFinish,
+    quality,
+    timesFrom,
+    legSeconds,
+    straightSeconds: (from, to) => straightLineSeconds(grid, from, to, paceSecondsPerKm),
+    routeChoiceValue,
+    isAllowedCourseLine,
+    evaluation,
+    pickStart: (towards, excluded, random) =>
+      pickStart(
+        pool,
+        toFinish,
+        targetSeconds,
+        towards,
+        finish,
+        null,
+        spec.startDistanceFromFinishMeters ?? null,
+        random,
+        excluded,
+      ),
   }
 }
 
@@ -747,6 +838,7 @@ function pickStart(
   core: LocalPoint | null,
   wishedDistance: readonly [number, number] | null,
   random: Random,
+  excluded: (poolIndex: number) => boolean = () => false,
 ): number {
   const [nearShare, farShare] = START_DISTANCE_FROM_FINISH
   const metresOutsideWish = (i: number) => {
@@ -758,7 +850,7 @@ function pickStart(
     wishedDistance
       ? metresOutsideWish(i) === 0
       : toFinish[i]! >= nearShare * targetSeconds && toFinish[i]! <= farShare * targetSeconds
-  const reachable = (i: number) => Number.isFinite(toFinish[i]!)
+  const reachable = (i: number) => Number.isFinite(toFinish[i]!) && !excluded(i)
   const sitesUpTo = (maxDifficulty: number) =>
     pool.flatMap((site, i) =>
       site.technicalDifficulty <= maxDifficulty && reachable(i) ? [i] : [],
