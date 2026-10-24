@@ -50,6 +50,7 @@ Lines marked **Interpretation** are our own reading.
 - In hilly terrain, offer route choices where total climb matters (RMK 1.2.2.SHP).
 - Small changes to a control's position can add or remove viable alternatives (RMK 1.2.2.SHP).
 - Don't over-complicate: competitors may take the "next best" route and save planning time (IOF App. 2 §3.11.5).
+- **Interpretation:** a leg's routes view shows the fastest route and up to two alternatives, each at most 15% slower than the fastest and at least max(50 m, 15% of the straight distance) away from the routes already shown. At 10%, only 41 of 103 test legs showed an alternative; at 15%, 65; at 20%, 77, where many are no longer a real trade-off. This limit only decides what is shown; the course search scores route choice with its own range (see Course search).
 
 ### Fairness
 

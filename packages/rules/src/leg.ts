@@ -12,7 +12,7 @@ export const routeChoiceRuleSchema = citedSchema.extend({
 export type RouteChoiceRule = z.infer<typeof routeChoiceRuleSchema>
 
 export const ROUTE_CHOICE: RouteChoiceRule = {
-  maxExtraTimeShare: 0.1,
+  maxExtraTimeShare: 0.15,
   minSeparationMeters: 50,
   minSeparationShareOfStraightDistance: 0.15,
   maxAlternatives: 2,
