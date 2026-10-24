@@ -172,6 +172,9 @@ importers:
       '@ratamestari/engine':
         specifier: workspace:*
         version: link:packages/engine
+      '@ratamestari/iof':
+        specifier: workspace:*
+        version: link:packages/iof
       '@ratamestari/map-ocad':
         specifier: workspace:*
         version: link:packages/map-ocad
@@ -214,6 +217,9 @@ importers:
       '@ratamestari/engine':
         specifier: workspace:*
         version: link:../../packages/engine
+      '@ratamestari/iof':
+        specifier: workspace:*
+        version: link:../../packages/iof
       '@ratamestari/map-ocad':
         specifier: workspace:*
         version: link:../../packages/map-ocad
@@ -263,6 +269,9 @@ importers:
       '@ratamestari/engine':
         specifier: workspace:*
         version: link:../engine
+      '@ratamestari/iof':
+        specifier: workspace:*
+        version: link:../iof
       '@ratamestari/rules':
         specifier: workspace:*
         version: link:../rules
@@ -284,6 +293,18 @@ importers:
       '@ratamestari/map-ocad':
         specifier: workspace:*
         version: link:../map-ocad
+
+  packages/iof:
+    dependencies:
+      '@ratamestari/core':
+        specifier: workspace:*
+        version: link:../core
+      '@ratamestari/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@ratamestari/rules':
+        specifier: workspace:*
+        version: link:../rules
 
   packages/map-ocad:
     dependencies:

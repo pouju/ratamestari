@@ -1,6 +1,6 @@
 import type { LocalPoint } from '@ratamestari/core'
-import type { ControlSiteCandidate, Course, SitePlacement } from '@ratamestari/engine'
-import { isomSymbolRule } from '@ratamestari/rules'
+import type { ControlSiteCandidate, Course } from '@ratamestari/engine'
+import { describeControl, descriptionText } from '@ratamestari/iof'
 
 export interface ControlSummary {
   readonly number: number
@@ -16,34 +16,16 @@ export interface CourseSummary {
   readonly estimatedWinningMinutes: number
   readonly targetWinningMinutes: number
   readonly lengthKilometers: number | null
+  readonly climbMeters: number | null
   readonly ruleProblems: readonly string[]
   readonly start: string
   readonly controls: readonly ControlSummary[]
   readonly finishLeg: { readonly straightMeters: number; readonly minutes: number }
 }
 
-const PLACEMENT_WORDS: Readonly<Record<SitePlacement, string>> = {
-  point: '',
-  contourKnoll: 'knoll from the contours',
-  contourBend: 'contour bend',
-  lineCentre: 'middle',
-  lineEnd: 'end',
-  smallArea: '',
-  areaCorner: 'corner',
-}
-
-const CONTOUR_FORM_WORDS = {
-  knoll: 'knoll',
-  depression: 'depression',
-  spur: 'spur',
-  reEntrant: 're-entrant',
-} as const
-
 export function describeSite(site: ControlSiteCandidate): string {
-  if (site.contourForm) return CONTOUR_FORM_WORDS[site.contourForm]
-  const name = isomSymbolRule(site.isomCode)?.name ?? `ISOM ${site.isomCode}`
-  const placement = PLACEMENT_WORDS[site.placement]
-  return placement ? `${name}, ${placement}` : name
+  const description = describeControl(site)
+  return description ? descriptionText(description) : 'not describable'
 }
 
 export function courseProblemTexts({ problems }: Course): string[] {
@@ -76,6 +58,7 @@ export function summarizeCourse(course: Course): CourseSummary {
     targetWinningMinutes: minutes(course.targetSeconds),
     lengthKilometers:
       course.lengthMeters === null ? null : Math.round(course.lengthMeters / 100) / 10,
+    climbMeters: course.climbMeters === null ? null : Math.round(course.climbMeters / 5) * 5,
     ruleProblems: courseProblemTexts(course),
     start: describeSite(course.start),
     controls: course.controls.map((site, i) => ({

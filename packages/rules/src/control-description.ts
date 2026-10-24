@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { citedSchema, iofDescriptions } from './source'
+import { citedSchema, iofDescriptions, ratamestarikirja } from './source'
 
 export const descriptionSymbolSchema = citedSchema.extend({
   ref: z.string().regex(/^\d{1,2}\.\d{1,2}$/),
@@ -269,6 +269,12 @@ export function isomDescription(isomCode: string): IsomDescription | undefined {
 export const DESCRIPTION_GEOMETRY = {
   cornerMaxTurnDegrees: 135,
   similarFeatureClearMarginMeters: 5,
-  sources: [iofDescriptions('12.4'), iofDescriptions('12.6'), iofDescriptions('col. C')],
+  similarFeatureNeedsClarifierWithinMeters: 25,
+  sources: [
+    iofDescriptions('12.4'),
+    iofDescriptions('12.6'),
+    iofDescriptions('col. C'),
+    ratamestarikirja('5.2.ST'),
+  ],
   interpretation: true,
 }

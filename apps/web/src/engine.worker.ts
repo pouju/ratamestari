@@ -10,6 +10,7 @@ import {
   type LegEvaluation,
   type Terrain,
 } from '@ratamestari/engine'
+import { describeControl } from '@ratamestari/iof'
 import { loadOcadMap } from '@ratamestari/map-ocad'
 import { courseRequestSchema, courseTargetFor, type CourseRequest } from '@ratamestari/rules'
 import type { CostGridSnapshot } from './cost-map-image'
@@ -22,7 +23,7 @@ const engine = {
   async loadMap(bytes: Uint8Array): Promise<void> {
     const map = await loadOcadMap(bytes)
     terrain = buildTerrain(map.features(), map.info.extent)
-    sites = findControlSites(map.features(), terrain)
+    sites = findControlSites(map.features(), terrain).filter(site => describeControl(site) !== null)
     mapScale = map.info.scale
   },
 

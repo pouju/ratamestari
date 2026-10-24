@@ -12,6 +12,7 @@ import {
   searchCourse,
   type Course,
 } from '@ratamestari/engine'
+import { describeControl } from '@ratamestari/iof'
 import { loadOcadMap } from '@ratamestari/map-ocad'
 import { courseRequestSchema, courseTargetFor, type CourseRequest } from '@ratamestari/rules'
 
@@ -54,7 +55,7 @@ const seed = Number(values.seed)
 const map = await loadOcadMap(new Uint8Array(readFileSync(mapPath)))
 const features = map.features()
 const terrain = buildTerrain(features, map.info.extent)
-const sites = findControlSites(features, terrain)
+const sites = findControlSites(features, terrain).filter(site => describeControl(site) !== null)
 const target = courseTargetFor(request)
 if (!target) throw new Error('No winning time for this class and event')
 

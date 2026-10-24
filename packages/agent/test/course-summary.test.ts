@@ -9,6 +9,7 @@ describe('summarizeCourse', () => {
     expect(summary.estimatedWinningMinutes).toBe(7)
     expect(summary.targetWinningMinutes).toBe(7.5)
     expect(summary.lengthKilometers).toBe(1.2)
+    expect(summary.climbMeters).toBe(40)
     expect(summary.ruleProblems).toEqual(['1 controls too close together'])
     expect(summary.controls[0]).toEqual({
       number: 1,
@@ -17,7 +18,7 @@ describe('summarizeCourse', () => {
       legStraightMeters: 500,
       legMinutes: 2.5,
     })
-    expect(summary.controls[1]!.feature).toBe('re-entrant')
+    expect(summary.controls[1]!.feature).toBe('Re-entrant')
     expect(summary.finishLeg).toEqual({ straightMeters: 600, minutes: 3 })
   })
 
@@ -30,9 +31,15 @@ describe('summarizeCourse', () => {
 })
 
 describe('describeSite', () => {
-  it('names the ISOM feature and where on it the control is', () => {
-    expect(describeSite(site(0, 0, { isomCode: '505', placement: 'lineEnd' }))).toBe(
-      'Footpath, end',
-    )
+  it('uses the IOF description wording', () => {
+    expect(
+      describeSite(
+        site(0, 0, {
+          isomCode: '505',
+          placement: 'lineEnd',
+          orientation: { kind: 'end', pointingRadians: Math.PI },
+        }),
+      ),
+    ).toBe('Path, west end')
   })
 })

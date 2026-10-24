@@ -14,6 +14,7 @@
     "@ratamestari/agent": "workspace:*",
     "@ratamestari/core": "workspace:*",
     "@ratamestari/engine": "workspace:*",
+    "@ratamestari/iof": "workspace:*",
     "@ratamestari/map-ocad": "workspace:*",
     "@ratamestari/rules": "workspace:*",
     "buffer": "^6.0.3",
