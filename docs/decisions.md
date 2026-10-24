@@ -478,7 +478,7 @@ They are built before the new UI (D14), in today's UI.
 ## D18: Set a course by hand: add, insert and delete controls
 
 **Date:** 2026-10-24
-**Status:** Proposed (to be confirmed by the user)
+**Status:** Decided, approved by the user 2026-10-24
 
 ### Decision
 
@@ -507,3 +507,68 @@ Ratamestari also helps a course setter set a course by hand, not only generates 
 - Changing the class while setting by hand re-checks the course as the new class.
 - Featureless controls carry their finding through later edits, also on imported courses (`recheckCourse` raises it).
 - The assistant can remove a control (`remove_control`, D17) but cannot add one at a chosen point, since it never sees positions; it points the user to Edit controls.
+
+---
+
+## D19: Section-based course planning: technical areas, skeleton, sections
+
+**Date:** 2026-10-24
+**Status:** Decided
+
+### Decision
+
+The course search plans top-down, following [`section-planning-spec.md`](section-planning-spec.md):
+
+1. Find **technical areas** in the usable print area (clusters of good control sites, each with a capacity in seconds).
+2. Choose a **skeleton** from a format template: which areas the course visits, in which order, the **connecting legs** between them (long: route-choice legs across weaker terrain; middle: one semi-long leg), the start, a run-in, and a **time budget for every section**, capped by the area's capacity.
+3. **Fill each section** independently with a beam search from its entry to its exit within its budget.
+4. **Improve** by rebuilding whole sections under simulated annealing, then repair as today.
+
+Before that, quick wins: a middle leg mix calibrated on the reference courses, a crowding score term, and keeping the best of all drafts. The greedy builder and waypoint zones of D13 phase A are replaced once the benchmark passes. The score, metrics and benchmark of D13 stay.
+
+### Why
+
+- Generated courses bunch controls: around the start in middle distance, and in ten-control tangles in long distance, especially near the end. The greedy build has no time budget per part of the course. It fills time until the time runs out, its leg-length quota ignores position, and single-control moves can't untangle a cluster. A middle leg-mix target with 25% of legs under 150 m (human courses: about 7%) made middle distance worse.
+- Course setters plan this way: route-choice legs first, joined by map-reading legs; connecting legs between terrain parts need not be good; a few very good legs joined by short links (RMK 1.2.6.S, IOF App. 2 §3.4.1). Middle distance is about changes of rhythm in 1.5–2 km² of detailed terrain (RMK 2.S.2).
+- Budgets capped by capacity make "too much course for too small an area" impossible by construction. A course that doesn't fit comes out short, with a finding, instead of crammed.
+- Sections are independent given their endpoints, so they can later be filled in parallel workers.
+
+### Alternatives considered
+
+- **Keep the greedy and tune it** (time budget per waypoint, crowding filter): cheaper, and kept as the demo fallback. But it still decides one control at a time without knowing whether the rest fits.
+- **Global metaheuristic only** (annealing or large-neighbourhood search over the whole course): a stronger search, but it still starts from a bad greedy draft and has no idea of terrain parts or connecting legs. Its section-rebuild move is kept inside the new design.
+- **Exact orienteering-problem solvers** (ILP, branch and cut): too slow in the browser for thousands of candidate sites, and our objective (shape, rhythm, readability) isn't linear.
+
+### Consequences
+
+- New engine modules `areas.ts`, `skeleton.ts` and `section-fill.ts`. New config in `course-quality.ts` (crowding, technical areas, format templates, search sizes), cited or flagged as interpretation.
+- `pnpm render-course` gets overlays for areas and the skeleton. The benchmark gets crowding and end-of-course columns.
+- `docs/rules/course-setting.md` › Course search and the CLAUDE.md engine pipeline are updated when the planner lands, and `pnpm record-demo-run` is re-run.
+- Choosing the paper position from skeletons, parallel section filling and calibration of templates come after the demo.
+
+---
+
+## D20: Reveal the finished course instead of drawing the search live
+
+**Date:** 2026-10-24
+**Status:** Decided. Amends D5: "the course draws live".
+
+### Decision
+
+While the course is being set, the map shows no course. The side panel shows the search phase (finding areas, planning the course, setting sections, improving, checking) with a Stop button. When the search ends or is stopped, the final course is revealed control by control and line by line, as on the landing page. Edits (dragging, chat edits, undo, set by hand) update at once, without animation. With reduced motion, the course appears at once.
+
+### Why
+
+- Intermediate courses blink on the map. They mean nothing to the user and look unfinished. A single deliberate reveal of the chosen course is calmer and more impressive, which matters for the demo.
+- The section planner (D19) works in phases, not by improving a full course step by step, so phases describe its progress better than intermediate courses do.
+
+### Alternatives considered
+
+- **Keep live drawing, but throttled:** less blinking, still unfinished-looking courses.
+- **Show the skeleton (areas and connecting legs) while planning:** informative for course setters, possibly later as an option, but it shows working state the user can't act on.
+
+### Consequences
+
+- The engine's search yields `SearchProgress` (phase, done, total) instead of intermediate courses (spec section 7). Phase labels live in the web i18n catalogues.
+- D5's "the user can stop" stays: Stop returns the best course so far, which is then revealed.
+- CLAUDE.md › Product behaviour is updated when the reveal lands.
