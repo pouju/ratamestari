@@ -11,6 +11,9 @@ import {
 } from '@ratamestari/map-ocad'
 import { renderCostMap, type CostMapImage } from './cost-map-image'
 import { ChatPanel } from './ChatPanel'
+import { useAssistantKey } from './assistant-key'
+import { SettingsSheet } from './SettingsSheet'
+import { MapStart, PanelHeader, PanelLine } from './WorkspaceStart'
 import { CoursePanel } from './CoursePanel'
 import { descriptionBoxFor } from './description-box'
 import { downloadCourseXml } from './export-xml'
@@ -31,7 +34,7 @@ import { useFormat, useMessages } from './i18n'
 import { MapView } from './MapView'
 import { LayersMenu, PlanLegTool, PrintLabel } from './MapTools'
 import { rasterizeSvg, type MapImage } from './rasterize'
-import { SOURCE_CODE_URL } from './config'
+import { OCAD2GEOJSON_URL, SOURCE_CODE_URL } from './config'
 
 type LoadState =
   | { status: 'empty' }
@@ -79,6 +82,10 @@ export function App() {
   const [course, setCourse] = useState<Course | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [paceText, setPaceText] = useState(DEFAULT_WINNER_PACE)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isDraggingOver, setIsDraggingOver] = useState(false)
+  const assistantKey = useAssistantKey()
+  const fileInput = useRef<HTMLInputElement>(null)
   const [paper, setPaper] = useState<PaperChoice>('auto')
   const [printScale, setPrintScale] = useState<PrintScaleChoice>('auto')
   const [isPreparingPdf, setIsPreparingPdf] = useState(false)
@@ -303,9 +310,12 @@ export function App() {
 
   function onDrop(e: DragEvent) {
     e.preventDefault()
+    setIsDraggingOver(false)
     const file = e.dataTransfer.files[0]
     if (file) void openFile(file)
   }
+
+  const chooseMapFile = () => fileInput.current?.click()
 
   const georef = state.status === 'ready' ? state.map.info.georef : null
   const mapInfo = state.status === 'ready' ? state.map.info : null
@@ -315,7 +325,28 @@ export function App() {
   )
 
   return (
-    <div className="workspace" onDragOver={e => e.preventDefault()} onDrop={onDrop}>
+    <div
+      className="workspace"
+      onDragOver={e => {
+        e.preventDefault()
+        if (!isDraggingOver) setIsDraggingOver(true)
+      }}
+      onDragLeave={e => {
+        if (e.relatedTarget === null) setIsDraggingOver(false)
+      }}
+      onDrop={onDrop}
+    >
+      <input
+        ref={fileInput}
+        type="file"
+        accept=".ocd"
+        hidden
+        onChange={e => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (file) void openFile(file)
+        }}
+      />
       <main>
         {state.status === 'ready' ? (
           <MapView
@@ -380,18 +411,12 @@ export function App() {
             }
           />
         ) : (
-          <div className="drop">
-            {state.status === 'loading'
-              ? `Loading ${state.fileName}…`
-              : 'Drop an OCAD map (.ocd) here'}
-          </div>
+          <MapStart opening={state} isDraggingOver={isDraggingOver} onChooseFile={chooseMapFile} />
         )}
       </main>
 
       <aside>
-        <h1>
-          <a href="../">Ratamestari</a>
-        </h1>
+        <PanelHeader onOpenSettings={() => setIsSettingsOpen(true)} />
         {course && selectedLeg !== null && (
           <LegRoutesPanel
             course={course}
@@ -403,45 +428,37 @@ export function App() {
         {plannedLeg && (
           <PlanLegPanel plan={plannedLeg} routes={planRoutes} onDone={() => setPlannedLeg(null)} />
         )}
-        <label className="file">
-          Open map
-          <input
-            type="file"
-            accept=".ocd"
-            onChange={e => {
-              const file = e.target.files?.[0]
-              if (file) void openFile(file)
-            }}
-          />
-        </label>
-        <p className="note">Your map stays on this computer.</p>
-
-        {state.status === 'error' && <p className="error">{state.message}</p>}
-
-        {state.status === 'ready' && (
-          <dl>
-            <dt>File</dt>
-            <dd>{state.fileName}</dd>
-            <dt>Scale</dt>
-            <dd>1:{state.map.info.scale}</dd>
-            <dt>Objects</dt>
-            <dd>{state.map.objectCount}</dd>
-            <dt>Coordinate system</dt>
-            <dd>{georef ? `EPSG:${georef.epsg}` : 'none'}</dd>
-            <dt>Image</dt>
-            <dd>
-              {state.image.width} × {state.image.height} px, loaded in {Math.round(state.ms)} ms
-            </dd>
-            {state.map.backgroundMapPaths.length > 0 && (
-              <>
-                <dt>Background maps</dt>
-                <dd>{state.map.backgroundMapPaths.join(', ')}</dd>
-              </>
-            )}
-          </dl>
+        <PanelLine
+          label={messages.workspace.mapLine}
+          value={
+            state.status === 'ready'
+              ? messages.workspace.mapValue(state.fileName, format.scale(state.map.info.scale))
+              : state.status === 'loading'
+                ? messages.workspace.openingLine(state.fileName)
+                : messages.workspace.noMap
+          }
+          action={
+            state.status === 'ready'
+              ? { label: messages.workspace.changeMap, onClick: chooseMapFile }
+              : undefined
+          }
+        />
+        {state.status !== 'ready' && (
+          <>
+            <PanelLine
+              label={messages.workspace.centreLine}
+              value={messages.workspace.afterMap}
+              isPending
+            />
+            <PanelLine
+              label={messages.workspace.courseLine}
+              value={messages.workspace.afterCentre}
+              isPending
+            />
+          </>
         )}
 
-        <ChatPanel tools={chatTools} />
+        {assistantKey.apiKey && <ChatPanel apiKey={assistantKey.apiKey} tools={chatTools} />}
 
         {state.status === 'ready' && (
           <CoursePanel
@@ -456,9 +473,6 @@ export function App() {
               paceSecondsPerKm !== null &&
               !isGenerating
             }
-            paceText={paceText}
-            onPaceTextChange={setPaceText}
-            isPaceValid={paceSecondsPerKm !== null}
             isGenerating={isGenerating}
             seed={seed}
             onGenerate={nextSeed => void generateCourse(request, nextSeed, paceSecondsPerKm)}
@@ -513,25 +527,84 @@ export function App() {
         {engineState === 'loading' && <p className="note">{messages.map.building}</p>}
         {engineState === 'error' && <p className="error">{messages.map.engineError}</p>}
 
-        {state.status === 'ready' && (
-          <SymbolPanel
-            symbols={state.map.symbols()}
-            corrections={corrections}
-            isApplying={engineState === 'loading'}
-            onCorrect={(symbolNumber, isomCode) => void correctSymbol(symbolNumber, isomCode)}
-          />
+        {paceSecondsPerKm === null && (
+          <p className="error">
+            {messages.settings.paceInvalid}{' '}
+            <button type="button" className="link" onClick={() => setIsSettingsOpen(true)}>
+              {messages.workspace.settings}
+            </button>
+          </p>
         )}
 
-        <footer>
+        <footer className="panel-footer">
           <a href={SOURCE_CODE_URL} target="_blank" rel="noreferrer">
-            Source code
-          </a>{' '}
-          · AGPL-3.0-or-later · OCAD reading by{' '}
-          <a href="https://github.com/perliedman/ocad2geojson" target="_blank" rel="noreferrer">
-            ocad2geojson
+            {messages.workspace.sourceCode}
           </a>
+          <span>{messages.workspace.licence}</span>
+          <span>
+            {messages.workspace.ocadReading}{' '}
+            <a href={OCAD2GEOJSON_URL} target="_blank" rel="noreferrer">
+              ocad2geojson
+            </a>
+          </span>
         </footer>
       </aside>
+
+      <SettingsSheet
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        assistantKey={assistantKey}
+        paceText={paceText}
+        onPaceTextChange={setPaceText}
+        isPaceValid={paceSecondsPerKm !== null}
+        map={
+          state.status === 'ready' && (
+            <section className="settings-section" aria-labelledby="settings-map">
+              <h3 id="settings-map">{messages.settings.map}</h3>
+              <dl className="settings-facts">
+                <div>
+                  <dt>{messages.settings.fileName}</dt>
+                  <dd>{state.fileName}</dd>
+                </div>
+                <div>
+                  <dt>{messages.settings.scale}</dt>
+                  <dd>{format.scale(state.map.info.scale)}</dd>
+                </div>
+                <div>
+                  <dt>{messages.settings.objects}</dt>
+                  <dd>{state.map.objectCount}</dd>
+                </div>
+                <div>
+                  <dt>{messages.settings.coordinateSystem}</dt>
+                  <dd>{georef ? `EPSG:${georef.epsg}` : messages.settings.noCoordinateSystem}</dd>
+                </div>
+                <div>
+                  <dt>{messages.settings.image}</dt>
+                  <dd>
+                    {messages.settings.imageValue(
+                      state.image.width,
+                      state.image.height,
+                      Math.round(state.ms),
+                    )}
+                  </dd>
+                </div>
+                {state.map.backgroundMapPaths.length > 0 && (
+                  <div>
+                    <dt>{messages.settings.backgroundMaps}</dt>
+                    <dd>{state.map.backgroundMapPaths.join(', ')}</dd>
+                  </div>
+                )}
+              </dl>
+              <SymbolPanel
+                symbols={state.map.symbols()}
+                corrections={corrections}
+                isApplying={engineState === 'loading'}
+                onCorrect={(symbolNumber, isomCode) => void correctSymbol(symbolNumber, isomCode)}
+              />
+            </section>
+          )
+        }
+      />
     </div>
   )
 }

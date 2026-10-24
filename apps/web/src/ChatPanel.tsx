@@ -1,41 +1,22 @@
-import { useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
   COURSE_SETTER_SYSTEM_PROMPT,
   createClaudeProvider,
   type AgentTool,
 } from '@ratamestari/agent'
 
-const API_KEY_STORAGE_KEY = 'ratamestari.anthropicApiKey'
-
 interface ChatMessage {
   readonly role: 'user' | 'assistant' | 'error'
   readonly text: string
 }
 
-function readStoredKey(): string {
-  try {
-    return localStorage.getItem(API_KEY_STORAGE_KEY) ?? ''
-  } catch {
-    return ''
-  }
-}
-
-function storeKey(apiKey: string | null) {
-  try {
-    if (apiKey) localStorage.setItem(API_KEY_STORAGE_KEY, apiKey)
-    else localStorage.removeItem(API_KEY_STORAGE_KEY)
-  } catch {
-    // Without storage the key lives only until the page is reloaded.
-  }
-}
-
-export function ChatPanel({ tools }: { tools: readonly AgentTool[] }) {
-  const [apiKey, setApiKey] = useState(readStoredKey)
-  const [keyDraft, setKeyDraft] = useState('')
+export function ChatPanel({ apiKey, tools }: { apiKey: string; tools: readonly AgentTool[] }) {
   const [messages, setMessages] = useState<readonly ChatMessage[]>([])
   const [draft, setDraft] = useState('')
   const [isReplying, setIsReplying] = useState(false)
   const abortController = useRef<AbortController | null>(null)
+
+  useEffect(() => () => abortController.current?.abort(), [])
 
   const chat = useMemo(() => {
     if (!apiKey) return null
@@ -45,22 +26,6 @@ export function ChatPanel({ tools }: { tools: readonly AgentTool[] }) {
       session: provider.startChat({ systemPrompt: COURSE_SETTER_SYSTEM_PROMPT, tools }),
     }
   }, [apiKey, tools])
-
-  function saveKey(e: FormEvent) {
-    e.preventDefault()
-    const trimmed = keyDraft.trim()
-    if (!trimmed) return
-    storeKey(trimmed)
-    setApiKey(trimmed)
-    setKeyDraft('')
-  }
-
-  function forgetKey() {
-    abortController.current?.abort()
-    storeKey(null)
-    setApiKey('')
-    setMessages([])
-  }
 
   async function send(e: FormEvent) {
     e.preventDefault()
@@ -89,27 +54,7 @@ export function ChatPanel({ tools }: { tools: readonly AgentTool[] }) {
     }
   }
 
-  if (!chat) {
-    return (
-      <section>
-        <h2>Assistant</h2>
-        <form className="api-key" onSubmit={saveKey}>
-          <input
-            type="password"
-            placeholder="Claude API key"
-            value={keyDraft}
-            onChange={e => setKeyDraft(e.target.value)}
-            autoComplete="off"
-          />
-          <button type="submit">Save</button>
-        </form>
-        <p className="note">
-          Uses your own key from console.anthropic.com. The key is stored only in this browser and
-          sent only to Anthropic. Claude gets words and numbers about the course, never the map.
-        </p>
-      </section>
-    )
-  }
+  if (!chat) return null
 
   return (
     <section className="chat">
@@ -147,9 +92,6 @@ export function ChatPanel({ tools }: { tools: readonly AgentTool[] }) {
           </button>
         )}
       </form>
-      <button type="button" className="link" onClick={forgetKey}>
-        Forget API key
-      </button>
     </section>
   )
 }
