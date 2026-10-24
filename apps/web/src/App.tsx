@@ -362,6 +362,7 @@ export function App() {
       startDistanceFromFinishMeters: startWish,
       course,
       selectedLeg,
+      undoSteps: undoHistory.length,
     }),
     generateCourse: generateFromChat,
     showRequest: setRequest,
@@ -372,7 +373,11 @@ export function App() {
     insertControl: (current, afterStop) => editedFromChat(engine.insertControl(current, afterStop)),
     moveStart: (current, wish) => editedFromChat(engine.moveStart(current, wish)),
     suggestChanges: current => engine.suggestChanges(current),
-    applyCourse: setCourse,
+    applyCourse: next => {
+      setUndoHistory(history => withUndoStep(history, course))
+      setCourse(next)
+    },
+    undo,
     mapSymbols: () =>
       state.status === 'ready'
         ? state.map.symbols().map(symbol => ({
@@ -406,6 +411,7 @@ export function App() {
       moveStart: (current, wish) => latestWorkspace.current!.moveStart(current, wish),
       suggestChanges: current => latestWorkspace.current!.suggestChanges(current),
       applyCourse: next => latestWorkspace.current!.applyCourse(next),
+      undo: () => latestWorkspace.current!.undo(),
       mapSymbols: () => latestWorkspace.current!.mapSymbols(),
       correctSymbol: (symbol, isomCode) => latestWorkspace.current!.correctSymbol(symbol, isomCode),
     }),
@@ -456,13 +462,14 @@ export function App() {
     }
   }
 
-  function undo() {
+  function undo(): { course: Course | null } | null {
     const previous = undoHistory.at(-1)
-    if (previous === undefined || isEditing) return
+    if (previous === undefined || isEditing) return null
     setUndoHistory(history => history.slice(0, -1))
     setSelectedStop(null)
     setSelectedLeg(null)
     setCourse(previous)
+    return { course: previous }
   }
 
   function startSettingByHand() {

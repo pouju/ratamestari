@@ -19,6 +19,7 @@ const READY: WorkspaceStatus = {
   startDistanceFromFinishMeters: null,
   course: null,
   selectedLeg: null,
+  undoSteps: 0,
 }
 
 function workspaceWith(status: Partial<WorkspaceStatus> = {}) {
@@ -28,6 +29,7 @@ function workspaceWith(status: Partial<WorkspaceStatus> = {}) {
   const edits: string[] = []
   const startWishes: StartWish[] = []
   const applied: Course[] = []
+  const undos: string[] = []
   const withoutFindings = (course: Course): Course => ({ ...course, findings: [] })
   const symbols: MapSymbolInfo[] = [
     { symbol: '502.0', name: 'Moottoritie', objects: 12, isomCode: '502', corrected: false },
@@ -75,6 +77,10 @@ function workspaceWith(status: Partial<WorkspaceStatus> = {}) {
     applyCourse: course => {
       applied.push(course)
     },
+    undo: () => {
+      undos.push('undo')
+      return { course: withoutFindings({ ...COURSE, controls: COURSE.controls.slice(1) }) }
+    },
     replaceControl: async (_course, controlNumber, preference, direction) => {
       replacements.push({ controlNumber, preference, ...(direction && { direction }) })
       return {
@@ -98,7 +104,17 @@ function workspaceWith(status: Partial<WorkspaceStatus> = {}) {
     },
   }
   const tools = Object.fromEntries(createCourseTools(workspace).map(tool => [tool.name, tool]))
-  return { tools, calls, shownRequests, symbols, replacements, edits, startWishes, applied }
+  return {
+    tools,
+    calls,
+    shownRequests,
+    symbols,
+    replacements,
+    edits,
+    startWishes,
+    applied,
+    undos,
+  }
 }
 
 describe('generate_course', () => {
@@ -261,6 +277,21 @@ describe('course editing tools', () => {
     expect(result.applied.action).toBe('remove control 1')
     expect(applied).toHaveLength(1)
     expect(await tools.apply_suggestion!.run({ number: 1 })).toMatch(/suggest_changes again/)
+  })
+
+  it('undoes the last change and tells what came back', async () => {
+    const { tools, undos } = workspaceWith({ course: COURSE, undoSteps: 2 })
+    const result = JSON.parse(await tools.undo!.run({}))
+    expect(undos).toEqual(['undo'])
+    expect(result.stepsLeft).toBe(1)
+    expect(result.change.controlCount).toEqual({ before: 2, after: 1 })
+    expect(result.course.controlCount).toBe(1)
+  })
+
+  it('says when there is nothing to undo', async () => {
+    const { tools, undos } = workspaceWith({ course: COURSE })
+    expect(await tools.undo!.run({})).toMatch(/nothing to undo/)
+    expect(undos).toEqual([])
   })
 
   it('names the leg the user selected on the map', async () => {

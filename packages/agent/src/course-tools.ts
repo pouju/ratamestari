@@ -30,6 +30,7 @@ export interface WorkspaceStatus {
   readonly course: Course | null
   // The leg the user selected on the map: from stop selectedLeg (0 = start) to the next stop.
   readonly selectedLeg: number | null
+  readonly undoSteps: number
 }
 
 export interface GenerateOptions {
@@ -62,6 +63,8 @@ export interface CourseWorkspace {
   moveStart(course: Course, wish: StartWish): Promise<Course | null>
   suggestChanges(course: Course): Promise<readonly CourseSuggestion[]>
   applyCourse(course: Course): void
+  // null when there is nothing to undo or the app is busy with another edit.
+  undo(): { readonly course: Course | null } | null
   mapSymbols(): readonly MapSymbolInfo[]
   correctSymbol(symbol: string, isomCode: string | null | undefined): Promise<void>
 }
@@ -403,6 +406,24 @@ export function createCourseTools(workspace: CourseWorkspace): AgentTool[] {
           start: { before: summarizeCourse(before).start, after: summarizeCourse(after).start },
           change: courseChange(before, after),
           course: summarizeCourse(after),
+        })
+      },
+    }),
+    defineTool({
+      name: 'undo',
+      description:
+        'Undoes the last change to the course, one step at a time: a control or the start dragged on the map, an edit made by hand, or a change made from the chat (replace, remove, insert, move start, apply suggestion). A newly set course is not a step. Returns the course as it is after the undo and how many steps are left.',
+      inputSchema: z.object({}),
+      run: async () => {
+        const { course: before, undoSteps } = workspace.status()
+        if (undoSteps === 0) return 'There is nothing to undo.'
+        const undone = workspace.undo()
+        if (!undone) return 'The app is busy with another change. Try again in a moment.'
+        const { course } = undone
+        return json({
+          stepsLeft: undoSteps - 1,
+          ...(before && course && { change: courseChange(before, course) }),
+          course: course && summarizeCourse(course),
         })
       },
     }),

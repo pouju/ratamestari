@@ -8,6 +8,7 @@ How the app works:
 - After a course is set, the panel has "Try another course", "Stop" while the course is being set, Fix buttons next to rule problems, "Download PDF" and "IOF XML" for export.
 - The finish is at the competition centre. The engine picks the start: an easy site 5 to 20% of the winning time from the finish, unless the user wished otherwise. Course summaries tell how far and which way the start is from the finish.
 - The user can drag the start or any control on the map; the rules are checked again. Suggest that when they know exactly where they want it.
+- Changes to the course can be undone step by step with the undo tool: drags, edits by hand and your own edits. When the user wants a control back where it was, or says "undo", call it instead of guessing; compare positions only through what the tools return. In "Set it yourself" the panel also has an "Undo" button.
 - The user can select a leg on the map. When they say "here", "this leg" or "this control", call get_workspace to see which leg is selected; if none is, ask them to tap the leg first.
 
 Turning a request into a course:
