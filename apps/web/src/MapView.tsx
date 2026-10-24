@@ -6,6 +6,7 @@ import Collection from 'ol/Collection'
 import Circle from 'ol/geom/Circle'
 import LineString from 'ol/geom/LineString'
 import Point from 'ol/geom/Point'
+import Polygon from 'ol/geom/Polygon'
 import ImageLayer from 'ol/layer/Image'
 import VectorLayer from 'ol/layer/Vector'
 import ImageStatic from 'ol/source/ImageStatic'
@@ -13,7 +14,7 @@ import VectorSource from 'ol/source/Vector'
 import Projection from 'ol/proj/Projection'
 import Translate from 'ol/interaction/Translate'
 import { Circle as CircleStyle, Fill, RegularShape, Stroke, Style } from 'ol/style'
-import { localPoint, type LocalPoint, type MapInfo } from '@ratamestari/core'
+import { localPoint, type LocalExtent, type LocalPoint, type MapInfo } from '@ratamestari/core'
 import type {
   ControlSiteCandidate,
   Course,
@@ -67,6 +68,36 @@ const siteStyles = Object.fromEntries(
   ]),
 )
 
+const PRINT_FRAME_MARGIN_METERS = 2000
+const printFrameStyle = new Style({
+  fill: new Fill({ color: 'rgba(40, 40, 40, 0.35)' }),
+  stroke: new Stroke({ color: 'rgba(0, 0, 0, 0.9)', width: 2 }),
+})
+
+function outsideOf(frame: LocalExtent, map: LocalExtent): Polygon {
+  const [minX, minY, maxX, maxY] = frame
+  const left = Math.min(minX, map[0]) - PRINT_FRAME_MARGIN_METERS
+  const bottom = Math.min(minY, map[1]) - PRINT_FRAME_MARGIN_METERS
+  const right = Math.max(maxX, map[2]) + PRINT_FRAME_MARGIN_METERS
+  const top = Math.max(maxY, map[3]) + PRINT_FRAME_MARGIN_METERS
+  return new Polygon([
+    [
+      [left, bottom],
+      [right, bottom],
+      [right, top],
+      [left, top],
+      [left, bottom],
+    ],
+    [
+      [minX, minY],
+      [minX, maxY],
+      [maxX, maxY],
+      [maxX, minY],
+      [minX, minY],
+    ],
+  ])
+}
+
 const paperMmToGroundMeters = (mm: number, scale: number) => (mm * scale) / 1000
 
 export type ControlPair = readonly [LocalPoint, LocalPoint]
@@ -104,6 +135,7 @@ export function MapView({
   const [routeSource] = useState(() => new VectorSource())
   const [costLayer] = useState(() => new ImageLayer<ImageStatic>({ visible: false }))
   const [descriptionLayer] = useState(() => new ImageLayer<ImageStatic>({ visible: false }))
+  const [printFrameSource] = useState(() => new VectorSource())
   const localFrameRef = useRef<Projection | null>(null)
   const [siteSource] = useState(() => new VectorSource())
   const [courseSource] = useState(() => new VectorSource())
@@ -157,6 +189,7 @@ export function MapView({
               }),
             }),
         }),
+        new VectorLayer({ source: printFrameSource, style: printFrameStyle }),
         new VectorLayer({ source: courseSource, style: courseOverprintStyle }),
         descriptionLayer,
         legToolLayer,
@@ -206,6 +239,7 @@ export function MapView({
     routeSource,
     costLayer,
     descriptionLayer,
+    printFrameSource,
     siteSource,
     courseSource,
     centreSource,
@@ -254,6 +288,13 @@ export function MapView({
       }),
     )
   }, [costMap, costLayer])
+
+  useEffect(() => {
+    printFrameSource.clear()
+    const area = course?.printArea
+    if (!area) return
+    printFrameSource.addFeature(new Feature(outsideOf(area.extent, info.extent)))
+  }, [course?.printArea, info, printFrameSource])
 
   useEffect(() => {
     descriptionLayer.setVisible(descriptionBox !== null)

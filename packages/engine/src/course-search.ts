@@ -9,6 +9,7 @@ import {
 import type { ControlSiteCandidate, TechnicalDifficulty } from './control-sites'
 import { difficultyInCourse, flagSideFor, type FlagSide } from './flag-side'
 import { measureCourse } from './course-length'
+import { isUsableInPrintArea, lineCrossesExtent, type PrintArea } from './print-area'
 import { siteAreaQuality } from './site-quality'
 import { distanceToSegment, segmentsCross } from './polyline'
 import { BLOCKED, type CostGrid } from './cost-grid'
@@ -25,6 +26,7 @@ export interface CourseSpec {
   readonly seed: number
   readonly paceSecondsPerKm?: number
   readonly improvementSteps?: number
+  readonly printArea?: PrintArea
 }
 
 export interface CourseProblems {
@@ -35,6 +37,7 @@ export interface CourseProblems {
   readonly courseLineCrossings: number
   readonly courseLinesThroughControls: number
   readonly courseLinesOutsideMap: number
+  readonly courseLinesOverDescriptions: number
   readonly overlappingCircles: number
   readonly finalLegTooLong: boolean
 }
@@ -51,6 +54,7 @@ export interface Course {
   readonly flagSides: readonly (FlagSide | null)[]
   readonly lengthMeters: number | null
   readonly climbMeters: number | null
+  readonly printArea: PrintArea | null
   readonly problems: CourseProblems
   readonly score: number
 }
@@ -65,6 +69,13 @@ const LEG_PROFILES: Readonly<Record<Format, LegProfile>> = {
   long: { longLegShare: 0.3, longLeg: [0.06, 0.12], shortLeg: [0.015, 0.04] },
   middle: { longLegShare: 0, longLeg: [0.02, 0.07], shortLeg: [0.02, 0.07] },
 }
+export function expectedControlCount(format: Format): number {
+  const { longLegShare, longLeg, shortLeg } = LEG_PROFILES[format]
+  const mean = (range: readonly [number, number]) => (range[0] + range[1]) / 2
+  const meanLegShare = longLegShare * mean(longLeg) + (1 - longLegShare) * mean(shortLeg)
+  return Math.ceil(1 / meanLegShare)
+}
+
 const START_DISTANCE_FROM_FINISH: readonly [number, number] = [0.05, 0.2]
 const MAX_START_DIFFICULTY = 2
 const DEFAULT_IMPROVEMENT_STEPS: Readonly<Record<Format, number>> = { long: 800, middle: 400 }
@@ -84,6 +95,7 @@ const PENALTY = {
   courseLineThroughControl: 10,
   finalLegPerPercentOverLimit: 5,
   courseLineOutsideMap: 30,
+  courseLineOverDescriptions: 30,
   overlappingCircles: 15,
 } as const
 const CONTROL_CIRCLE_FOOTPRINT_RADIUS_METERS = 37.5
@@ -130,7 +142,12 @@ export function searchCourse(
     const index = cellIndexOf(grid, site.position)
     return index === null ? Number.POSITIVE_INFINITY : toFinishGrid[index]!
   }
-  const reachable = sites.filter(site => secondsToFinish(site) <= targetSeconds / 2)
+  const { printArea } = spec
+  const reachable = sites.filter(
+    site =>
+      (!printArea || isUsableInPrintArea(site.position, printArea)) &&
+      secondsToFinish(site) <= targetSeconds / 2,
+  )
   const core =
     spec.format === 'middle'
       ? densestCore(
@@ -174,6 +191,10 @@ export function searchCourse(
 
   const staysOnMap = (from: LocalPoint, to: LocalPoint) =>
     courseLineStaysOnMap(grid, terrain.mappedArea, from, to)
+  const clearOfDescriptions = (from: LocalPoint, to: LocalPoint) =>
+    !printArea || !lineCrossesExtent(from, to, printArea.descriptionBox)
+  const isAllowedCourseLine = (from: LocalPoint, to: LocalPoint) =>
+    staysOnMap(from, to) && clearOfDescriptions(from, to)
   const routeChoiceValue = (from: LocalPoint, to: LocalPoint, fastestSeconds: number) =>
     routeChoiceValueOf(straightLineSeconds(grid, from, to, pace), fastestSeconds)
   const evaluation = createEvaluation(
@@ -184,6 +205,7 @@ export function searchCourse(
     legSeconds,
     targetSeconds,
     staysOnMap,
+    clearOfDescriptions,
     quality,
     routeChoiceValue,
   )
@@ -203,7 +225,7 @@ export function searchCourse(
       spec,
       loop,
       finish,
-      staysOnMap,
+      isAllowedCourseLine,
       quality,
       routeChoiceValue,
       random,
@@ -249,6 +271,7 @@ export function searchCourse(
       targetSeconds,
       lengthMeters: measured?.lengthMeters ?? null,
       climbMeters: measured?.climbMeters ?? null,
+      printArea: printArea ?? null,
       problems: scored.problems,
       score: scored.score,
     }
@@ -272,6 +295,7 @@ function createEvaluation(
   legSecondsBetween: (from: number, to: number) => number,
   targetSeconds: number,
   staysOnMap: (from: LocalPoint, to: LocalPoint) => boolean,
+  clearOfDescriptions: (from: LocalPoint, to: LocalPoint) => boolean,
   quality: Float32Array,
   routeChoiceValue: (from: LocalPoint, to: LocalPoint, fastestSeconds: number) => number,
 ) {
@@ -330,8 +354,10 @@ function createEvaluation(
     const courseLineCrossings = countCourseLineCrossings(stops)
     const overlappingCircles = countOverlappingCircles(stops)
     let courseLinesOutsideMap = 0
+    let courseLinesOverDescriptions = 0
     for (let i = 0; i + 1 < stops.length; i++) {
       if (!staysOnMap(stops[i]!, stops[i + 1]!)) courseLinesOutsideMap++
+      if (!clearOfDescriptions(stops[i]!, stops[i + 1]!)) courseLinesOverDescriptions++
     }
     const courseLinesThroughControls = countCourseLinesThroughControls(stops)
     const finalLegShare = legSeconds[legSeconds.length - 1]! / targetSeconds
@@ -348,6 +374,7 @@ function createEvaluation(
       courseLineCrossings,
       courseLinesThroughControls,
       courseLinesOutsideMap,
+      courseLinesOverDescriptions,
       overlappingCircles,
       finalLegTooLong: finalLegPercentOverLimit > 0,
     }
@@ -370,6 +397,7 @@ function createEvaluation(
           PENALTY.courseLineThroughControl * courseLinesThroughControls +
           PENALTY.finalLegPerPercentOverLimit * finalLegPercentOverLimit +
           PENALTY.courseLineOutsideMap * courseLinesOutsideMap +
+          PENALTY.courseLineOverDescriptions * courseLinesOverDescriptions +
           PENALTY.overlappingCircles * overlappingCircles -
           QUALITY_REWARD[spec.format] * meanQuality +
           STRAIGHT_ON_PENALTY[spec.format] * straightOnTurns -

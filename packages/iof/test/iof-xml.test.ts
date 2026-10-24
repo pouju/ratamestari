@@ -25,9 +25,11 @@ const course: Course = {
     courseLineCrossings: 0,
     courseLinesThroughControls: 0,
     courseLinesOutsideMap: 0,
+    courseLinesOverDescriptions: 0,
     overlappingCircles: 0,
     finalLegTooLong: false,
   },
+  printArea: null,
   score: 0,
 }
 

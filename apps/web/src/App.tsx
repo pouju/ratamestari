@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import type { LocalPoint } from '@ratamestari/core'
-import type { ControlSiteCandidate, Course, LegEvaluation } from '@ratamestari/engine'
+import type { ControlSiteCandidate, Course, LegEvaluation, PaperChoice } from '@ratamestari/engine'
 import type { CourseRequest } from '@ratamestari/rules'
 import { createCourseTools, type CourseWorkspace, type GenerateOptions } from '@ratamestari/agent'
 import { loadOcadMap, type OcadMap } from '@ratamestari/map-ocad'
@@ -58,6 +58,7 @@ export function App() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [showLegTool, setShowLegTool] = useState(true)
   const [paceText, setPaceText] = useState(DEFAULT_WINNER_PACE)
+  const [paper, setPaper] = useState<PaperChoice>('auto')
   const paceSecondsPerKm = parsePace(paceText)
 
   async function openFile(file: File) {
@@ -121,6 +122,7 @@ export function App() {
         competitionCentre,
         nextSeed,
         pace,
+        paper,
         progressCallback<Course>(setCourse),
       )
       setCourse(result)
@@ -263,6 +265,8 @@ export function App() {
             onGenerate={nextSeed => void generateCourse(request, nextSeed, paceSecondsPerKm)}
             course={course}
             descriptionBox={descriptionBox}
+            paper={paper}
+            onPaperChange={setPaper}
             onExportXml={() => {
               if (course && descriptionBox && mapInfo) {
                 downloadCourseXml(course, descriptionBox.sheet, request, mapInfo)

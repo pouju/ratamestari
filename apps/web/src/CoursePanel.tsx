@@ -1,10 +1,12 @@
+import { z } from 'zod'
 import { courseProblemTexts } from '@ratamestari/agent'
-import type { Course } from '@ratamestari/engine'
+import type { Course, PaperChoice } from '@ratamestari/engine'
 import { descriptionText, type ControlDescription, type DescriptionSheet } from '@ratamestari/iof'
 import {
   ageClassSchema,
   eventLevelSchema,
   formatSchema,
+  paperSizeSchema,
   sexSchema,
   skillLetterSchema,
   type CourseRequest,
@@ -12,6 +14,8 @@ import {
 import { EVENT_LEVEL_LABELS, FORMAT_LABELS } from './course-labels'
 import type { DescriptionBox } from './description-box'
 import { formatDuration, formatKilometers, formatMeters } from './format'
+
+const paperChoiceSchema = z.union([z.literal('auto'), paperSizeSchema])
 
 interface Props {
   request: CourseRequest
@@ -29,6 +33,8 @@ interface Props {
   course: Course | null
   descriptionBox: DescriptionBox | null
   onExportXml: () => void
+  paper: PaperChoice
+  onPaperChange: (paper: PaperChoice) => void
 }
 
 export function CoursePanel({
@@ -47,6 +53,8 @@ export function CoursePanel({
   course,
   descriptionBox,
   onExportXml,
+  paper,
+  onPaperChange,
 }: Props) {
   const change = (fields: Partial<CourseRequest>) => onRequestChange({ ...request, ...fields })
   return (
@@ -117,6 +125,18 @@ export function CoursePanel({
         />{' '}
         min/km
       </label>
+      <label className="pace">
+        Paper{' '}
+        <select
+          value={paper}
+          onChange={e => onPaperChange(paperChoiceSchema.parse(e.target.value))}
+        >
+          <option value="auto">Automatic (A4, A3 if needed)</option>
+          {paperSizeSchema.options.map(size => (
+            <option key={size}>{size}</option>
+          ))}
+        </select>
+      </label>
       {!isPaceValid && <p className="error">Write the pace as minutes:seconds, e.g. 5:00.</p>}
       <div className="buttons">
         <button type="button" disabled={!canGenerate} onClick={() => onGenerate(seed)}>
@@ -163,6 +183,14 @@ function CourseSummary({ course }: { course: Course }) {
       <dd>{course.climbMeters === null ? 'measuring…' : formatMeters(course.climbMeters)}</dd>
       <dt>Rule checks</dt>
       <dd>{problemTexts.length === 0 ? 'No problems found' : problemTexts.join(', ')}</dd>
+      {course.printArea && (
+        <>
+          <dt>Paper</dt>
+          <dd>
+            {course.printArea.paper} {course.printArea.orientation}
+          </dd>
+        </>
+      )}
       <dt>Option</dt>
       <dd>Seed {course.seed}</dd>
     </dl>

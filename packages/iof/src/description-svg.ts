@@ -1,3 +1,4 @@
+import { DESCRIPTION_BOX } from '@ratamestari/rules'
 import { compassClockwiseDegrees, type CompassPoint } from './compass'
 import type { ControlDescription } from './describe-control'
 import type { DescriptionSheet } from './description-sheet'
@@ -15,8 +16,8 @@ export interface RenderedSheet {
   readonly heightMillimetres: number
 }
 
-const COLUMNS = 8
-const DEFAULT_BOX_MILLIMETRES = 6
+const COLUMNS = DESCRIPTION_BOX.columns
+const DEFAULT_BOX_MILLIMETRES = DESCRIPTION_BOX.boxMillimetres
 const THIN_LINE = 0.15
 const THICK_LINE = 0.45
 const PICTOGRAM_STROKE = 6

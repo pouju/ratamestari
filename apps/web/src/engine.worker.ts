@@ -4,7 +4,8 @@ import {
   buildTerrain,
   evaluateLeg,
   findControlSites,
-  searchCourse,
+  setCourseOnPaper,
+  type PaperChoice,
   type ControlSiteCandidate,
   type Course,
   type LegEvaluation,
@@ -37,16 +38,18 @@ const engine = {
     competitionCentre: LocalPoint,
     seed: number,
     paceSecondsPerKm: number,
+    paper: PaperChoice,
     onProgress: (course: Course) => void,
   ): Course | null {
     if (!terrain) throw new Error('No map loaded in the engine')
     const validRequest = courseRequestSchema.parse(request)
     const target = courseTargetFor(validRequest)
     if (!target) return null
-    return searchCourse(
+    return setCourseOnPaper(
       terrain,
       sites,
       { target, format: validRequest.format, mapScale, competitionCentre, seed, paceSecondsPerKm },
+      paper,
       onProgress,
     )
   },

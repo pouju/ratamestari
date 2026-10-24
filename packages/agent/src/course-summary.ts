@@ -40,6 +40,8 @@ export function courseProblemTexts({ problems }: Course): string[] {
       `${problems.courseLinesThroughControls} course lines pass through another control`,
     problems.courseLinesOutsideMap > 0 &&
       `${problems.courseLinesOutsideMap} course lines go outside the map`,
+    problems.courseLinesOverDescriptions > 0 &&
+      `${problems.courseLinesOverDescriptions} course lines run under the description box`,
     problems.overlappingCircles > 0 && `${problems.overlappingCircles} overlapping control circles`,
     problems.finalLegTooLong && 'long last leg into the finish',
   ].filter(text => typeof text === 'string')

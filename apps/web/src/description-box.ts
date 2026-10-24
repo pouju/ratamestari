@@ -1,5 +1,5 @@
 import { localExtent, type LocalExtent, type MapInfo } from '@ratamestari/core'
-import type { Course } from '@ratamestari/engine'
+import { placeDescriptionBox, type Course } from '@ratamestari/engine'
 import { descriptionSheet, renderDescriptionSheet, type DescriptionSheet } from '@ratamestari/iof'
 import type { CourseRequest } from '@ratamestari/rules'
 import { courseNameOf, FORMAT_LABELS } from './course-labels'
@@ -28,19 +28,20 @@ export function descriptionBoxFor(
   const rendered = renderDescriptionSheet(sheet, {
     pixelsPerMillimetre: DISPLAY_PIXELS_PER_MILLIMETRE,
   })
-  const [minX, , , maxY] = map.extent
-  const margin = paperMillimetresToMeters(MARGIN_MILLIMETRES, map.scale)
-  const left = minX + margin
-  const top = maxY - margin
-  const extent = localExtent(
-    left,
-    top - paperMillimetresToMeters(rendered.heightMillimetres, map.scale),
-    left + paperMillimetresToMeters(rendered.widthMillimetres, map.scale),
-    top,
-  )
+  const width = paperMillimetresToMeters(rendered.widthMillimetres, map.scale)
+  const height = paperMillimetresToMeters(rendered.heightMillimetres, map.scale)
+  const extent = course.printArea
+    ? placeDescriptionBox(course.printArea, width, height)
+    : besideMap(map, width, height)
   return {
     sheet,
     url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(rendered.svg)}`,
     extent,
   }
+}
+
+function besideMap(map: MapInfo, width: number, height: number): LocalExtent {
+  const [minX, , , maxY] = map.extent
+  const margin = paperMillimetresToMeters(MARGIN_MILLIMETRES, map.scale)
+  return localExtent(minX + margin, maxY - margin - height, minX + margin + width, maxY - margin)
 }

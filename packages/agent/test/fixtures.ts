@@ -31,6 +31,7 @@ export const NO_PROBLEMS: CourseProblems = {
   courseLineCrossings: 0,
   courseLinesThroughControls: 0,
   courseLinesOutsideMap: 0,
+  courseLinesOverDescriptions: 0,
   overlappingCircles: 0,
   finalLegTooLong: false,
 }
@@ -51,6 +52,7 @@ export const COURSE: Course = {
   lengthMeters: 1234,
   climbMeters: 42,
   problems: { ...NO_PROBLEMS, spacing: 1 },
+  printArea: null,
   score: 0,
 }
 

@@ -9,7 +9,9 @@ import {
   cellCenterOf,
   evaluateLeg,
   findControlSites,
-  searchCourse,
+  placeDescriptionBox,
+  setCourseOnPaper,
+  type PaperChoice,
   type Course,
 } from '@ratamestari/engine'
 import {
@@ -43,6 +45,7 @@ const { values } = parseArgs({
     out: { type: 'string' },
     legs: { type: 'boolean', default: false },
     xml: { type: 'string' },
+    paper: { type: 'string', default: 'auto' },
   },
 })
 
@@ -68,18 +71,26 @@ if (!target) throw new Error('No winning time for this class and event')
 
 const centre = values.centre ? parsePoint(values.centre) : middleOfMappedArea()
 const started = performance.now()
-const course = searchCourse(terrain, sites, {
-  target,
-  format: request.format,
-  mapScale: map.info.scale,
-  competitionCentre: centre,
-  seed,
-  paceSecondsPerKm,
-})
+const course = setCourseOnPaper(
+  terrain,
+  sites,
+  {
+    target,
+    format: request.format,
+    mapScale: map.info.scale,
+    competitionCentre: centre,
+    seed,
+    paceSecondsPerKm,
+  },
+  values.paper as PaperChoice,
+)
 if (!course) throw new Error('No course found')
 const searchSeconds = (performance.now() - started) / 1000
 
 printSummary(course, searchSeconds)
+if (course.printArea) {
+  console.log(`paper: ${course.printArea.paper} ${course.printArea.orientation}`)
+}
 if (values.legs) printLegs(course)
 const sheet = descriptionSheet(course, {
   title: `${request.format} ${values.class}${values.letter}`,
@@ -218,22 +229,40 @@ function renderPng(c: Course): Buffer {
     )
   }
 
-  const points = stops.map(toSvg)
-  const margin = (CROP_MARGIN_METERS * HUNDREDTHS_MM_PER_METER) / map.info.scale
+  const area = c.printArea
+  const cropCorners = area
+    ? [localPoint(area.extent[0], area.extent[1]), localPoint(area.extent[2], area.extent[3])]
+    : stops
+  const points = cropCorners.map(toSvg)
+  const margin = ((area ? 0 : CROP_MARGIN_METERS) * HUNDREDTHS_MM_PER_METER) / map.info.scale
   const cropMinX = Math.min(...points.map(p => p[0])) - margin
   const cropMinY = Math.min(...points.map(p => p[1])) - margin
   const cropWidth = Math.max(...points.map(p => p[0])) + margin - cropMinX
   const cropHeight = Math.max(...points.map(p => p[1])) + margin - cropMinY
 
   const rendered = renderDescriptionSheet(sheet)
+  const metresPerMm = map.info.scale / 1000
+  const box = area
+    ? placeDescriptionBox(
+        area,
+        rendered.widthMillimetres * metresPerMm,
+        rendered.heightMillimetres * metresPerMm,
+      )
+    : null
+  const [boxX, boxY] = box ? toSvg(localPoint(box[0], box[3])) : [cropMinX, cropMinY]
   const paperUnitsPerMm = 100
   overlay.push(
     rendered.svg.replace(
       /width="[\d.]+mm" height="[\d.]+mm"/,
-      `x="${cropMinX + 5 * paperUnitsPerMm}" y="${cropMinY + 5 * paperUnitsPerMm}" ` +
+      `x="${boxX}" y="${boxY}" ` +
         `width="${rendered.widthMillimetres * paperUnitsPerMm}" height="${rendered.heightMillimetres * paperUnitsPerMm}"`,
     ),
   )
+  if (area) {
+    overlay.push(
+      `<rect x="${cropMinX}" y="${cropMinY}" width="${cropWidth}" height="${cropHeight}" fill="none" stroke="black" stroke-width="${mm(0.5)}"/>`,
+    )
+  }
 
   const mapMarkup = new XMLSerializer().serializeToString(svg as unknown as Node)
   const withOverlay = mapMarkup

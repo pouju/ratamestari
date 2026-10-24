@@ -22,7 +22,13 @@ export {
 } from './control-sites'
 export { seededRandom, type Random } from './random'
 export { secondsFrom } from './time-tree'
-export { searchCourse, type Course, type CourseProblems, type CourseSpec } from './course-search'
+export {
+  expectedControlCount,
+  searchCourse,
+  type Course,
+  type CourseProblems,
+  type CourseSpec,
+} from './course-search'
 export { mappedAreaMask } from './mapped-area'
 export {
   courseLengthMeters,
@@ -32,3 +38,15 @@ export {
 } from './course-length'
 export { siteAreaQuality } from './site-quality'
 export { difficultyInCourse, flagSideFor, type FlagSide } from './flag-side'
+export { setCourseOnPaper, type PaperChoice } from './course-on-paper'
+export {
+  descriptionBoxGroundSize,
+  isUsableInPrintArea,
+  lineCrossesExtent,
+  placeDescriptionBox,
+  planPrintArea,
+  printableGroundSize,
+  type Orientation,
+  type PrintArea,
+  type PrintAreaRequest,
+} from './print-area'
