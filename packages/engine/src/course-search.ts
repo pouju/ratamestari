@@ -5,6 +5,7 @@ import {
   COURSE_SHAPE,
   CROWDING,
   FOREST_CONTROL_SPACING,
+  FORMAT_TEMPLATES,
   TECHNICAL_AREAS,
   FORMAT_QUALITY,
   SCORE_WEIGHTS,
@@ -164,6 +165,11 @@ const MAX_KEY_LEGS = 4
 const LONG_MIN_AREA_QUALITY = 0.3
 const MAX_DRAFTS = 3
 const IMPROVEMENT_STEPS_PER_PROGRESS = 25
+const ANNEALING = { startTemperature: 5, endTemperature: 0.05, rebuildShare: 0.5 }
+const WINDOW_CONTROLS: readonly [number, number] = [3, 6]
+const WINDOW_SITES_BUFFER_METERS = 200
+const WINDOW_EXTRA_CONTROLS = 2
+const TARGET_FINDING_WINDOW_CHANCE = 0.5
 const BRING_LAST_CONTROL_HOME_CHANCE = 0.5
 const START_TOWARDS_WAYPOINT_PREFERENCE = 1
 const NO_SITE = -1
@@ -235,6 +241,7 @@ export function* searchCourseSteps(
   let startIndex = NO_SITE
   let order: readonly number[] = []
   let best: ScoredCourse | null = null
+  let anchors: ReadonlySet<number> = new Set()
   const drafts = skeletons.slice(0, stopped ? 1 : MAX_DRAFTS)
   for (const [k, skeleton] of drafts.entries()) {
     stopped = Boolean(yield { phase: 'sections', done: k, total: drafts.length }) || stopped
@@ -245,35 +252,45 @@ export function* searchCourseSteps(
       best = scored
       startIndex = skeleton.start
       order = draft
+      anchors = new Set(skeleton.connectingLegs.flatMap(leg => [leg.from, leg.to]))
     }
   }
   if (!best) return null
 
+  // Simulated annealing: half the moves rebuild a window of controls with the section fill,
+  // the rest are single-control changes. Worse courses are accepted with a chance that falls
+  // as the search cools, so it can climb out of a tangle; the best course seen is kept.
   const steps = spec.improvementSteps ?? DEFAULT_IMPROVEMENT_STEPS[spec.format]
+  const { startTemperature, endTemperature, rebuildShare } = ANNEALING
+  let current = best
   for (let step = 0; step < steps && !stopped; step++) {
     const reportsProgress = step % IMPROVEMENT_STEPS_PER_PROGRESS === 0
     stopped = Boolean(
       yield reportsProgress ? { phase: 'improving', done: step, total: steps } : null,
     )
     if (stopped) break
-    const candidate = proposeChange(
-      startIndex,
-      order,
-      pool,
-      planning.toFinish,
-      planning.timesFrom,
-      best,
-      finish,
-      random,
-    )
-    if (!candidate) continue
+    const rebuilds = random.next() < rebuildShare
+    const candidate = rebuilds
+      ? rebuildWindow(planning, startIndex, current, anchors, random)
+      : proposeChange(
+          startIndex,
+          current.order,
+          pool,
+          planning.toFinish,
+          planning.timesFrom,
+          current,
+          finish,
+          random,
+        )
+    if (!candidate || [...anchors].some(anchor => !candidate.includes(anchor))) continue
     const scored = evaluation.score(startIndex, candidate)
-    const improves = scored.score < best.score && !addsLineProblems(best.problems, scored.problems)
-    if (improves) {
-      order = candidate
-      best = scored
-    }
+    if (!rebuilds && addsLineProblems(current.problems, scored.problems)) continue
+    const temperature = startTemperature * (endTemperature / startTemperature) ** (step / steps)
+    const worsening = scored.score - current.score
+    if (worsening < 0 || random.next() < Math.exp(-worsening / temperature)) current = scored
+    if (current.score < best.score) best = current
   }
+  order = best.order
   if (!stopped) yield { phase: 'checking', done: 0, total: 1 }
   const cleared = repairHardRules(startIndex, best, pool, evaluation)
   const repaired = repairDoglegs(startIndex, cleared, pool, finish, grid, pace, evaluation)
@@ -472,11 +489,20 @@ function planningContextFor(
     boundedCache.set(key, times)
     return times
   }
-  // Costs are symmetric. When neither end has a tree yet, build it from the later stop: that is
-  // a control of the course, reused by the next move, while the earlier one is often a candidate.
+  // Costs are symmetric, so a tree from either end gives a leg's time. Without one, a route
+  // between the two ends is much cheaper than a new tree: improvement tries many new sites.
+  const routeCache = new Map<string, number>()
   const legSeconds = (from: number, to: number): number => {
     if (timesCache.has(from)) return timesFrom(from)[to]!
-    return timesFrom(to)[from]!
+    if (timesCache.has(to)) return timesFrom(to)[from]!
+    const key = from < to ? `${from},${to}` : `${to},${from}`
+    const cached = routeCache.get(key)
+    if (cached !== undefined) return cached
+    const seconds =
+      findRoute(grid, pool[from]!.position, pool[to]!.position, { paceSecondsPerKm })
+        ?.timeSeconds ?? Number.POSITIVE_INFINITY
+    routeCache.set(key, seconds)
+    return seconds
   }
   const { evaluation, isAllowedCourseLine, routeChoiceValue } = evaluationFor(
     terrain,
@@ -1093,6 +1119,76 @@ function proposeChange(
   const changed = [...order]
   changed[position] = replacement
   return changed
+}
+
+// Refills a window of 3-6 consecutive controls (not connecting-leg endpoints) from the stop
+// before it to the stop after it, in the time the window takes now. Windows with findings are
+// picked more often.
+function rebuildWindow(
+  context: PlanningContext,
+  startIndex: number,
+  current: ScoredCourse,
+  anchors: ReadonlySet<number>,
+  random: Random,
+): number[] | null {
+  const { pool, finish } = context
+  const order = current.order
+  if (order.length < WINDOW_CONTROLS[0]) return null
+  const length = Math.min(
+    order.length,
+    WINDOW_CONTROLS[0] + Math.floor(random.next() * (WINDOW_CONTROLS[1] - WINDOW_CONTROLS[0] + 1)),
+  )
+  const flagged = current.findings
+    .flatMap(finding => finding.stops)
+    .filter(stop => stop >= 1 && stop <= order.length)
+  const centre =
+    flagged.length > 0 && random.next() < TARGET_FINDING_WINDOW_CHANCE
+      ? random.pick(flagged)! - 1
+      : Math.floor(random.next() * order.length)
+  const first = Math.max(0, Math.min(order.length - length, centre - Math.floor(length / 2)))
+  const last = first + length - 1
+  const window = order.slice(first, last + 1)
+  if (window.some(site => anchors.has(site))) return null
+
+  const positionOf = (i: number) => pool[i]!.position
+  const stops = [startIndex, ...order]
+  const entry = stops[first]!
+  const exit = last + 1 < order.length ? order[last + 1]! : ('finish' as const)
+  const stopPositions = [...stops.map(positionOf), finish]
+  const budget = current.legSeconds.slice(first, last + 2).reduce((sum, s) => sum + s, 0)
+  const around = [positionOf(entry), ...window.map(positionOf), stopPositions[last + 2]!]
+  const [minX, minY, maxX, maxY] = [
+    Math.min(...around.map(p => p[0])) - WINDOW_SITES_BUFFER_METERS,
+    Math.min(...around.map(p => p[1])) - WINDOW_SITES_BUFFER_METERS,
+    Math.max(...around.map(p => p[0])) + WINDOW_SITES_BUFFER_METERS,
+    Math.max(...around.map(p => p[1])) + WINDOW_SITES_BUFFER_METERS,
+  ]
+  const kept = new Set([startIndex, ...order.filter((_, k) => k < first || k > last)])
+  const allowed = pool.flatMap((site, i) => {
+    const [x, y] = site.position
+    return !kept.has(i) && x >= minX && x <= maxX && y >= minY && y <= maxY ? [i] : []
+  })
+  const outside = (k: number) => k < first || k > last + 1
+  const fill = fillSection(
+    context,
+    {
+      entry,
+      exit,
+      budgetSeconds: budget,
+      allowed,
+      legBandMetres: FORMAT_TEMPLATES[context.spec.format].technicalLegMetres,
+      fixedStops: stopPositions.filter((_, k) => k !== first && (k < first + 1 || k > last + 1)),
+      fixedLegs: stopPositions
+        .slice(1)
+        .flatMap((stop, k) => (outside(k) ? [[stopPositions[k]!, stop] as const] : [])),
+      usedSites: kept,
+      afterExit: stopPositions[last + 3] ?? null,
+      rebuildingControls: length + WINDOW_EXTRA_CONTROLS,
+    },
+    random,
+  )
+  if (fill.short) return null
+  return [...order.slice(0, first), ...fill.controls, ...order.slice(last + 1)]
 }
 
 // Moves are not all checked for geometry, so never accept one that makes the course harder to read.

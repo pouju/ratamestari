@@ -108,9 +108,12 @@ describe('searchCourse', { timeout: SEARCH_TIMEOUT_MS }, () => {
   it('puts the start where the user wants it', () => {
     const distanceToFinish = (c: Course) =>
       Math.hypot(c.start.position[0] - c.finish[0], c.start.position[1] - c.finish[1])
-    const near = searchCourse(terrain, sites, spec({ startDistanceFromFinishMeters: [0, 150] }))!
+    // The start is placed before improvement, which this test does not need.
+    const wishing = (startDistanceFromFinishMeters: readonly [number, number]) =>
+      searchCourse(terrain, sites, spec({ startDistanceFromFinishMeters, improvementSteps: 0 }))!
+    const near = wishing([0, 150])
     expect(distanceToFinish(near)).toBeLessThanOrEqual(150)
-    const far = searchCourse(terrain, sites, spec({ startDistanceFromFinishMeters: [600, 800] }))!
+    const far = wishing([600, 800])
     expect(distanceToFinish(far)).toBeGreaterThanOrEqual(600)
     expect(distanceToFinish(far)).toBeLessThanOrEqual(800)
   })

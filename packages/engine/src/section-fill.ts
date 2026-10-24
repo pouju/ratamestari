@@ -32,6 +32,8 @@ export interface SectionRequest {
   readonly usedSites: ReadonlySet<number>
   // The stop after the exit (the end of the next connecting leg), for the angle at the exit.
   readonly afterExit: LocalPoint | null
+  // A smaller search, for rebuilding a few controls: at most this many controls.
+  readonly rebuildingControls?: number
 }
 
 export interface SectionFill {
@@ -76,7 +78,9 @@ export function fillSection(
   random: Random,
 ): SectionFill {
   const { pool, spec, finish, toFinish } = context
-  const { beamWidth, expansions, budgetTolerance, weights } = SECTION_FILL
+  const { budgetTolerance, weights } = SECTION_FILL
+  const { beamWidth, expansions } =
+    request.rebuildingControls === undefined ? SECTION_FILL : SECTION_FILL.rebuild
   const [minDifficulty, maxDifficulty] = spec.target.siteDifficulty
   const spacing = controlSpacingForScale(spec.printScale)
   const crowdingRule = CROWDING[spec.format]
@@ -208,7 +212,8 @@ export function fillSection(
   let beam: State[] = [
     { path: [], elapsed: 0, qualityTotal: 0, outOfRange: 0, straightOn: 0, legs: [], cost: 0 },
   ]
-  const maxDepth = Math.max(3, Math.ceil(expectedLegs * MAX_DEPTH_FACTOR))
+  const maxDepth =
+    request.rebuildingControls ?? Math.max(3, Math.ceil(expectedLegs * MAX_DEPTH_FACTOR))
   for (let depth = 0; beam.length > 0 && depth <= maxDepth; depth++) {
     const next: State[] = []
     for (const state of beam) {

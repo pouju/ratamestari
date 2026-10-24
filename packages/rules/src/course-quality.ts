@@ -270,6 +270,8 @@ export const sectionFillSchema = citedSchema.extend({
   budgetTolerance: z.number().min(0).max(1),
   // Sites within this distance of a technical area's hull may hold its controls.
   areaBufferMetres: z.number().nonnegative(),
+  // Rebuilding a few controls during improvement needs a much smaller search.
+  rebuild: z.object({ beamWidth: z.int().min(1), expansions: z.int().min(1) }),
   weights: z.object({
     quality: z.number().nonnegative(),
     difficultyOutsideRange: z.number().nonnegative(),
@@ -288,6 +290,7 @@ export const SECTION_FILL: z.infer<typeof sectionFillSchema> = {
   expansions: 10,
   budgetTolerance: 0.03,
   areaBufferMetres: 100,
+  rebuild: { beamWidth: 12, expansions: 4 },
   weights: {
     quality: 3,
     difficultyOutsideRange: 2,
