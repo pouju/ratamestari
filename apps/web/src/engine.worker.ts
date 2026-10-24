@@ -2,6 +2,7 @@ import * as Comlink from 'comlink'
 import type { LocalPoint } from '@ratamestari/core'
 import {
   buildTerrain,
+  checkSetCourse,
   evaluateLeg,
   findControlSites,
   findPeripheralInformation,
@@ -20,12 +21,19 @@ import {
   type PeripheralInformation,
   type Terrain,
 } from '@ratamestari/engine'
-import { describeControl } from '@ratamestari/iof'
+import {
+  describeControl,
+  importedCourseStops,
+  readCourseData,
+  type ImportedCourseData,
+} from '@ratamestari/iof'
 import { loadOcadMap, type IsomCodeOverrides, type OcadMap } from '@ratamestari/map-ocad'
 import {
+  classFromCourseName,
   courseRequestSchema,
   courseTargetFor,
   printScaleFor,
+  type CourseClass,
   type CourseRequest,
   type PrintScaleChoice,
 } from '@ratamestari/rules'
@@ -36,6 +44,42 @@ let terrain: Terrain | null = null
 let sites: readonly ControlSiteCandidate[] = []
 let peripheral: PeripheralInformation | null = null
 let lastSetting: { spec: CourseSpec; paper: PaperChoice } | null = null
+let imported: ImportedCourseData | null = null
+
+export interface ImportedCourseSummary {
+  readonly name: string
+  readonly guessedClass: CourseClass | null
+  readonly controlCount: number
+  readonly lengthMeters: number | null
+}
+
+export interface CheckedCourse {
+  readonly course: Course
+  readonly controlCodes: readonly string[]
+  readonly fileLengthMeters: number | null
+  readonly groundMismatchMetres: number | null
+}
+
+function specFor(
+  request: CourseRequest,
+  competitionCentre: LocalPoint,
+  seed: number,
+  paceSecondsPerKm: number,
+  printScaleChoice: PrintScaleChoice,
+): CourseSpec | null {
+  const validRequest = courseRequestSchema.parse(request)
+  const target = courseTargetFor(validRequest)
+  if (!target) return null
+  return {
+    target,
+    format: validRequest.format,
+    printScale: printScaleFor(printScaleChoice, validRequest.format),
+    competitionCentre,
+    seed,
+    paceSecondsPerKm,
+    peripheralSize: peripheral && peripheralLayout(peripheral.blocks),
+  }
+}
 
 function editedCourse(course: Course, edit: (spec: CourseSpec) => Course | null): Course | null {
   if (!terrain || !lastSetting) throw new Error('Set a course before editing it')
@@ -81,20 +125,52 @@ const engine = {
     onProgress: (course: Course) => void,
   ): Course | null {
     if (!terrain) throw new Error('No map loaded in the engine')
-    const validRequest = courseRequestSchema.parse(request)
-    const target = courseTargetFor(validRequest)
-    if (!target) return null
-    const spec: CourseSpec = {
-      target,
-      format: validRequest.format,
-      printScale: printScaleFor(printScaleChoice, validRequest.format),
-      competitionCentre,
-      seed,
-      paceSecondsPerKm,
-      peripheralSize: peripheral && peripheralLayout(peripheral.blocks),
-    }
+    const spec = specFor(request, competitionCentre, seed, paceSecondsPerKm, printScaleChoice)
+    if (!spec) return null
     lastSetting = { spec, paper }
     return setCourseOnPaper(terrain, sites, spec, paper, onProgress)
+  },
+
+  importCourses(xml: string): readonly ImportedCourseSummary[] {
+    imported = readCourseData(xml)
+    return imported.courses.map(course => ({
+      name: course.name,
+      guessedClass: classFromCourseName(course.name),
+      controlCount: course.controlIds.filter(id => imported!.controls.get(id)?.type === 'Control')
+        .length,
+      lengthMeters: course.lengthMeters,
+    }))
+  },
+
+  // The setter's course is checked, measured and described; fixes stay suggestions (D15).
+  checkImportedCourse(
+    courseIndex: number,
+    request: CourseRequest,
+    paceSecondsPerKm: number,
+    paper: PaperChoice,
+    printScaleChoice: PrintScaleChoice,
+  ): CheckedCourse | null {
+    if (!terrain || !map) throw new Error('No map loaded in the engine')
+    const course = imported?.courses[courseIndex]
+    if (!imported || !course) throw new Error('Open a course file first')
+    const stops = importedCourseStops(imported, course, map.info.scale, map.info.georef)
+    if (!stops) return null
+    const spec = specFor(request, stops.finish, 0, paceSecondsPerKm, printScaleChoice)
+    if (!spec) return null
+    lastSetting = { spec, paper }
+    const checked = checkSetCourse(terrain, sites, spec, stops)
+    return {
+      course: fitCourseToPaper(
+        terrain,
+        checked,
+        papersFor(paper),
+        spec.printScale,
+        spec.peripheralSize,
+      ),
+      controlCodes: stops.controlCodes,
+      fileLengthMeters: course.lengthMeters,
+      groundMismatchMetres: stops.groundMismatchMetres,
+    }
   },
 
   refitToPaper(
