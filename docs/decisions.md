@@ -322,3 +322,43 @@ Course generation follows [`course-planning-spec.md`](course-planning-spec.md): 
 - Quality values live in `packages/rules/src/course-quality.ts`, cited or flagged as interpretation until calibrated.
 - A benchmark script measures every phase against the previous one.
 - Real courses for calibration stay in the git-ignored `maps/` folder.
+
+---
+
+## D14: Site structure, UX and visual language
+
+**Date:** 2026-10-24
+**Status:** Decided
+
+### Decision
+
+The site and app follow [`site-ux-plan.md`](site-ux-plan.md):
+
+- Two pages built as a Vite multi-page app: a landing page at `/` and the workspace at `/app/`. No client-side router.
+- The landing page opens with a replay of a recorded engine run on a sample map, drawn as SVG, and its main action is "Try it with a sample map".
+- The workspace has one main action per state. Expert tools move to the map toolbar (Layers, Measure) and Settings.
+- The assistant is off by default and turned on in Settings with the user's own key. Settings already has a slot for a hosted provider.
+- The whole workflow works on phones: the map fills the screen and the panel becomes a bottom sheet.
+- English first. All UI text comes from typed message catalogues, so another language is one new file.
+- Visual language from the orienteering map: white paper, black ink, overprint purple as the only accent, one typeface (Atkinson Hyperlegible Next), no boxes, no all-caps labels.
+- A small sample map © Vehkalahden Veikot is committed under `apps/web/public/sample/`.
+- A credits section names the author (Pouju), ocad2geojson by Per Liedman and the sample map.
+
+### Why
+
+- The UI had grown one panel per engine feature, and most visitors will arrive on a phone without an OCAD file or an API key.
+- Showing the real engine at work explains the tool in seconds without the usual AI-product look.
+- A typed catalogue costs little now and avoids a rewrite when Finnish is added.
+
+### Alternatives considered
+
+- **GIF or video in the hero:** heavy, blurry on large screens, not translatable, and goes stale when the engine changes.
+- **i18next:** heavier, and its keys are not type-checked without extra tooling.
+- **Desktop-only workspace with a "use a larger screen" notice:** loses most first-time visitors.
+- **Hanken Grotesk with IBM Plex Mono:** chosen from habit, and monospace data labels look generated.
+
+### Consequences
+
+- New conventions in `CLAUDE.md`: message catalogues, one design-token file, and the sample map as the only committed map.
+- Engine and rules output stays language-free (structured findings). The UI writes the text.
+- Map-dependent tests can run against the sample map in CI.
