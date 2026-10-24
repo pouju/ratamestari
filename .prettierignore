@@ -1,2 +1,5 @@
 pnpm-lock.yaml
 LICENSE
+# Written by release-please (D16)
+CHANGELOG.md
+.release-please-manifest.json
