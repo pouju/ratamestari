@@ -13,3 +13,11 @@ export {
   type DescriptionSheet,
   type SheetOptions,
 } from './description-sheet'
+export { renderDescriptionSheet, type RenderedSheet } from './description-svg'
+export {
+  APPEARANCE_PICTOGRAMS,
+  DIRECTION_ARROW,
+  FEATURE_PICTOGRAMS,
+  LOCATION_PICTOGRAMS,
+  START_TRIANGLE,
+} from './pictograms'
