@@ -11,3 +11,5 @@ export {
   type PdfSubpath,
   type PdfText,
 } from './pdf-paths'
+export { renderPdfPageSvg } from './render-svg'
+export { setPdfWorkerUrl } from './pdf-paths'

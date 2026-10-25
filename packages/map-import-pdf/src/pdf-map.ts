@@ -24,6 +24,8 @@ export interface PdfMapPage {
   // The print scale that ISOM's enlargement rule suggests; the user confirms it.
   readonly suggestedPrintScale: number
   readonly paperFeatures: readonly PaperFeature[]
+  // Paths that belong to the course and its description box, left out of the map.
+  readonly coursePaths: ReadonlySet<number>
   // The page as a map at the given print scale: ground metres, origin at the page's corner.
   readonly info: (printScale: number) => MapInfo
   readonly features: (printScale: number) => MapFeature[]
@@ -58,6 +60,7 @@ export async function readPdfMap(bytes: Uint8Array): Promise<PdfMapPage[]> {
         symbolScale,
         suggestedPrintScale: nearestUsualScale(ISOM_BASE_SCALE / symbolScale),
         paperFeatures,
+        coursePaths: excluded,
         info: printScale => {
           const corner = paperToLocal(paperPoint(page.width, page.height), printScale)
           return {

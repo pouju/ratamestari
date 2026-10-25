@@ -1,6 +1,7 @@
 import { paperPoint, type PaperPoint } from '@ratamestari/core'
 import {
   getDocument,
+  GlobalWorkerOptions,
   OPS,
   VerbosityLevel,
   type PDFPageProxy,
@@ -11,8 +12,9 @@ export type PdfPaint =
   | {
       readonly kind: 'pattern'
       readonly tile: readonly PdfPath[]
-      // The two vectors the tile repeats along, in paper units.
+      // The two vectors the tile repeats along, and where one tile starts, in paper units.
       readonly lattice: readonly [readonly [number, number], readonly [number, number]]
+      readonly origin: readonly [number, number]
     }
 
 export interface PdfSubpath {
@@ -94,6 +96,11 @@ const FILL_STROKE_OPS = new Set([
   OPS.closeEOFillStroke,
 ])
 const EVEN_ODD_OPS = new Set([OPS.eoFill, OPS.eoFillStroke, OPS.closeEOFillStroke])
+
+// In a browser, pdf.js parses in its own worker, which the app bundles and points to here.
+export function setPdfWorkerUrl(url: string) {
+  GlobalWorkerOptions.workerSrc = url
+}
 
 export async function readPdfPages(bytes: Uint8Array): Promise<PdfPageContent[]> {
   const loading = getDocument({
@@ -234,7 +241,7 @@ function patternPaint(args: unknown[]): PdfPaint | null {
   ]
   if (kind !== 'TilingPattern') return null
   const tileToPaper = multiply(matrix ?? IDENTITY, POINT_TO_PAPER)
-  const [a, b, c, d] = tileToPaper
+  const [a, b, c, d, e, f] = tileToPaper
   return {
     kind: 'pattern',
     tile: readPaths(operatorList, tileToPaper),
@@ -242,6 +249,7 @@ function patternPaint(args: unknown[]): PdfPaint | null {
       [a * xStep, b * xStep],
       [c * yStep, d * yStep],
     ],
+    origin: [e, f],
   }
 }
 
