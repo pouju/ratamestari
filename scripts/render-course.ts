@@ -25,6 +25,7 @@ import {
 import { courseDataXml, describeControl, descriptionSheet, descriptionText } from '@ratamestari/iof'
 import { loadOcadMap } from '@ratamestari/map-import-ocad'
 import { printPageSvg } from '@ratamestari/print'
+import { svgToPdf } from './svg-to-pdf'
 import {
   courseRequestSchema,
   courseTargetFor,
@@ -52,6 +53,8 @@ const { values } = parseArgs({
     out: { type: 'string' },
     legs: { type: 'boolean', default: false },
     xml: { type: 'string' },
+    pdf: { type: 'string' },
+    'pdf-without-course': { type: 'string' },
     paper: { type: 'string', default: 'auto' },
     scale: { type: 'string', default: 'auto' },
     areas: { type: 'boolean', default: false },
@@ -138,6 +141,14 @@ const outPath =
 mkdirSync(RENDERS_FOLDER, { recursive: true })
 writeFileSync(outPath, renderPng(course))
 console.log(`Wrote ${outPath}`)
+for (const [path, withoutCourse] of [
+  [values.pdf, false],
+  [values['pdf-without-course'], true],
+] as const) {
+  if (!path) continue
+  writeFileSync(path, await svgToPdf(printPage(course, withoutCourse)))
+  console.log(`Wrote ${path}`)
+}
 
 function firstMapIn(folder: string): string {
   const name = readdirSync(folder)
@@ -198,8 +209,9 @@ function printLegs(c: Course) {
   console.log(`route-choice legs: ${routeChoiceLegs}/${stops.length - 1}`)
 }
 
-function renderPng(c: Course): Buffer {
+function printPage(c: Course, withoutCourse = false): string {
   const doc = new DOMImplementation().createDocument(null, 'svg', null) as unknown as Document
+  serializeElementIds(doc)
   const mapSvg = new XMLSerializer().serializeToString(
     map.renderSvg(doc, i => !peripheral.marginObjectIndices.has(i)) as unknown as Node,
   )
@@ -221,11 +233,32 @@ function renderPng(c: Course): Buffer {
     overprintLayout: layOutOverprint(c, overprintDetail),
     sheet,
     peripheral: { blocks, scaleLine },
+    withoutCourse,
   })
   if (!page) throw new Error('The course has no print area')
-  const closing = page.svg.lastIndexOf('</svg>')
+  return page.svg
+}
+
+// ocad2geojson sets pattern ids as a DOM property, which xmldom does not serialise, so the
+// hatched and structured areas would lose their fill.
+function serializeElementIds(doc: Document) {
+  const elementPrototype = Object.getPrototypeOf(doc.createElement('g')) as object
+  if (Object.getOwnPropertyDescriptor(elementPrototype, 'id')) return
+  Object.defineProperty(elementPrototype, 'id', {
+    get(this: Element) {
+      return this.getAttribute('id') ?? ''
+    },
+    set(this: Element, id: string) {
+      this.setAttribute('id', id)
+    },
+  })
+}
+
+function renderPng(c: Course): Buffer {
+  const page = printPage(c)
+  const closing = page.lastIndexOf('</svg>')
   const overlays = `${values.areas ? areaOverlay(c) : ''}${values.skeleton ? skeletonOverlay(c) : ''}`
-  const svg = `${page.svg.slice(0, closing)}${overlays}${page.svg.slice(closing)}`
+  const svg = `${page.slice(0, closing)}${overlays}${page.slice(closing)}`
   return new Resvg(svg, {
     fitTo: { mode: 'width', value: IMAGE_WIDTH_PIXELS },
     background: 'white',
