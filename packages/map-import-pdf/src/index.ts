@@ -1,5 +1,6 @@
 export type { PaperFeature, PaperGeometry } from './classify'
 export type { PaperRectangle } from './description-box'
+export type { GeoReference } from './geo-pdf'
 export { detectPdfCourse } from './pdf-course'
 export { readPdfMap, type PdfMapPage } from './pdf-map'
 export {

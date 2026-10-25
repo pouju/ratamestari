@@ -375,6 +375,9 @@ importers:
       '@ratamestari/rules':
         specifier: workspace:*
         version: link:../rules
+      pdf-lib:
+        specifier: ^1.17.1
+        version: 1.17.1
       pdfjs-dist:
         specifier: 6.4.299
         version: 6.4.299
@@ -385,9 +388,6 @@ importers:
       '@ratamestari/map-import-ocad':
         specifier: workspace:*
         version: link:../map-import-ocad
-      pdf-lib:
-        specifier: ^1.17.1
-        version: 1.17.1
 
   packages/print:
     dependencies:

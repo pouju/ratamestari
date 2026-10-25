@@ -2,6 +2,7 @@ import {
   localExtent,
   paperPoint,
   paperToLocal,
+  projectedPoint,
   type LocalPoint,
   type MapFeature,
   type MapInfo,
@@ -11,6 +12,7 @@ import type { DetectedCourse } from '@ratamestari/course-detect'
 import { MAP_APPEARANCES } from '@ratamestari/rules'
 import { classifyPage, type PaperFeature, type PaperGeometry } from './classify'
 import { findDescriptionBox, pathsInside, type PaperRectangle } from './description-box'
+import { readGeoReferences, type GeoReference } from './geo-pdf'
 import { detectPdfCourse } from './pdf-course'
 import { readPdfPages, type PdfPageContent } from './pdf-paths'
 import { symbolScaleOf } from './symbol-scale'
@@ -21,8 +23,10 @@ export interface PdfMapPage {
   readonly descriptionBox: PaperRectangle | null
   // How much larger than ISOM's 1:15 000 sizes the symbols are printed.
   readonly symbolScale: number
-  // The print scale that ISOM's enlargement rule suggests; the user confirms it.
+  // The print scale: exact from the page's georeference, otherwise the one ISOM's enlargement
+  // rule suggests, for the user to confirm.
   readonly suggestedPrintScale: number
+  readonly geoReference: GeoReference | null
   readonly paperFeatures: readonly PaperFeature[]
   // Paths that belong to the course and its description box, left out of the map.
   readonly coursePaths: ReadonlySet<number>
@@ -38,10 +42,16 @@ const CONTOUR_WIDTH_MM = MAP_APPEARANCES.flatMap(({ code, appearance }) =>
   code === '101' && appearance.draw === 'line' ? [appearance.widthMm] : [],
 )[0]!
 const SYMBOL_NUMBER_PER_CODE = 1000
+const PAPER_UNITS_PER_METRE = 100 * 1000
+// A georeferenced page's scale is exact; it is rounded to a usual scale when that close to one.
+const SAME_SCALE_SHARE = 0.005
 
 export async function readPdfMap(bytes: Uint8Array): Promise<PdfMapPage[]> {
   const pages = await readPdfPages(bytes)
-  return pages.flatMap(page => {
+  const geoReferences = await readGeoReferences(bytes).catch(() => [])
+  return pages.flatMap((page, index) => {
+    const geoReference = geoReferences[index] ?? null
+    const geoScale = geoReference && geoReference.metresPerPaperUnit * PAPER_UNITS_PER_METRE
     const course = detectPdfCourse(page)
     const symbolScale = symbolScaleOf(page, course, CONTOUR_WIDTH_MM)
     if (symbolScale === null) return []
@@ -58,7 +68,10 @@ export async function readPdfMap(bytes: Uint8Array): Promise<PdfMapPage[]> {
         course,
         descriptionBox,
         symbolScale,
-        suggestedPrintScale: nearestUsualScale(ISOM_BASE_SCALE / symbolScale),
+        suggestedPrintScale: geoScale
+          ? roundedScale(geoScale)
+          : nearestUsualScale(ISOM_BASE_SCALE / symbolScale),
+        geoReference,
         paperFeatures,
         coursePaths: excluded,
         info: printScale => {
@@ -66,7 +79,14 @@ export async function readPdfMap(bytes: Uint8Array): Promise<PdfMapPage[]> {
           return {
             scale: printScale,
             extent: localExtent(0, 0, corner[0], corner[1]),
-            georef: null,
+            georef:
+              geoReference && geoScale && Math.abs(printScale / geoScale - 1) <= SAME_SCALE_SHARE
+                ? {
+                    epsg: geoReference.epsg,
+                    originInProjected: projectedPoint(...geoReference.origin),
+                    grivationRadians: -geoReference.rotationRadians,
+                  }
+                : null,
           }
         },
         features: printScale =>
@@ -93,6 +113,11 @@ function localGeometry(
     case 'Polygon':
       return { type: 'Polygon', coordinates: geometry.coordinates.map(ring => ring.map(toLocal)) }
   }
+}
+
+function roundedScale(scale: number): number {
+  const usual = nearestUsualScale(scale)
+  return Math.abs(scale / usual - 1) <= SAME_SCALE_SHARE ? usual : Math.round(scale)
 }
 
 const nearestUsualScale = (scale: number) =>

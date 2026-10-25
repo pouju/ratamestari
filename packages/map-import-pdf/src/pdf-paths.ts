@@ -104,7 +104,8 @@ export function setPdfWorkerUrl(url: string) {
 
 export async function readPdfPages(bytes: Uint8Array): Promise<PdfPageContent[]> {
   const loading = getDocument({
-    data: bytes,
+    // pdf.js hands the data to its worker, which leaves the caller's array empty.
+    data: bytes.slice(),
     verbosity: VerbosityLevel.ERRORS,
   })
   const document = await loading.promise

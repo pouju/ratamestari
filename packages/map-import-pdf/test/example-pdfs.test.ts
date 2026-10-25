@@ -2,7 +2,10 @@ import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import {
   localPoint,
+  localToProjected,
   paperPoint,
+  paperToLocal,
+  projectedToGeographic,
   type LocalPoint,
   type MapFeature,
   type PaperPoint,
@@ -36,6 +39,7 @@ const examples = [
   },
 ]
 const MAX_COURSE_ERROR_METRES = 3
+const METRES_PER_DEGREE_LATITUDE = 111_320
 const MIN_FEATURE_PRECISION = 0.9
 const MIN_FEATURE_RECALL = 0.85
 const MILLIMETRES_PER_PAPER_UNIT = 0.01
@@ -63,6 +67,28 @@ describe.each(examples)('$pdf ($producer)', example => {
       const errorMetres =
         (courseFit(pages[index]!, data, expected.course).rms * data.mapScale!) / 1000
       expect(errorMetres).toBeLessThan(MAX_COURSE_ERROR_METRES)
+    })
+  })
+
+  it.skipIf(!available)('is georeferenced so the course lies where the XML says', async () => {
+    const { pages, data } = await read()
+    example.pages.forEach((expected, index) => {
+      if (expected === null) return
+      const page = pages[index]!
+      const georef = page.info(page.suggestedPrintScale).georef!
+      const course = page.course!
+      const ids = data.courses.find(candidate => candidate.name === expected.course)!.controlIds
+      ;[course.start!, ...course.controls, course.finish!].forEach((stop, i) => {
+        const local = paperToLocal(stop, page.suggestedPrintScale)
+        const place = projectedToGeographic(localToProjected(local, georef), georef.epsg)!
+        const [longitude, latitude] = data.controls.get(ids[i]!)!.longitudeLatitude!
+        const northMetres = (place.latitudeDegrees - latitude) * METRES_PER_DEGREE_LATITUDE
+        const eastMetres =
+          (place.longitudeDegrees - longitude) *
+          METRES_PER_DEGREE_LATITUDE *
+          Math.cos((latitude * Math.PI) / 180)
+        expect(Math.hypot(northMetres, eastMetres)).toBeLessThan(MAX_COURSE_ERROR_METRES)
+      })
     })
   })
 

@@ -12,11 +12,11 @@
     "@ratamestari/core": "workspace:*",
     "@ratamestari/course-detect": "workspace:*",
     "@ratamestari/rules": "workspace:*",
+    "pdf-lib": "^1.17.1",
     "pdfjs-dist": "6.4.299"
   },
   "devDependencies": {
     "@ratamestari/iof": "workspace:*",
-    "@ratamestari/map-import-ocad": "workspace:*",
-    "pdf-lib": "^1.17.1"
+    "@ratamestari/map-import-ocad": "workspace:*"
   }
 }
