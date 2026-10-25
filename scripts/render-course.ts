@@ -2,7 +2,7 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
 import { Resvg } from '@resvg/resvg-js'
-import { DOMImplementation, XMLSerializer } from 'xmldom'
+import { XMLSerializer } from 'xmldom'
 import { localPoint, type LocalPoint } from '@ratamestari/core'
 import {
   buildTerrain,
@@ -25,6 +25,7 @@ import {
 import { courseDataXml, describeControl, descriptionSheet, descriptionText } from '@ratamestari/iof'
 import { loadOcadMap } from '@ratamestari/map-import-ocad'
 import { printPageSvg } from '@ratamestari/print'
+import { svgDocument } from './svg-document'
 import { svgToPdf } from './svg-to-pdf'
 import {
   courseRequestSchema,
@@ -210,8 +211,7 @@ function printLegs(c: Course) {
 }
 
 function printPage(c: Course, withoutCourse = false): string {
-  const doc = new DOMImplementation().createDocument(null, 'svg', null) as unknown as Document
-  serializeElementIds(doc)
+  const doc = svgDocument()
   const mapSvg = new XMLSerializer().serializeToString(
     map.renderSvg(doc, i => !peripheral.marginObjectIndices.has(i)) as unknown as Node,
   )
@@ -237,21 +237,6 @@ function printPage(c: Course, withoutCourse = false): string {
   })
   if (!page) throw new Error('The course has no print area')
   return page.svg
-}
-
-// ocad2geojson sets pattern ids as a DOM property, which xmldom does not serialise, so the
-// hatched and structured areas would lose their fill.
-function serializeElementIds(doc: Document) {
-  const elementPrototype = Object.getPrototypeOf(doc.createElement('g')) as object
-  if (Object.getOwnPropertyDescriptor(elementPrototype, 'id')) return
-  Object.defineProperty(elementPrototype, 'id', {
-    get(this: Element) {
-      return this.getAttribute('id') ?? ''
-    },
-    set(this: Element, id: string) {
-      this.setAttribute('id', id)
-    },
-  })
 }
 
 function renderPng(c: Course): Buffer {

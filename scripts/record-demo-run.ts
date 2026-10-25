@@ -3,7 +3,8 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { parseArgs } from 'node:util'
 import { Resvg } from '@resvg/resvg-js'
-import { DOMImplementation, XMLSerializer } from 'xmldom'
+import { svgDocument } from './svg-document'
+import { XMLSerializer } from 'xmldom'
 import type { LocalPoint } from '@ratamestari/core'
 import {
   buildTerrain,
@@ -208,7 +209,7 @@ execFileSync(
   { stdio: 'ignore' },
 )
 
-const document = new DOMImplementation().createDocument(null, 'svg', null) as unknown as Document
+const document = svgDocument()
 const svgOf = (includesObject: (objectIndex: number) => boolean) =>
   new XMLSerializer().serializeToString(map.renderSvg(document, includesObject) as unknown as Node)
 const pageInput = {
