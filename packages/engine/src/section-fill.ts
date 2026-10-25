@@ -32,6 +32,8 @@ export interface SectionRequest {
   readonly usedSites: ReadonlySet<number>
   // The stop after the exit (the end of the next connecting leg), for the angle at the exit.
   readonly afterExit: LocalPoint | null
+  // The stop before the entry, when it is already set, for the angle at the entry.
+  readonly beforeEntry?: LocalPoint | null
   // A smaller search, for rebuilding a few controls: at most this many controls.
   readonly rebuildingControls?: number
 }
@@ -127,11 +129,8 @@ export function fillSection(
     const stops = stopsOf(path)
     const from = stops[stops.length - 1]!
     if (!context.isAllowedCourseLine(from, to)) return false
-    if (
-      stops.length >= 2 &&
-      angleAt(stops[stops.length - 2]!, from, to) < ACUTE_ANGLE.noteBelowDegrees
-    )
-      return false
+    const before = stops.length >= 2 ? stops[stops.length - 2]! : request.beforeEntry
+    if (before && angleAt(before, from, to) < ACUTE_ANGLE.noteBelowDegrees) return false
     const near = [...request.fixedStops, ...stops, to]
     const legs = [
       ...request.fixedLegs,

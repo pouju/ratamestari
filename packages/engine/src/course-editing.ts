@@ -1,6 +1,10 @@
 import { localPoint, type LocalPoint } from '@ratamestari/core'
 import { REFERENCE_PACE_SECONDS_PER_KM } from '@ratamestari/rules'
-import type { ControlSiteCandidate, TechnicalDifficulty } from './control-sites'
+import {
+  FEATURELESS_SITE_ID,
+  type ControlSiteCandidate,
+  type TechnicalDifficulty,
+} from './control-sites'
 import {
   assembleCourse,
   evaluationFor,
@@ -107,8 +111,6 @@ export function recheckCourse(
     findings: [...checked.findings, ...findings],
   }
 }
-
-const FEATURELESS_SITE_ID = -1
 
 export const isFeatureless = (site: ControlSiteCandidate) => site.isomCode === ''
 

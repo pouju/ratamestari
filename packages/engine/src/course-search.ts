@@ -54,6 +54,14 @@ import {
   fillSection,
   FINISH_OUTER_CIRCLE_FOOTPRINT_RADIUS_METERS,
 } from './section-fill'
+import {
+  fillAroundLocks,
+  hasLocks,
+  keepsLocks,
+  withLockedSites,
+  type CourseLocks,
+  type LockedStops,
+} from './locks'
 import { planSkeleton, planSkeletonSteps, type Skeleton } from './skeleton'
 import { siteAreaQualityOf, type SiteQualityOf } from './site-quality'
 import { distanceToSegment, isInsidePolygon, segmentsCross } from './polyline'
@@ -77,6 +85,7 @@ export interface CourseSpec {
   readonly peripheralSize?: PaperBoxSize | null
   // The user's wish for the start, as straight-line metres from the finish.
   readonly startDistanceFromFinishMeters?: readonly [number, number] | null
+  readonly locks?: CourseLocks | null
 }
 
 export interface Finding {
@@ -164,6 +173,8 @@ const DOGLEG_WORTH = 60
 const MAX_KEY_LEGS = 4
 const LONG_MIN_AREA_QUALITY = 0.3
 const MAX_DRAFTS = 3
+// Filling around kept controls is cheap next to planning a skeleton.
+const MAX_LOCKED_DRAFTS = 8
 const IMPROVEMENT_STEPS_PER_PROGRESS = 25
 const ANNEALING = { startTemperature: 5, endTemperature: 0.05, rebuildShare: 0.5 }
 const WINDOW_CONTROLS: readonly [number, number] = [3, 6]
@@ -216,43 +227,77 @@ export function* searchCourseSteps(
   const { grid } = terrain
   const { finish, targetSeconds, qualityOf, secondsToFinish, reachable } = prepared
   const pace = prepared.paceSecondsPerKm
-  const pool = plannerPool(prepared)
+  const withLocks = hasLocks(spec.locks) ? withLockedSites(plannerPool(prepared), spec.locks) : null
+  const pool = withLocks?.pool ?? plannerPool(prepared)
+  const locked = withLocks?.locked ?? null
   if (pool.length === 0) return null
   const planning = planningContextFor(terrain, spec, prepared, pool)
   const { evaluation } = planning
   const context: CourseContext = { terrain, spec, pool, finish, targetSeconds, evaluation }
-  const areas = findTechnicalAreas(
-    pool,
-    planning.quality,
-    TECHNICAL_AREAS[spec.format],
-    grid,
-    planning.paceSecondsPerKm,
-  )
-  const usable = mappedAreaWithin(terrain, spec.printArea?.extent ?? null)
-  const planningSkeletons = planSkeletonSteps(planning, areas, usable, random)
-  let skeletons: readonly Skeleton[] = []
-  for (let step = planningSkeletons.next(stopped); ; step = planningSkeletons.next(stopped)) {
-    if (step.done) {
-      skeletons = step.value
-      break
-    }
-    stopped = Boolean(yield step.value) || stopped
-  }
   let startIndex = NO_SITE
   let order: readonly number[] = []
   let best: ScoredCourse | null = null
   let anchors: ReadonlySet<number> = new Set()
-  const drafts = skeletons.slice(0, stopped ? 1 : MAX_DRAFTS)
-  for (const [k, skeleton] of drafts.entries()) {
-    stopped = Boolean(yield { phase: 'sections', done: k, total: drafts.length }) || stopped
-    if (stopped && best) break
-    const draft = fillSkeleton(planning, skeleton, areas, random)
-    const scored = evaluation.score(skeleton.start, draft)
-    if (!best || scored.score < best.score) {
-      best = scored
-      startIndex = skeleton.start
-      order = draft
-      anchors = new Set(skeleton.connectingLegs.flatMap(leg => [leg.from, leg.to]))
+  if (locked) {
+    // Kept controls replace the plan: the stretches between them are filled instead (D15).
+    anchors = new Set(locked.controls)
+    const drafts = stopped ? 1 : MAX_LOCKED_DRAFTS
+    for (let k = 0; k < drafts; k++) {
+      stopped = Boolean(yield { phase: 'sections', done: k, total: drafts }) || stopped
+      if (stopped && best) break
+      const start =
+        locked.start ??
+        planning.pickStart(
+          locked.controls.slice(0, 1).map(i => pool[i]!.position),
+          i => anchors.has(i),
+          random,
+        )
+      const scored = evaluation.score(
+        start,
+        fillAroundLocks(
+          planning,
+          locked,
+          start,
+          FINAL_LEG_MAX_SHARE_OF_TARGET * targetSeconds,
+          random,
+        ),
+      )
+      if (!best || scored.score < best.score) {
+        best = scored
+        startIndex = start
+        order = scored.order
+      }
+    }
+  } else {
+    const areas = findTechnicalAreas(
+      pool,
+      planning.quality,
+      TECHNICAL_AREAS[spec.format],
+      grid,
+      planning.paceSecondsPerKm,
+    )
+    const usable = mappedAreaWithin(terrain, spec.printArea?.extent ?? null)
+    const planningSkeletons = planSkeletonSteps(planning, areas, usable, random)
+    let skeletons: readonly Skeleton[] = []
+    for (let step = planningSkeletons.next(stopped); ; step = planningSkeletons.next(stopped)) {
+      if (step.done) {
+        skeletons = step.value
+        break
+      }
+      stopped = Boolean(yield step.value) || stopped
+    }
+    const drafts = skeletons.slice(0, stopped ? 1 : MAX_DRAFTS)
+    for (const [k, skeleton] of drafts.entries()) {
+      stopped = Boolean(yield { phase: 'sections', done: k, total: drafts.length }) || stopped
+      if (stopped && best) break
+      const draft = fillSkeleton(planning, skeleton, areas, random)
+      const scored = evaluation.score(skeleton.start, draft)
+      if (!best || scored.score < best.score) {
+        best = scored
+        startIndex = skeleton.start
+        order = draft
+        anchors = new Set(skeleton.connectingLegs.flatMap(leg => [leg.from, leg.to]))
+      }
     }
   }
   if (!best) return null
@@ -281,8 +326,10 @@ export function* searchCourseSteps(
           current,
           finish,
           random,
+          anchors,
         )
     if (!candidate || [...anchors].some(anchor => !candidate.includes(anchor))) continue
+    if (locked && !keepsLocks(locked, candidate)) continue
     const scored = evaluation.score(startIndex, candidate)
     if (!rebuilds && addsLineProblems(current.problems, scored.problems)) continue
     const temperature = startTemperature * (endTemperature / startTemperature) ** (step / steps)
@@ -292,11 +339,15 @@ export function* searchCourseSteps(
   }
   order = best.order
   if (!stopped) yield { phase: 'checking', done: 0, total: 1 }
-  const cleared = repairHardRules(startIndex, best, pool, evaluation)
-  const repaired = repairDoglegs(startIndex, cleared, pool, finish, grid, pace, evaluation)
+  const kept = keptSites(locked)
+  const cleared = repairHardRules(startIndex, best, pool, evaluation, kept)
+  const repaired = repairDoglegs(startIndex, cleared, pool, finish, grid, pace, evaluation, kept)
   if (repaired !== best.order) best = evaluation.score(startIndex, repaired)
   return assembleCourse(context, startIndex, best.order, true)
 }
+
+const keptSites = (locked: LockedStops | null): ReadonlySet<number> =>
+  new Set(locked ? [...locked.controls, ...(locked.start === null ? [] : [locked.start])] : [])
 
 // Sites in usable terrain, plus any site near the finish for the run-in: weak terrain far from
 // the finish never holds a control, but connecting legs may cross it.
@@ -989,6 +1040,7 @@ function proposeChange(
   current: ScoredCourse,
   finish: LocalPoint,
   random: Random,
+  anchors: ReadonlySet<number>,
 ): number[] | null {
   if (order.length === 0) {
     const fromStart = timesFrom(startIndex)
@@ -1014,14 +1066,16 @@ function proposeChange(
 
   if (current.problems.finalLegTooLong && random.next() < BRING_LAST_CONTROL_HOME_CHANCE) {
     const last = order.length - 1
-    const beforeLast = last === 0 ? startIndex : order[last - 1]!
+    // A kept or anchored last control stays, and a control near the finish follows it.
+    const keepsLast = anchors.has(order[last]!)
+    const beforeLast = keepsLast ? order[last]! : last === 0 ? startIndex : order[last - 1]!
     const fromBeforeLast = timesFrom(beforeLast)
     const finalLegMax = FINAL_LEG_MAX_SHARE_OF_TARGET * current.targetSeconds
     const nearFinish = pool.flatMap((_, i) =>
       !used.has(i) && toFinish[i]! <= finalLegMax && Number.isFinite(fromBeforeLast[i]!) ? [i] : [],
     )
     const home = random.pick(nearFinish)
-    if (home !== undefined) return [...order.slice(0, last), home]
+    if (home !== undefined) return [...order.slice(0, keepsLast ? last + 1 : last), home]
   }
 
   if (order.length >= 2 && random.next() < REVERSE_SECTION_CHANCE) {
@@ -1206,6 +1260,7 @@ function repairHardRules(
   scored: ScoredCourse,
   pool: readonly ControlSiteCandidate[],
   evaluation: ReturnType<typeof createEvaluation>,
+  kept: ReadonlySet<number>,
 ): readonly number[] {
   let current = scored
   const involved = new Set(
@@ -1216,6 +1271,7 @@ function repairHardRules(
   )
   for (const stop of involved) {
     const position = stop - 1
+    if (kept.has(current.order[position]!)) continue
     const here = pool[current.order[position]!]!.position
     const used = new Set([startIndex, ...current.order])
     pool.forEach((site, i) => {
@@ -1239,6 +1295,7 @@ function repairDoglegs(
   grid: CostGrid,
   paceSecondsPerKm: number,
   evaluation: ReturnType<typeof createEvaluation>,
+  kept: ReadonlySet<number>,
 ): readonly number[] {
   const routes = new Map<string, readonly LocalPoint[]>()
   const routeBetween = (from: LocalPoint, to: LocalPoint): readonly LocalPoint[] => {
@@ -1255,6 +1312,7 @@ function repairDoglegs(
 
   let current = order
   for (let position = 0; position < current.length; position++) {
+    if (kept.has(current[position]!)) continue
     const positionOf = (sequence: readonly number[], k: number) =>
       k < 0
         ? pool[startIndex]!.position

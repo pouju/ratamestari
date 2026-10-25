@@ -1,6 +1,7 @@
 import type { LocalPoint } from '@ratamestari/core'
 import { DESCRIPTION_BOX, PAPER, type PaperSize } from '@ratamestari/rules'
 import type { ControlSiteCandidate } from './control-sites'
+import { hasLocks } from './locks'
 import {
   expectedControlCount,
   runSearch,
@@ -57,6 +58,11 @@ export function* setCourseOnPaperSteps(
 ): Search {
   if (spec.printFrame) return yield* setCourseInFrameSteps(terrain, sites, spec, spec.printFrame)
   const papers = papersFor(paper)
+  // Kept controls were on this paper; a newly planned print area might leave them off it.
+  if (hasLocks(spec.locks) && spec.printArea) {
+    const course = yield* searchCourseSteps(terrain, sites, spec)
+    return course && fitCourseToPaper(terrain, course, papers, spec.printScale, spec.peripheralSize)
+  }
   const state = { stopped: false }
   const attempt = function* (size: PaperSize, showsProgress: boolean): Search {
     const printArea = planPrintArea(terrain, sites, {

@@ -35,6 +35,9 @@ export type SiteOrientation =
 
 export type Offset = readonly [dx: number, dy: number]
 
+// A control placed by hand where the map has no feature to describe; all such sites share it.
+export const FEATURELESS_SITE_ID = -1
+
 export interface ControlSiteCandidate {
   readonly id: number
   readonly position: LocalPoint

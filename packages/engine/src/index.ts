@@ -9,6 +9,7 @@ export {
 } from './contours'
 export { evaluateLeg, type LegEvaluation } from './leg'
 export { simplify } from './polyline'
+export { hasLocks, isSameSite, type CourseLocks } from './locks'
 export { buildTerrain, type Terrain, type TerrainOptions } from './terrain'
 export {
   descriptionFeatureOf,

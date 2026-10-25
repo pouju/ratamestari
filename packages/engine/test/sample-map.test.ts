@@ -5,7 +5,8 @@ import { loadOcadMap } from '@ratamestari/map-ocad'
 import { courseTargetFor } from '@ratamestari/rules'
 import { routableCellOf } from '../src/cost-grid'
 import { findControlSites, type ControlSiteCandidate } from '../src/control-sites'
-import { searchCourse } from '../src/course-search'
+import { searchCourse, type CourseSpec } from '../src/course-search'
+import { isSameSite } from '../src/locks'
 import { findPeripheralInformation, isInPeripheralBlock } from '../src/peripheral'
 import { cellCenterOf } from '../src/raster'
 import { buildTerrain, type Terrain } from '../src/terrain'
@@ -56,5 +57,40 @@ describe('engine on the committed sample map', { timeout: SETUP_TIMEOUT_MS }, ()
       const startSeconds = toFinish[routableCellOf(terrain.grid, course.start.position)!]!
       expect(startSeconds).toBeLessThanOrEqual(0.2 * course.targetSeconds)
     }
+  })
+
+  it('keeps the kept controls and legs when the course is set again', () => {
+    const mapped = [...terrain.mappedArea.keys()].filter(i => terrain.mappedArea[i])
+    const spec: CourseSpec = {
+      target: courseTargetFor({
+        eventLevel: 'national',
+        format: 'middle',
+        sex: 'D',
+        ageClass: 14,
+        skillLetter: 'A',
+      })!,
+      format: 'middle',
+      printScale: 10000,
+      competitionCentre: cellCenterOf(terrain.grid, mapped[Math.floor(mapped.length / 2)]!),
+      seed: 1,
+      paceSecondsPerKm: PACE_SECONDS_PER_KM,
+      improvementSteps: 50,
+    }
+    const first = searchCourse(terrain, sites, spec)!
+    const kept = [1, 4, 5].map(i => first.controls[i]!)
+    const again = searchCourse(terrain, sites, {
+      ...spec,
+      seed: 2,
+      locks: {
+        start: null,
+        controls: kept,
+        keptLegs: [false, false, true, false],
+      },
+    })!
+    const positions = kept.map(site => again.controls.findIndex(other => isSameSite(other, site)))
+    expect(positions.every(position => position >= 0)).toBe(true)
+    expect(positions[1]!).toBeGreaterThan(positions[0]!)
+    expect(positions[2]).toBe(positions[1]! + 1)
+    expect(again.controls.map(site => site.id)).not.toEqual(first.controls.map(site => site.id))
   })
 })
