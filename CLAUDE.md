@@ -34,7 +34,7 @@ Full decision log with reasoning and rejected alternatives: [`docs/decisions.md`
 - **UI text** (D14): no user-facing string inline. Messages live in typed catalogues in `apps/web/src/i18n/` (`en.ts` is the source; other languages must satisfy its type), read with `useMessages()`. Numbers, units and plurals go through `Intl`. Engine and rules output stays language-free.
 - **Design tokens** (D14): colours, type and spacing are CSS custom properties in one file in `apps/web`; see `docs/site-ux-plan.md` › Visual language. Don't hard-code colours or font sizes in components.
 - **Tests** live in each package's `test/` folder (`packages/core/test/map.test.ts`), not next to the source.
-- **Anonymous test data:** no test names a real map, place, club or event, not even ones read from a file. Club maps and their files in `maps/` are named `map-a.ocd`, `map-a.Courses.xml`, `map-b-forked.pdf`, …
+- **Anonymous test data:** no test or doc names a real map, place, club or event, not even ones read from a file; only the sample map's required copyright credit does. Club maps and their files in `maps/` are named `map-a.ocd`, `map-a.Courses.xml`, `map-b-forked.pdf`, …
 - **Formatting:** Prettier, no semicolons, single quotes, 100 columns (`.prettierrc.json`).
 - **Rule digests** (`docs/rules/*.md`): written in English from the PDFs in `docs/sources` (git-ignored; see its README), never from memory. Every statement cites document + section (`ISOM 2017-2 sym. 406`, `Lajisäännöt 2026 §11.25`). Our own readings are marked **Interpretation:**. Read the relevant digest before working on rules, the cost map or control sites.
 - **Course engine**: a browser-independent TypeScript package (so it can later run in Node), behind three interfaces:
