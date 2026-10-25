@@ -13,7 +13,7 @@ import {
   type FlagSideLocation,
 } from '@ratamestari/rules'
 import { BLOCKED, type CostGrid } from './cost-grid'
-import { polylineLength } from './polyline'
+import { distanceToSegment, polylineLength } from './polyline'
 import { cellIndexOf, chamferDistance, fillPolygon, traceLine, type GridFrame } from './raster'
 import { LEFT_IS_UPHILL, RIGHT_IS_UPHILL, type ContourLine } from './relief'
 import type { Terrain } from './terrain'
@@ -81,8 +81,15 @@ function flagSideOf(site: DescribedSite): FlagSideLocation | null {
 }
 
 const MERGE_DISTANCE_METERS = 10
+// IOF CD 12.4, 12.5: a corner is where the edge of a feature turns through 45-135°.
 const CORNER_MIN_TURN_DEGREES = 45
+const CORNER_MAX_TURN_DEGREES = 135
 const CORNER_MEASURING_DISTANCE_METERS = 10
+// A control corner must be clear on the ground, like the corner of a clear-cut or a field:
+// straight edges on both sides, not a rounded blob or a wiggly edge (RMK 1.2.5).
+const CLEAR_CORNER_ARM_METERS = 25
+const CLEAR_CORNER_ARM_DEVIATION_METERS = 3
+const MAN_MADE_ISOM_PREFIX = '5'
 const CORNER_SIDE_SAMPLE_METERS = 6
 const SMALL_AREA_MAX_SQUARE_METERS = 2500
 const SLOPE_TICK_MAX_DISTANCE_FROM_LINE_METERS = 3
@@ -298,8 +305,11 @@ function* rawSites(
   for (const { feature, controlSite } of withRule) {
     const { geometry } = feature
     if (controlSite !== 'edge' || geometry.type !== 'Polygon') continue
+    // Man-made features (ISOM 5xx) have hard edges, so even a small building's corners are clear.
+    const hasSoftEdges = !feature.isomCode!.startsWith(MAN_MADE_ISOM_PREFIX)
     for (const ring of geometry.coordinates) {
-      for (const corner of corners(ring)) {
+      if (hasSoftEdges && Math.abs(signedArea(ring)) <= SMALL_AREA_MAX_SQUARE_METERS) continue
+      for (const corner of corners(ring, hasSoftEdges)) {
         if (isVisibleCorner(corner, geometry.coordinates, feature.isomCode!, visibleArea)) {
           const orientation = cornerOrientation(corner, geometry.coordinates)
           yield site(corner.position, feature, 'areaCorner', null, orientation)
@@ -570,7 +580,7 @@ interface Corner {
   readonly after: LocalPoint
 }
 
-function corners(ring: readonly LocalPoint[]): Corner[] {
+function corners(ring: readonly LocalPoint[], mustBeClear: boolean): Corner[] {
   const closed = isClosed(ring) ? ring.slice(0, -1) : ring
   const n = closed.length
   if (n < 3) return []
@@ -585,11 +595,39 @@ function corners(ring: readonly LocalPoint[]): Corner[] {
     }
     return closed[i]!
   }
+  // The ring's points within `length` of vertex i, walking one way; null if the ring is shorter.
+  const arm = (from: number, step: 1 | -1, length: number): LocalPoint[] | null => {
+    const points = [closed[from]!]
+    let travelled = 0
+    let i = from
+    for (let k = 0; k < n - 1 && travelled < length; k++) {
+      const next = (i + step + n) % n
+      travelled += distanceBetween(closed[i]!, closed[next]!)
+      i = next
+      points.push(closed[i]!)
+    }
+    return travelled >= length ? points : null
+  }
+  const isStraight = (points: readonly LocalPoint[]) =>
+    points.every(
+      point =>
+        distanceToSegment(point, points[0]!, points[points.length - 1]!) <=
+        CLEAR_CORNER_ARM_DEVIATION_METERS,
+    )
+  const isCornerTurn = (turn: number) =>
+    turn >= CORNER_MIN_TURN_DEGREES && turn <= CORNER_MAX_TURN_DEGREES
   return closed.flatMap((position, i) => {
     const before = pointAtDistance(i, -1)
     const after = pointAtDistance(i, 1)
-    const turn = Math.abs(signedTurnDegrees(before, position, after))
-    return turn >= CORNER_MIN_TURN_DEGREES ? [{ position, before, after }] : []
+    if (!isCornerTurn(Math.abs(signedTurnDegrees(before, position, after)))) return []
+    if (!mustBeClear) return [{ position, before, after }]
+    const back = arm(i, -1, CLEAR_CORNER_ARM_METERS)
+    const ahead = arm(i, 1, CLEAR_CORNER_ARM_METERS)
+    if (!back || !ahead || !isStraight(back) || !isStraight(ahead)) return []
+    const turn = Math.abs(
+      signedTurnDegrees(back[back.length - 1]!, position, ahead[ahead.length - 1]!),
+    )
+    return isCornerTurn(turn) ? [{ position, before, after }] : []
   })
 }
 

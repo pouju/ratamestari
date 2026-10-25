@@ -86,6 +86,19 @@ describe('findControlSites', () => {
     expect(sitesOf([feature('401', polygon(...circle))])).toEqual([])
   })
 
+  it('takes only clear corners of vegetation: straight edges, a real turn, a large enough area', () => {
+    const clearCut = feature('406', rectangle(200, 200, 400, 300))
+    expect(sitesOf([clearCut]).filter(s => s.placement === 'areaCorner')).toHaveLength(4)
+    // A small patch and a rounded blob of thicket: no corner anyone can find.
+    const patch = feature('406', rectangle(600, 600, 640, 640))
+    const ellipse = Array.from({ length: 25 }, (_, k): [number, number] => {
+      const angle = (k / 24) * 2 * Math.PI
+      return [700 + 60 * Math.cos(angle), 300 + 40 * Math.sin(angle)]
+    })
+    const blob = feature('406', polygon(...ellipse))
+    expect(sitesOf([patch, blob]).filter(s => s.placement === 'areaCorner')).toEqual([])
+  })
+
   it('places sites at building corners even though buildings block movement', () => {
     expect(sitesOf([feature('521', rectangle(300, 300, 320, 330))])).toHaveLength(4)
   })
