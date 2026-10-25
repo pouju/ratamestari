@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.2.0](https://github.com/pouju/ratamestari/compare/v0.1.0...v0.2.0) (2026-10-25)
+
+
+### Features
+
+* **agent:** edit the course from the chat and suggest changes ([12f5a81](https://github.com/pouju/ratamestari/commit/12f5a8197941519c84cb57dc844d5f6b1f98c03b))
+* **agent:** run the assistant on Claude Haiku 5.5 ([e9e39f4](https://github.com/pouju/ratamestari/commit/e9e39f4f527a8c988a3bcc9f29ae044ec26c5f97))
+* **agent:** undo course changes from the chat ([99bc42b](https://github.com/pouju/ratamestari/commit/99bc42ba9018132a81fa4343943ecf0d7c1f09f9))
+* **engine:** charge climb in routing so routes can go around hills ([7402c07](https://github.com/pouju/ratamestari/commit/7402c070cb4aef90db1a10f728ea078e30c1d940))
+* **engine:** find the technical areas of a map ([7150828](https://github.com/pouju/ratamestari/commit/71508289110cec3c40bfefd1a80d73025afcc309))
+* **engine:** improve courses by annealing and rebuilding windows ([a16dc72](https://github.com/pouju/ratamestari/commit/a16dc72897b47c2de764bfc71ddd5317a82ea7ac))
+* **engine:** penalise crowded controls and keep the best of all drafts ([6d459d4](https://github.com/pouju/ratamestari/commit/6d459d448be73e1cef14c1bfbd0b366e84dffc57))
+* **engine:** place control numbers clear of the course and cut the overprint ([d6bbe7f](https://github.com/pouju/ratamestari/commit/d6bbe7fa8bae85ae1e333b8afb43ebd95bf98048))
+* **engine:** place controls by hand on any course ([e482cf3](https://github.com/pouju/ratamestari/commit/e482cf30aa5c4ca66b2bd2210444ed6f03d41968))
+* **engine:** plan a course skeleton from the technical areas ([7837ce5](https://github.com/pouju/ratamestari/commit/7837ce57bdcf6ea453de5ba7ba7fc1afdd4031c1))
+* **engine:** remove, insert and move controls, move the start, suggest changes ([b1070a0](https://github.com/pouju/ratamestari/commit/b1070a08cbb2cccfbc49ab38e89cbeab636c94f2))
+* **engine:** report the search's phases instead of intermediate courses ([92d2054](https://github.com/pouju/ratamestari/commit/92d20540ac6c13fa169f3565ad5e975d551b9b99))
+* **engine:** set courses section by section from the skeleton ([7f042c2](https://github.com/pouju/ratamestari/commit/7f042c25aeb4a16215b86f019579c1efbacad461))
+* **engine:** set the course inside a print frame the user placed ([20c53ef](https://github.com/pouju/ratamestari/commit/20c53efe767c2316da73d9fd8fa4bab34eb702e1))
+* **rules:** show alternative routes up to 15% slower than the fastest ([50e45cb](https://github.com/pouju/ratamestari/commit/50e45cbe687c8d089b8ba57f2e91d3d228f393b0))
+* **web:** add a link preview card for the Pages site ([5fd2dea](https://github.com/pouju/ratamestari/commit/5fd2dea6e645813e13b762aae17461ca1aaae6d3))
+* **web:** let the user choose and drag the print area ([d323225](https://github.com/pouju/ratamestari/commit/d3232255cced783d8e1afce93e29b44d2a18936d))
+* **web:** reveal only the finished course, control by control ([5b35fec](https://github.com/pouju/ratamestari/commit/5b35fec7ab7c87bdde3d80a66f3d4a28fc4248f8))
+* **web:** set a course by hand on the map ([2f6daba](https://github.com/pouju/ratamestari/commit/2f6dabaa51f7c63a8089738142ca3c17f08a40f9))
+* **web:** show routes on all legs and preview routes when setting by hand ([e12edd6](https://github.com/pouju/ratamestari/commit/e12edd62f7ab64412e0f9ba6d6067fbdf70ffe3b))
+* **web:** show the course plan in the hero and update what works ([4b83e57](https://github.com/pouju/ratamestari/commit/4b83e572bc66e93f04e12b2bca6a1075156bdef9))
+
+
+### Bug fixes
+
+* **agent:** describe the current workspace to the assistant ([6f11a60](https://github.com/pouju/ratamestari/commit/6f11a60bbea542b0c1a71d3526efd6a557f36aaf))
+* **engine:** keep course lines out of the finish circle ([9314f27](https://github.com/pouju/ratamestari/commit/9314f27f4dfc6b169d76fe749880589e53e3ec01))
+* **engine:** keep every crowding circle within its limit when filling ([4eca106](https://github.com/pouju/ratamestari/commit/4eca106997790abd032ef8ae027becbba109f3f2))
+* **engine:** keep looking for alternative routes past the first miss ([5e1ec71](https://github.com/pouju/ratamestari/commit/5e1ec71f18394f7b1605ff82ae52effd8abd98ab))
+* **engine:** keep the middle-distance start near the finish ([f8f8970](https://github.com/pouju/ratamestari/commit/f8f8970713c5bfd6e68dc03b1e4e46293237777e))
+* **rules:** charge a metre of climb as 5 m of flat running ([922e6e9](https://github.com/pouju/ratamestari/commit/922e6e9bd4c86419ff7c59aef4d8630ca9141960))
+
 ## 0.1.0 (2026-10-24)
 
 
