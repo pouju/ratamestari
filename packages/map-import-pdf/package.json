@@ -1,0 +1,19 @@
+{
+  "name": "@ratamestari/map-import-pdf",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@ratamestari/core": "workspace:*",
+    "@ratamestari/rules": "workspace:*",
+    "pdfjs-dist": "6.4.299"
+  },
+  "devDependencies": {
+    "pdf-lib": "^1.17.1"
+  }
+}
