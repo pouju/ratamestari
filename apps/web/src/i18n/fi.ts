@@ -76,6 +76,10 @@ export const fi: Messages = {
     showLess: 'Näytä paneelia vähemmän',
     openMap: 'Avaa OCAD-kartta',
     openMapHint: 'Pudota .ocd-tiedosto mihin tahansa tähän ikkunaan tai valitse se.',
+    pdfWithoutMap: 'Tästä PDF:stä ei löytynyt karttaa.',
+    printedCourse: 'Kartalle painettu rata',
+    openMapHintWithPdf:
+      'Pudota .ocd-tiedosto tai kartan PDF mihin tahansa tähän ikkunaan tai valitse se.',
     dropToOpen: 'Pudota kartta avataksesi sen',
     chooseFile: 'Valitse karttatiedosto',
     opening: fileName => `Avataan ${fileName}…`,
@@ -133,6 +137,16 @@ export const fi: Messages = {
     backgroundMaps: 'Taustakartat',
     licence: 'Ratamestarin lisenssi on AGPL-3.0-or-later.',
     sourceCode: 'Lähdekoodi',
+    version: version => `Versio ${version}`,
+    experimental: 'Kokeelliset ominaisuudet',
+    experimentalIntro:
+      'Ominaisuuksia, joita vielä hiotaan. Niiden tulokset voivat olla vääriä, joten tarkista ne ennen kuin luotat niihin.',
+    experimentalPdf: 'Avaa kartta PDF:stä ja lue siihen painettu rata.',
+    experimentalOn: 'Kokeelliset ominaisuudet ovat päällä.',
+    experimentalOff: 'Kokeelliset ominaisuudet ovat pois päältä.',
+    turnOffExperimental: 'Poista kokeelliset ominaisuudet käytöstä',
+    printScale: 'PDF:n tulostusmittakaava',
+    printScaleHint: 'Arvioitu merkkien koosta. Muuta sitä, jos PDF:ssä lukee toisin.',
   },
   course: {
     centreLine: 'Kilpailukeskus',

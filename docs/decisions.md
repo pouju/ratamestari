@@ -676,3 +676,37 @@ Ratamestari also reads a map from a **PDF** or an **image** (a scan or a phone p
 ### Consequences
 
 - New actions worth counting go through `track` in `apps/web/src/analytics.ts`, whose event types say what each may carry.
+
+---
+
+## D24: Experimental features behind a hidden switch
+
+**Date:** 2026-10-25
+**Status:** Decided
+
+### Decision
+
+Features that need a long time of tuning in real use ship in the published app but stay hidden until switched on.
+
+- **On by default while developing** (`pnpm dev`), **off by default in the published app** (GitHub Pages).
+- Switched on or off by clicking the version number in Settings seven times within three seconds. A short notice says which way it went. While they are on, Settings shows an "Experimental features" section listing them, with a button to turn them off.
+- The choice is stored in the browser (`localStorage`), like the assistant key. Nothing is sent anywhere.
+- The switch is not advertised in the app, the landing page or the guides.
+- Code checks it with `useExperimentalFeatures()` (`apps/web/src/experimental.ts`). Large experimental code loads only when used (dynamic `import()`), so it costs nothing for users who never turn it on.
+- First feature: opening a map from a PDF and reading the course printed on it (D22).
+
+### Why
+
+- PDF import works on the two real exports we have but will meet many more producers and print settings. Users who find it by accident would judge the app by unfinished results.
+- Keeping it in the same build means testers use exactly what everyone gets, with no separate deployment.
+
+### Alternatives considered
+
+- **A separate preview deployment:** a second Pages site and build to keep in sync, for a single developer.
+- **A URL parameter:** shared links would turn it on for people who didn't ask for it.
+- **A visible "Labs" toggle:** advertises unfinished features.
+
+### Consequences
+
+- The source of experimental features is public anyway (AGPL, and it's in the bundle); the switch only keeps them out of the way.
+- When a feature is ready, its `useExperimentalFeatures()` checks go and it becomes a normal `feat`.

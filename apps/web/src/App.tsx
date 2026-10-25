@@ -27,8 +27,8 @@ import {
   formatOcadSymbolNumber,
   isomCodeForOcadSymbol,
   loadOcadMap,
-  type OcadMap,
 } from '@ratamestari/map-import-ocad'
+import type { PdfMapPage } from '@ratamestari/map-import-pdf'
 import { renderCostMap, type CostMapImage } from './cost-map-image'
 import { ChatPanel } from './ChatPanel'
 import { useAssistantKey } from './assistant-key'
@@ -42,6 +42,15 @@ import { createRouteQueue, SUPERSEDED } from './route-queue'
 import { descriptionBoxFor } from './description-box'
 import { downloadCourseXml } from './export-xml'
 import { savePrintPdf } from './print-pdf'
+import { useExperimentalFeatures } from './experimental'
+import {
+  isPdfFile,
+  pdfLoadedMap,
+  PDF_PRINT_SCALES,
+  printedCourseXml,
+  readPdfMapFile,
+  type LoadedMap,
+} from './pdf-map'
 import { SymbolPanel } from './SymbolPanel'
 import {
   loadCorrections,
@@ -107,7 +116,14 @@ type LoadState =
   | { status: 'empty' }
   | { status: 'loading'; fileName: string }
   | { status: 'error'; message: string }
-  | { status: 'ready'; fileName: string; map: OcadMap; image: MapImage; ms: number }
+  | {
+      status: 'ready'
+      fileName: string
+      map: LoadedMap
+      pdf: { page: PdfMapPage; printScale: number } | null
+      image: MapImage
+      ms: number
+    }
 
 type EngineState = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -186,6 +202,8 @@ export function App() {
   const [isSampleMap, setIsSampleMap] = useState(false)
   const [drawCourseKey, setDrawCourseKey] = useState(0)
   const [isSampleCoursePending, setIsSampleCoursePending] = useState(false)
+  const isExperimental = useExperimentalFeatures()
+  const [printedCourseFile, setPrintedCourseFile] = useState<File | null>(null)
   const hasAskedForSample = useRef(false)
   const [isPickingCentre, setIsPickingCentre] = useState(false)
   const [request, setRequest] = useState<CourseRequest>(DEFAULT_REQUEST)
@@ -284,22 +302,12 @@ export function App() {
   async function openFile(file: File, map: 'sample' | 'own' = 'own') {
     track('map-opened', { map })
     setIsSampleMap(false)
-    setCourseFile(null)
-    setSuggestion(null)
-    setState({ status: 'loading', fileName: file.name })
-    setEngineState('loading')
-    setCostMap(null)
-    setSites(null)
-    setCourse(null)
-    setSelectedLeg(null)
-    setPlannedLeg(null)
-    setCompetitionCentre(null)
-    setStartWish(null)
-    setPlacedFrame(null)
-    setIsPlacingFrame(false)
-    stopSettingByHand()
-    setUndoHistory([])
+    clearWorkspace(file.name)
     const bytes = new Uint8Array(await file.arrayBuffer())
+    if (isExperimental && isPdfFile(file)) {
+      await openPdfMap(file.name, bytes)
+      return
+    }
     const key = await mapKeyOf(bytes)
     const storedCorrections = loadCorrections(key)
     setMapKey(key)
@@ -312,11 +320,92 @@ export function App() {
       const t0 = performance.now()
       const map = await loadOcadMap(bytes)
       const image = await rasterizeSvg(map.renderSvg(document), map.info.extent)
-      setState({ status: 'ready', fileName: file.name, map, image, ms: performance.now() - t0 })
+      setState({
+        status: 'ready',
+        fileName: file.name,
+        map,
+        pdf: null,
+        image,
+        ms: performance.now() - t0,
+      })
     } catch (e) {
       setState({ status: 'error', message: errorMessage(e) })
     }
   }
+
+  function clearWorkspace(fileName: string) {
+    setCourseFile(null)
+    setPrintedCourseFile(null)
+    setSuggestion(null)
+    setState({ status: 'loading', fileName })
+    setEngineState('loading')
+    setCostMap(null)
+    setSites(null)
+    setCourse(null)
+    setSelectedLeg(null)
+    setPlannedLeg(null)
+    setCompetitionCentre(null)
+    setStartWish(null)
+    setPlacedFrame(null)
+    setIsPlacingFrame(false)
+    stopSettingByHand()
+    setUndoHistory([])
+  }
+
+  // Experimental (D22, D24): the map and the course printed on it, read from a PDF page.
+  async function openPdfMap(fileName: string, bytes: Uint8Array) {
+    setMapKey(null)
+    setCorrections(new Map())
+    try {
+      const t0 = performance.now()
+      const page = await readPdfMapFile(bytes)
+      if (!page) throw new Error(messages.workspace.pdfWithoutMap)
+      await showPdfPage(fileName, page, page.suggestedPrintScale, t0)
+    } catch (e) {
+      setEngineState('error')
+      setState({ status: 'error', message: errorMessage(e) })
+    }
+  }
+
+  async function showPdfPage(
+    fileName: string,
+    page: PdfMapPage,
+    printScale: number,
+    t0 = performance.now(),
+  ) {
+    const map = await pdfLoadedMap(page, printScale)
+    setEngineState('loading')
+    engine
+      .loadFeatures(page.features(printScale), map.info)
+      .then(() => setEngineState('ready'))
+      .catch(() => setEngineState('error'))
+    const image = await rasterizeSvg(map.renderSvg(document), map.info.extent)
+    setState({
+      status: 'ready',
+      fileName,
+      map,
+      pdf: { page, printScale },
+      image,
+      ms: performance.now() - t0,
+    })
+    const xml = printedCourseXml(page, printScale, {
+      eventName: fileName,
+      courseName: messages.workspace.printedCourse,
+    })
+    if (xml) setPrintedCourseFile(new File([xml], fileName.replace(/\.pdf$/i, '.xml')))
+  }
+
+  async function changePdfPrintScale(printScale: number) {
+    if (state.status !== 'ready' || !state.pdf) return
+    clearWorkspace(state.fileName)
+    await showPdfPage(state.fileName, state.pdf.page, printScale)
+  }
+
+  useEffect(() => {
+    if (!printedCourseFile || engineState !== 'ready' || state.status !== 'ready') return
+    setPrintedCourseFile(null)
+    void openCourseFile(printedCourseFile)
+  })
 
   useEffect(() => {
     const ends = plannedLeg && plannedEnds(plannedLeg)
@@ -1030,7 +1119,7 @@ export function App() {
       <input
         ref={fileInput}
         type="file"
-        accept=".ocd"
+        accept={isExperimental ? '.ocd,.pdf' : '.ocd'}
         hidden
         onChange={e => {
           const file = e.target.files?.[0]
@@ -1428,12 +1517,32 @@ export function App() {
                   </div>
                 )}
               </dl>
-              <SymbolPanel
-                symbols={state.map.symbols()}
-                corrections={corrections}
-                isApplying={engineState === 'loading'}
-                onCorrect={(symbolNumber, isomCode) => void correctSymbol(symbolNumber, isomCode)}
-              />
+              {state.pdf ? (
+                <div className="settings-row">
+                  <div>
+                    <label htmlFor="settings-print-scale">{messages.settings.printScale}</label>
+                    <p className="settings-soft">{messages.settings.printScaleHint}</p>
+                  </div>
+                  <select
+                    id="settings-print-scale"
+                    value={state.pdf.printScale}
+                    onChange={e => void changePdfPrintScale(Number(e.target.value))}
+                  >
+                    {PDF_PRINT_SCALES.map(scale => (
+                      <option key={scale} value={scale}>
+                        {format.scale(scale)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <SymbolPanel
+                  symbols={state.map.symbols()}
+                  corrections={corrections}
+                  isApplying={engineState === 'loading'}
+                  onCorrect={(symbolNumber, isomCode) => void correctSymbol(symbolNumber, isomCode)}
+                />
+              )}
             </section>
           )
         }

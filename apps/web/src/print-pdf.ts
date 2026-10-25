@@ -1,8 +1,8 @@
 import { PDFDocument } from 'pdf-lib'
 import type { Course, OverprintLayout, PeripheralInformation } from '@ratamestari/engine'
 import type { DescriptionSheet } from '@ratamestari/iof'
-import type { OcadMap } from '@ratamestari/map-import-ocad'
 import { printPageSvg } from '@ratamestari/print'
+import type { LoadedMap } from './pdf-map'
 import { saveFile } from './save-file'
 
 const TARGET_DOTS_PER_INCH = 400
@@ -11,7 +11,7 @@ const MILLIMETRES_PER_INCH = 25.4
 const POINTS_PER_INCH = 72
 
 export async function savePrintPdf(
-  map: OcadMap,
+  map: LoadedMap,
   course: Course,
   overprintLayout: OverprintLayout | null,
   sheet: DescriptionSheet,

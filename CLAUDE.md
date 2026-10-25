@@ -33,6 +33,7 @@ Full decision log with reasoning and rejected alternatives: [`docs/decisions.md`
 - **No file extensions in imports** (`./geometry`, not `./geometry.ts`).
 - **UI text** (D14): no user-facing string inline. Messages live in typed catalogues in `apps/web/src/i18n/` (`en.ts` is the source; other languages must satisfy its type), read with `useMessages()`. Numbers, units and plurals go through `Intl`. Engine and rules output stays language-free.
 - **Design tokens** (D14): colours, type and spacing are CSS custom properties in one file in `apps/web`; see `docs/site-ux-plan.md` › Visual language. Don't hard-code colours or font sizes in components.
+- **Experimental features** (D24): unfinished features check `useExperimentalFeatures()` (`apps/web/src/experimental.ts`): on in `pnpm dev`, hidden in the published app until switched on (seven clicks on the version in Settings). Load their large code with dynamic `import()`.
 - **Tests** live in each package's `test/` folder (`packages/core/test/map.test.ts`), not next to the source.
 - **Anonymous test data:** no test or doc names a real map, place, club or event, not even ones read from a file; only the sample map's required copyright credit does. Club maps and their files in `maps/` are named `map-a.ocd`, `map-a.Courses.xml`, `map-b-forked.pdf`, …
 - **Formatting:** Prettier, no semicolons, single quotes, 100 columns (`.prettierrc.json`).

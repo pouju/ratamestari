@@ -1,5 +1,5 @@
 import * as Comlink from 'comlink'
-import type { LocalPoint } from '@ratamestari/core'
+import type { LocalPoint, MapAnnotation, MapFeature, MapInfo } from '@ratamestari/core'
 import {
   addControl,
   buildTerrain,
@@ -68,6 +68,7 @@ import type { CostGridSnapshot } from './cost-map-image'
 import { legEndsAround, type ControlPreview, type PreviewLeg } from './leg-routes'
 
 let map: OcadMap | null = null
+let mapInfo: MapInfo | null = null
 let terrain: Terrain | null = null
 let sites: readonly ControlSiteCandidate[] = []
 let overprintDetail: OverprintDetailIndex = NO_OVERPRINT_DETAIL
@@ -146,22 +147,37 @@ function editedCourse(course: Course, edit: (spec: CourseSpec) => Course | null)
   return edited && fittedAsSet(edited, terrain, lastSetting)
 }
 
+function useFeatures(
+  features: readonly MapFeature[],
+  annotations: readonly MapAnnotation[],
+  info: MapInfo,
+) {
+  terrain = buildTerrain(features, info.extent)
+  overprintDetail = overprintDetailOf(features)
+  peripheral = findPeripheralInformation(annotations, terrain, info.scale)
+  const inMargin = isInPeripheralBlock.bind(null, peripheral)
+  sites = findControlSites(features, terrain).filter(
+    site => describeControl(site) !== null && !inMargin(site.position),
+  )
+}
+
 const engine = {
   async loadMap(bytes: Uint8Array, corrections: IsomCodeOverrides): Promise<void> {
     map = await loadOcadMap(bytes)
+    mapInfo = map.info
     engine.applySymbolCorrections(corrections)
+  },
+
+  // For maps read outside the worker, such as from a PDF (D22).
+  loadFeatures(features: readonly MapFeature[], info: MapInfo): void {
+    map = null
+    mapInfo = info
+    useFeatures(features, [], info)
   },
 
   applySymbolCorrections(corrections: IsomCodeOverrides): void {
     if (!map) throw new Error('No map loaded in the engine')
-    const features = map.features(corrections)
-    terrain = buildTerrain(features, map.info.extent)
-    overprintDetail = overprintDetailOf(features)
-    peripheral = findPeripheralInformation(map.annotations(corrections), terrain, map.info.scale)
-    const inMargin = isInPeripheralBlock.bind(null, peripheral)
-    sites = findControlSites(features, terrain).filter(
-      site => describeControl(site) !== null && !inMargin(site.position),
-    )
+    useFeatures(map.features(corrections), map.annotations(corrections), map.info)
   },
 
   overprintLayout(course: Course): OverprintLayout {
@@ -272,10 +288,10 @@ const engine = {
     paper: PaperChoice,
     printScaleChoice: PrintScaleChoice,
   ): CheckedCourse | null {
-    if (!terrain || !map) throw new Error('No map loaded in the engine')
+    if (!terrain || !mapInfo) throw new Error('No map loaded in the engine')
     const course = imported?.courses[courseIndex]
     if (!imported || !course) throw new Error('Open a course file first')
-    const stops = importedCourseStops(imported, course, map.info.scale, map.info.georef)
+    const stops = importedCourseStops(imported, course, mapInfo.scale, mapInfo.georef)
     if (!stops) return null
     const spec = specFor(request, stops.finish, 0, paceSecondsPerKm, printScaleChoice)
     if (!spec) return null

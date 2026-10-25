@@ -235,6 +235,9 @@ importers:
       '@ratamestari/map-import-ocad':
         specifier: workspace:*
         version: link:../../packages/map-import-ocad
+      '@ratamestari/map-import-pdf':
+        specifier: workspace:*
+        version: link:../../packages/map-import-pdf
       '@ratamestari/print':
         specifier: workspace:*
         version: link:../../packages/print
@@ -253,6 +256,9 @@ importers:
       pdf-lib:
         specifier: ^1.17.1
         version: 1.17.1
+      pdfjs-dist:
+        specifier: 6.4.299
+        version: 6.4.299
       react:
         specifier: ^19.3.0
         version: 19.3.0

@@ -1,3 +1,4 @@
+import { useExperimentalFeatures } from './experimental'
 import { useMessages } from './i18n'
 
 export type MapOpening =
@@ -13,6 +14,7 @@ interface MapStartProps {
 
 export function MapStart({ opening, isDraggingOver, onChooseFile }: MapStartProps) {
   const m = useMessages().workspace
+  const isExperimental = useExperimentalFeatures()
   return (
     <div className={isDraggingOver ? 'map-start is-dragging-over' : 'map-start'}>
       <div className="map-start-content">
@@ -33,7 +35,7 @@ export function MapStart({ opening, isDraggingOver, onChooseFile }: MapStartProp
         ) : (
           <>
             <h2>{isDraggingOver ? m.dropToOpen : m.openMap}</h2>
-            <p>{m.openMapHint}</p>
+            <p>{isExperimental ? m.openMapHintWithPdf : m.openMapHint}</p>
             <button type="button" className="map-start-choose" onClick={onChooseFile}>
               {m.chooseFile}
             </button>

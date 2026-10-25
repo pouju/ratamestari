@@ -78,6 +78,10 @@ export const en = {
     showLess: 'Show less of the panel',
     openMap: 'Open an OCAD map',
     openMapHint: 'Drop a .ocd file anywhere in this window, or choose one.',
+    pdfWithoutMap: 'No map was found in this PDF.',
+    printedCourse: 'Course printed on the map',
+    openMapHintWithPdf:
+      'Drop a .ocd file or a PDF of the map anywhere in this window, or choose one.',
     dropToOpen: 'Drop the map to open it',
     chooseFile: 'Choose map file',
     opening: (fileName: string) => `Opening ${fileName}…`,
@@ -135,6 +139,16 @@ export const en = {
     backgroundMaps: 'Background maps',
     licence: 'Ratamestari is AGPL-3.0-or-later.',
     sourceCode: 'Source code',
+    version: (version: string) => `Version ${version}`,
+    experimental: 'Experimental features',
+    experimentalIntro:
+      'Features that are still being tuned. Their results can be wrong, so check them before you rely on them.',
+    experimentalPdf: 'Open a map from a PDF, and read the course printed on it.',
+    experimentalOn: 'Experimental features are on.',
+    experimentalOff: 'Experimental features are off.',
+    turnOffExperimental: 'Turn off experimental features',
+    printScale: 'Print scale of the PDF',
+    printScaleHint: 'Guessed from the size of the symbols. Change it if the PDF says otherwise.',
   },
   course: {
     centreLine: 'Competition centre',

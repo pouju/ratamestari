@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { track } from './analytics'
 import type { AssistantKey } from './assistant-key'
-import { SOURCE_CODE_URL } from './config'
+import { APP_VERSION, SOURCE_CODE_URL } from './config'
+import { setExperimentalFeatures, useExperimentalFeatures, useUnlockClicks } from './experimental'
 import { LANGUAGES, useMessages } from './i18n'
 import { isLanguageCode, useLanguageChoice } from './i18n/language-root'
 
@@ -87,8 +88,10 @@ export function SettingsSheet({
 
         {map}
 
+        <ExperimentalSettings />
+
         <p className="settings-soft settings-footer">
-          {m.licence} <a href={SOURCE_CODE_URL}>{m.sourceCode}</a>
+          {m.licence} <a href={SOURCE_CODE_URL}>{m.sourceCode}</a> <VersionLine />
         </p>
       </div>
     </dialog>
@@ -172,5 +175,46 @@ function LanguageSettings() {
         </select>
       </div>
     </section>
+  )
+}
+
+function ExperimentalSettings() {
+  const m = useMessages().settings
+  const isOn = useExperimentalFeatures()
+  if (!isOn) return null
+  return (
+    <section className="settings-section" aria-labelledby="settings-experimental">
+      <h3 id="settings-experimental">{m.experimental}</h3>
+      <p>{m.experimentalIntro}</p>
+      <ul>
+        <li>{m.experimentalPdf}</li>
+      </ul>
+      <button
+        type="button"
+        className="settings-secondary"
+        onClick={() => setExperimentalFeatures(false)}
+      >
+        {m.turnOffExperimental}
+      </button>
+    </section>
+  )
+}
+
+function VersionLine() {
+  const m = useMessages().settings
+  const countClick = useUnlockClicks()
+  const [notice, setNotice] = useState<string | null>(null)
+  return (
+    <>
+      <span
+        onClick={() => {
+          const switched = countClick()
+          if (switched !== null) setNotice(switched ? m.experimentalOn : m.experimentalOff)
+        }}
+      >
+        {m.version(APP_VERSION)}
+      </span>
+      <span role="status"> {notice}</span>
+    </>
   )
 }
