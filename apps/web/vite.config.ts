@@ -13,7 +13,7 @@ const { version } = require('../../package.json') as { version: string }
 const UMAMI = {
   scriptUrl: 'https://cloud.umami.is/script.js',
   // From Umami Cloud › Settings › Websites; public, as it is in every page. Empty: no script.
-  websiteId: '',
+  websiteId: '933988fb-f227-4f09-bc3a-e4cd259b4df2',
   domains: 'pouju.github.io',
 }
 
