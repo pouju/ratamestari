@@ -459,7 +459,6 @@ export const en = {
         {
           title: 'Coming next',
           items: [
-            'Faster course setting on large maps',
             'Choosing where the paper goes from the course plan',
             'Centre suggestions from the map',
             'Several classes side by side',
