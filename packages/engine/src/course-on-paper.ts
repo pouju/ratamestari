@@ -58,6 +58,9 @@ export function* setCourseOnPaperSteps(
 ): Search {
   if (spec.printFrame) return yield* setCourseInFrameSteps(terrain, sites, spec, spec.printFrame)
   const papers = papersFor(paper)
+  const keptPositions = hasLocks(spec.locks)
+    ? [spec.locks.start, ...spec.locks.controls].flatMap(site => (site ? [site.position] : []))
+    : []
   // Kept controls were on this paper; a newly planned print area might leave them off it.
   if (hasLocks(spec.locks) && spec.printArea) {
     const course = yield* searchCourseSteps(terrain, sites, spec)
@@ -71,6 +74,7 @@ export function* setCourseOnPaperSteps(
       competitionCentre: spec.competitionCentre,
       descriptionRows: expectedControlCount(spec.format) + DESCRIPTION_BOX.rowsBesidesControls,
       peripheralSize: spec.peripheralSize ?? null,
+      mustHold: keptPositions,
     })
     if (!printArea) return null
     const search = searchCourseSteps(terrain, sites, { ...spec, printArea })

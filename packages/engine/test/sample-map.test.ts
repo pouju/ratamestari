@@ -5,7 +5,9 @@ import { loadOcadMap } from '@ratamestari/map-ocad'
 import { courseTargetFor } from '@ratamestari/rules'
 import { routableCellOf } from '../src/cost-grid'
 import { findControlSites, type ControlSiteCandidate } from '../src/control-sites'
+import { setCourseOnPaper } from '../src/course-on-paper'
 import { searchCourse, type CourseSpec } from '../src/course-search'
+import { isUsableInPrintArea } from '../src/print-area'
 import { isSameSite } from '../src/locks'
 import { findPeripheralInformation, isInPeripheralBlock } from '../src/peripheral'
 import { cellCenterOf } from '../src/raster'
@@ -92,5 +94,48 @@ describe('engine on the committed sample map', { timeout: SETUP_TIMEOUT_MS }, ()
     expect(positions[1]!).toBeGreaterThan(positions[0]!)
     expect(positions[2]).toBe(positions[1]! + 1)
     expect(again.controls.map(site => site.id)).not.toEqual(first.controls.map(site => site.id))
+  })
+
+  it('sets a course around a planned leg, on paper that holds it', () => {
+    const mapped = [...terrain.mappedArea.keys()].filter(i => terrain.mappedArea[i])
+    const centre = cellCenterOf(terrain.grid, mapped[Math.floor(mapped.length / 2)]!)
+    const distanceFromCentre = (site: ControlSiteCandidate) =>
+      Math.hypot(site.position[0] - centre[0], site.position[1] - centre[1])
+    const from = sites.find(
+      site => distanceFromCentre(site) > 500 && distanceFromCentre(site) < 700,
+    )!
+    const to = sites.find(
+      site =>
+        Math.hypot(site.position[0] - from.position[0], site.position[1] - from.position[1]) >
+          300 &&
+        Math.hypot(site.position[0] - from.position[0], site.position[1] - from.position[1]) < 450,
+    )!
+    const course = setCourseOnPaper(
+      terrain,
+      sites,
+      {
+        target: courseTargetFor({
+          eventLevel: 'national',
+          format: 'middle',
+          sex: 'D',
+          ageClass: 16,
+          skillLetter: 'A',
+        })!,
+        format: 'middle',
+        printScale: 10000,
+        competitionCentre: centre,
+        seed: 1,
+        paceSecondsPerKm: PACE_SECONDS_PER_KM,
+        improvementSteps: 50,
+        locks: { start: null, controls: [from, to], keptLegs: [false, true, false] },
+      },
+      'auto',
+    )!
+    const first = course.controls.findIndex(site => isSameSite(site, from))
+    expect(first).toBeGreaterThanOrEqual(0)
+    expect(isSameSite(course.controls[first + 1]!, to)).toBe(true)
+    expect([from, to].every(site => isUsableInPrintArea(site.position, course.printArea!))).toBe(
+      true,
+    )
   })
 })

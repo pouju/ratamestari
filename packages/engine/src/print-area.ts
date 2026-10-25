@@ -37,6 +37,8 @@ export interface PrintAreaRequest {
   readonly competitionCentre: LocalPoint
   readonly descriptionRows: number
   readonly peripheralSize?: PaperBoxSize | null
+  // Stops already chosen, such as kept controls, that the paper must hold clear of its boxes.
+  readonly mustHold?: readonly LocalPoint[]
 }
 
 const QUALITY_CELL_METERS = 25
@@ -204,6 +206,7 @@ export function planPrintArea(
   request: PrintAreaRequest,
 ): PrintArea | null {
   const placer = boxPlacer(terrain, sites, request)
+  const holds = request.mustHold ?? []
   const [cx, cy] = request.competitionCentre
   let best: { area: PrintArea; score: number } | null = null
 
@@ -221,21 +224,19 @@ export function planPrintArea(
         bottom += POSITION_STEP_METERS
       ) {
         const extent = localExtent(left, bottom, left + width, bottom + height)
+        if (!holds.every(point => contains(extent, point, CIRCLE_RADIUS_METERS))) continue
         const placed = placer.place(extent)
-        if (placed && (!best || placed.score > best.score)) {
-          const { descriptionBox, peripheralBox, score } = placed
-          best = {
-            area: {
-              paper: request.paper,
-              scale: request.printScale,
-              orientation,
-              extent,
-              descriptionBox,
-              peripheralBox,
-            },
-            score,
-          }
+        if (!placed || (best && placed.score <= best.score)) continue
+        const { descriptionBox, peripheralBox, score } = placed
+        const area: PrintArea = {
+          paper: request.paper,
+          scale: request.printScale,
+          orientation,
+          extent,
+          descriptionBox,
+          peripheralBox,
         }
+        if (holds.every(point => isUsableInPrintArea(point, area))) best = { area, score }
       }
     }
   }
