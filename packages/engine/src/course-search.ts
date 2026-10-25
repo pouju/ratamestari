@@ -526,7 +526,8 @@ function planningContextFor(
   const quality = Float32Array.from(pool, qualityOf)
   const treeLimit = targetSeconds * TREE_LIMIT_SHARE_OF_TARGET
   const timesCache = new Map<number, Float32Array>()
-  const boundedCache = new Map<string, Float32Array>()
+  // A bounded tree is exact up to its limit, so it serves any smaller limit too.
+  const boundedCache = new Map<number, { readonly limit: number; readonly times: Float32Array }>()
   const treeFrom = (poolIndex: number, limit: number) => {
     const tree = secondsFrom(grid, pool[poolIndex]!.position, paceSecondsPerKm, limit)
     return Float32Array.from(poolCells, cell =>
@@ -541,19 +542,25 @@ function planningContextFor(
       timesCache.set(poolIndex, times)
       return times
     }
-    const key = `${poolIndex}:${limitSeconds}`
-    const bounded = boundedCache.get(key)
-    if (bounded) return bounded
+    const bounded = boundedCache.get(poolIndex)
+    if (bounded && bounded.limit >= limitSeconds) return bounded.times
     const times = treeFrom(poolIndex, limitSeconds)
-    boundedCache.set(key, times)
+    boundedCache.set(poolIndex, { limit: limitSeconds, times })
     return times
+  }
+  const knownSeconds = (from: number, to: number): number | null => {
+    const full = timesCache.get(from)
+    if (full) return full[to]!
+    const bounded = boundedCache.get(from)
+    const seconds = bounded?.times[to]
+    return bounded && seconds! <= bounded.limit ? seconds! : null
   }
   // Costs are symmetric, so a tree from either end gives a leg's time. Without one, a route
   // between the two ends is much cheaper than a new tree: improvement tries many new sites.
   const routeCache = new Map<string, number>()
   const legSeconds = (from: number, to: number): number => {
-    if (timesCache.has(from)) return timesFrom(from)[to]!
-    if (timesCache.has(to)) return timesFrom(to)[from]!
+    const known = knownSeconds(from, to) ?? knownSeconds(to, from)
+    if (known !== null) return known
     const key = from < to ? `${from},${to}` : `${to},${from}`
     const cached = routeCache.get(key)
     if (cached !== undefined) return cached
@@ -1044,7 +1051,7 @@ function proposeChange(
   order: readonly number[],
   pool: readonly ControlSiteCandidate[],
   toFinish: Float32Array,
-  timesFrom: (poolIndex: number) => Float32Array,
+  timesFrom: (poolIndex: number, limitSeconds?: number) => Float32Array,
   current: ScoredCourse,
   finish: LocalPoint,
   random: Random,
@@ -1103,7 +1110,13 @@ function proposeChange(
 
   const previous = position === 0 ? startIndex : order[position - 1]!
   const legSeconds = current.legSeconds[position]!
-  const fromPrevious = timesFrom(previous)
+  // Only as far as the longest leg a swap or insert may make.
+  let fromPreviousTree: Float32Array | null = null
+  const fromPrevious = () =>
+    (fromPreviousTree ??= timesFrom(
+      previous,
+      legSeconds * Math.max(SWAP_LEG_TIME_RANGE[1], INSERT_LEG_TIME_RANGE[1]),
+    ))
   const stops = [startIndex, ...order].map(i => pool[i]!.position)
   const next = position + 1 < order.length ? pool[order[position + 1]!]!.position : finish
   // Legs that stay when the control at `position` is replaced (or a control inserted before it).
@@ -1144,7 +1157,7 @@ function proposeChange(
   }
   const candidatesWithin = (lowShare: number, highShare: number, replacing = true) =>
     pool.flatMap((site, i) => {
-      const t = fromPrevious[i]!
+      const t = fromPrevious()[i]!
       return !used.has(i) &&
         t >= legSeconds * lowShare &&
         t <= legSeconds * highShare &&
