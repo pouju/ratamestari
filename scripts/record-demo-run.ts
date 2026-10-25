@@ -41,15 +41,18 @@ const { values } = parseArgs({
     background: { type: 'string', default: 'apps/web/src/landing/sample-page.png' },
     descriptions: { type: 'string', default: 'apps/web/src/landing/sample-descriptions.svg' },
     preview: { type: 'string', default: 'apps/web/public/social-preview.png' },
-    seed: { type: 'string', default: '1' },
+    seed: { type: 'string', default: '2' },
   },
 })
 
+// D14 (orange) rather than a beginners' class: an orange course has point features such as
+// boulders and knolls, which show the engine better than the white course's vegetation corners
+// (SSL difficulty levels: white follows linear features).
 const REQUEST: CourseRequest = {
   eventLevel: 'national',
   format: 'middle',
   sex: 'D',
-  ageClass: 10,
+  ageClass: 14,
   skillLetter: 'A',
 }
 const PACE_SECONDS_PER_KM = 300
@@ -244,8 +247,9 @@ const mapLeft = clamped(
 )
 const mapTop = clamped(
   centreOf(stops.map(([, y]) => y)) - mapCropHeight / 2,
-  terrainBox.top,
-  terrainBox.bottom - mapCropHeight,
+  Math.min(terrainBox.top, ...stops.map(([, y]) => y - PREVIEW_COURSE_MARGIN_MILLIMETRES)),
+  Math.max(terrainBox.bottom, ...stops.map(([, y]) => y + PREVIEW_COURSE_MARGIN_MILLIMETRES)) -
+    mapCropHeight,
 )
 const previewMap = pngOf(
   printPageSvg(pageInput)!.svg,
