@@ -1,27 +1,43 @@
+const INITIAL_CAPACITY = 1024
+
+// Typed arrays and in-place swaps: routing pushes and pops millions of cells, so nothing is
+// allocated per operation.
 export class MinHeap {
-  private items: number[] = []
-  private priorities: number[] = []
+  private items = new Int32Array(INITIAL_CAPACITY)
+  private priorities = new Float64Array(INITIAL_CAPACITY)
+  private length = 0
 
   get size(): number {
-    return this.items.length
+    return this.length
   }
 
   push(item: number, priority: number) {
-    this.items.push(item)
-    this.priorities.push(priority)
-    this.siftUp(this.items.length - 1)
+    if (this.length === this.items.length) this.grow()
+    this.items[this.length] = item
+    this.priorities[this.length] = priority
+    this.siftUp(this.length)
+    this.length++
   }
 
   pop(): number | undefined {
+    if (this.length === 0) return undefined
     const top = this.items[0]
-    const lastItem = this.items.pop()
-    const lastPriority = this.priorities.pop()
-    if (this.items.length > 0 && lastItem !== undefined && lastPriority !== undefined) {
-      this.items[0] = lastItem
-      this.priorities[0] = lastPriority
+    this.length--
+    if (this.length > 0) {
+      this.items[0] = this.items[this.length]!
+      this.priorities[0] = this.priorities[this.length]!
       this.siftDown(0)
     }
     return top
+  }
+
+  private grow() {
+    const items = new Int32Array(this.items.length * 2)
+    items.set(this.items)
+    this.items = items
+    const priorities = new Float64Array(this.priorities.length * 2)
+    priorities.set(this.priorities)
+    this.priorities = priorities
   }
 
   private siftUp(index: number) {
@@ -40,10 +56,10 @@ export class MinHeap {
       const left = 2 * parent + 1
       const right = left + 1
       let smallest = parent
-      if (left < this.items.length && this.priorities[left]! < this.priorities[smallest]!) {
+      if (left < this.length && this.priorities[left]! < this.priorities[smallest]!) {
         smallest = left
       }
-      if (right < this.items.length && this.priorities[right]! < this.priorities[smallest]!) {
+      if (right < this.length && this.priorities[right]! < this.priorities[smallest]!) {
         smallest = right
       }
       if (smallest === parent) return
@@ -53,7 +69,11 @@ export class MinHeap {
   }
 
   private swap(a: number, b: number) {
-    ;[this.items[a], this.items[b]] = [this.items[b]!, this.items[a]!]
-    ;[this.priorities[a], this.priorities[b]] = [this.priorities[b]!, this.priorities[a]!]
+    const item = this.items[a]!
+    this.items[a] = this.items[b]!
+    this.items[b] = item
+    const priority = this.priorities[a]!
+    this.priorities[a] = this.priorities[b]!
+    this.priorities[b] = priority
   }
 }

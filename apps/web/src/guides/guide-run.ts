@@ -15,8 +15,6 @@ export interface GuideLeg {
   readonly routes: readonly GuideRoute[]
 }
 
-// What the guides replay on the hero's sample run, in the same page units: recorded from the
-// engine by `pnpm record-demo-run` (scripts/record-demo-run.ts).
 // A course set around kept controls: its stops, and where the kept controls ended up.
 export interface GuideCourse {
   readonly start: DemoPoint
@@ -30,6 +28,8 @@ export interface GuideKeep extends GuideCourse {
   readonly leg: number
 }
 
+// What the guides replay on the hero's sample run, in the same page units: recorded from the
+// engine by `pnpm record-demo-run` (scripts/record-demo-run.ts).
 export interface GuideRun {
   readonly keep: GuideKeep | null
   readonly leg: GuideLeg & { readonly index: number }

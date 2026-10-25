@@ -80,18 +80,21 @@ export function heightChangeMeters(grid: CostGrid, from: number, to: number): nu
   const fromSlot = from * CONTOUR_SLOTS_PER_CELL
   const toSlot = to * CONTOUR_SLOTS_PER_CELL
   if (lineIds[fromSlot] === NO_CONTOUR && lineIds[toSlot] === NO_CONTOUR) return 0
-  const linesOnlyIn = (cellSlot: number, otherSlot: number) => {
-    let count = 0
-    for (let i = 0; i < CONTOUR_SLOTS_PER_CELL; i++) {
-      const id = lineIds[cellSlot + i]!
-      if (id === NO_CONTOUR) break
-      let isShared = false
-      for (let j = 0; j < CONTOUR_SLOTS_PER_CELL; j++) isShared ||= lineIds[otherSlot + j] === id
-      if (!isShared) count++
-    }
-    return count
+  const crossings = linesOnlyIn(lineIds, fromSlot, toSlot) + linesOnlyIn(lineIds, toSlot, fromSlot)
+  return (crossings / 2) * intervalMeters
+}
+
+// Kept out of heightChangeMeters so that no closure is made per step: routing calls it per step.
+function linesOnlyIn(lineIds: Int32Array, cellSlot: number, otherSlot: number): number {
+  let count = 0
+  for (let i = 0; i < CONTOUR_SLOTS_PER_CELL; i++) {
+    const id = lineIds[cellSlot + i]!
+    if (id === NO_CONTOUR) break
+    let isShared = false
+    for (let j = 0; j < CONTOUR_SLOTS_PER_CELL; j++) isShared ||= lineIds[otherSlot + j] === id
+    if (!isShared) count++
   }
-  return ((linesOnlyIn(fromSlot, toSlot) + linesOnlyIn(toSlot, fromSlot)) / 2) * intervalMeters
+  return count
 }
 
 export interface CostGridOptions {
