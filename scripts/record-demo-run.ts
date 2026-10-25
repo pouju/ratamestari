@@ -15,6 +15,7 @@ import {
   isInPeripheralBlock,
   isUsableInPrintArea,
   peripheralLayout,
+  planCourse,
   setCourseOnPaper,
 } from '@ratamestari/engine'
 import { describeControl, descriptionSheet, renderDescriptionSheet } from '@ratamestari/iof'
@@ -81,22 +82,26 @@ const sites = findControlSites(features, terrain).filter(
 const mapped = [...terrain.mappedArea.keys()].filter(i => terrain.mappedArea[i])
 const centre = cellCenterOf(terrain.grid, mapped[Math.floor(mapped.length / 2)]!)
 
-const course = setCourseOnPaper(
-  terrain,
-  sites,
-  {
-    target: courseTargetFor(REQUEST)!,
-    format: REQUEST.format,
-    printScale: printScaleFor('auto', REQUEST.format),
-    competitionCentre: centre,
-    seed: Number(values.seed),
-    paceSecondsPerKm: PACE_SECONDS_PER_KM,
-    peripheralSize: peripheralLayout(peripheral.blocks),
-  },
-  'auto',
-)
+const spec = {
+  target: courseTargetFor(REQUEST)!,
+  format: REQUEST.format,
+  printScale: printScaleFor('auto', REQUEST.format),
+  competitionCentre: centre,
+  seed: Number(values.seed),
+  paceSecondsPerKm: PACE_SECONDS_PER_KM,
+  peripheralSize: peripheralLayout(peripheral.blocks),
+}
+const course = setCourseOnPaper(terrain, sites, spec, 'auto')
 const area = course?.printArea
 if (!course || !area) throw new Error('No course found on the sample map')
+// The planner's view on the same paper, for the hero's "technical areas" step: the areas the
+// skeleton visits, with their time budgets (D19).
+const plan = planCourse(terrain, sites, { ...spec, printScale: area.scale, printArea: area })
+const visited = (plan?.skeleton?.sections ?? []).flatMap(section =>
+  section.area === null
+    ? []
+    : [{ area: plan!.areas[section.area]!, seconds: section.budgetSeconds }],
+)
 
 const sheet = descriptionSheet(course, {
   title: 'Middle distance',
@@ -149,6 +154,10 @@ const run = {
   start: toPage(course.start.position),
   controls: course.controls.map(site => toPage(site.position)),
   numbers: layOutOverprint(course, overprintDetailOf(features)).numberCentres.map(toPage),
+  areas: visited.map(({ area: technical, seconds }) => ({
+    hull: technical.hull.map(toPage),
+    minutes: Math.round(seconds / 60),
+  })),
   finish: toPage(course.finish),
   descriptions: {
     width: round(described.widthMillimetres * PAGE_UNITS_PER_MILLIMETRE),

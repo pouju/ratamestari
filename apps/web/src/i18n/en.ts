@@ -342,11 +342,12 @@ export const en = {
     },
     demo: {
       label:
-        'Animation: a map opens, the competition centre is chosen, candidate control sites appear, the course is drawn leg by leg and the control descriptions are written.',
+        'Animation: a map opens, the competition centre is chosen, candidate control sites appear, the good technical areas are found, the course planned through them is drawn leg by leg and the control descriptions are written.',
       steps: [
         'Map opened',
         'Competition centre',
         'Control sites',
+        'Technical areas',
         'Setting the course',
         'Descriptions and paper',
         'Ready to print',
@@ -354,6 +355,8 @@ export const en = {
       mapCaption: 'Read in your browser, nothing uploaded',
       centreCaption: 'Chosen by you',
       sitesCaption: (count: number) => `${count} candidate sites on map features`,
+      areasCaption: (count: number, minutes: number) =>
+        `${count} ${count === 1 ? 'technical area' : 'technical areas'} found, ${minutes} min of the course planned there`,
       courseCaption: (length: string, controls: number) =>
         `${length} so far, ${controls} ${controls === 1 ? 'control' : 'controls'} placed`,
       descriptionsCaption: 'IOF descriptions written, course fitted to paper',
@@ -373,11 +376,11 @@ export const en = {
         },
         {
           title: 'Choose the centre',
-          text: 'Click where the competition centre is. The course starts and finishes near it.',
+          text: 'Click where the competition centre is. The finish goes there and the start is placed nearby.',
         },
         {
           title: 'Pick the class',
-          text: 'Event level, distance and class. The course draws itself while it is set.',
+          text: 'Event level, distance and class. Ratamestari finds the good technical areas, plans the course through them and shows it when it is ready.',
         },
         {
           title: 'Check and print',
@@ -415,25 +418,31 @@ export const en = {
           items: [
             'OCAD maps, read in the browser',
             'Long and middle distance for SSL classes',
-            'Controls placed on real map features',
+            "Courses planned through the map's best technical areas, with time for every part",
+            'Controls placed on real map features, never crowded together',
             'Rule checks that cite their source, with Fix',
             'Checking a course you set in OCAD or Purple Pen',
             'Routes on every leg, fastest to slowest',
             'Planning a leg yourself',
+            'Setting a course yourself, control by control',
             'Dragging controls, with the rules checked again',
+            'Undo, also for changes made from the chat',
             'Stopping the search and keeping the best course',
             'IOF control descriptions on the map',
+            'Control numbers placed clear of the course lines',
             'Automatic fit to A4 or A3',
             'Moving the print area by hand',
             'Print PDF and IOF XML 3.0',
             'Phones and tablets',
-            'An optional assistant with your own Claude API key',
+            'An optional assistant with your own Claude API key: set, edit and improve courses in plain words',
           ],
         },
         {
           title: 'Coming next',
           items: [
             'Keeping controls you like while trying again',
+            'Faster course setting on large maps',
+            'Choosing where the paper goes from the course plan',
             'Centre suggestions from the map',
             'Several classes side by side',
             'Open courses, finals and qualifications',

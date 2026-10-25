@@ -25,6 +25,8 @@ export interface DemoRun {
   readonly controls: readonly DemoPoint[]
   // Where each control's number goes (ISOM sym. 704); recorded runs before it have none.
   readonly numbers: readonly DemoPoint[] | null
+  // The technical areas the course plan visits (D19), with their time budgets.
+  readonly areas: readonly DemoArea[]
   readonly finish: DemoPoint
   readonly descriptions: {
     readonly image: string
@@ -38,6 +40,11 @@ export interface DemoRun {
   readonly climbMeters: number
 }
 
+export interface DemoArea {
+  readonly hull: readonly DemoPoint[]
+  readonly minutes: number
+}
+
 const point = ([x = 0, y = 0]: readonly number[]): DemoPoint => [x, y]
 
 export const SAMPLE_RUN: DemoRun = {
@@ -48,6 +55,13 @@ export const SAMPLE_RUN: DemoRun = {
   start: point(recorded.start),
   controls: recorded.controls.map(point),
   numbers: 'numbers' in recorded ? (recorded.numbers as number[][]).map(point) : null,
+  areas:
+    'areas' in recorded
+      ? (recorded.areas as { hull: number[][]; minutes: number }[]).map(area => ({
+          hull: area.hull.map(point),
+          minutes: area.minutes,
+        }))
+      : [],
   finish: point(recorded.finish),
   descriptions: { image: sampleDescriptions, ...recorded.descriptions },
   symbols: recorded.symbols,

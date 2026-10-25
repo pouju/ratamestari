@@ -8,16 +8,28 @@ const CENTRE_FROM = 10
 const CENTRE_TICKS = 6
 const SITES_FROM = 22
 const SITE_EVERY = 0.5
-const SITES_FADE_FROM = 72
-const SITES_FADE_TICKS = 14
+const AREAS_FROM = 56
+const AREAS_TICKS = 8
+const AREA_FILL_OPACITY = 0.14
+const SITES_FADE_FROM = 58
+const SITES_FADE_TICKS = 10
 const SITE_OPACITY = 0.55
-const LEGS_FROM = 48
+const LEGS_FROM = 72
 const LEG_TICKS = 5
-const DESCRIPTIONS_FROM = 108
+const DESCRIPTIONS_FROM = 132
+const AREAS_FADE_TICKS = 10
 const DESCRIPTION_ROW_EVERY = 1.1
-const DONE_FROM = 128
-const LOOP_TICKS = 165
-const STEP_STARTS = [0, CENTRE_FROM, SITES_FROM, LEGS_FROM, DESCRIPTIONS_FROM, DONE_FROM]
+const DONE_FROM = 152
+const LOOP_TICKS = 189
+const STEP_STARTS = [
+  0,
+  CENTRE_FROM,
+  SITES_FROM,
+  AREAS_FROM,
+  LEGS_FROM,
+  DESCRIPTIONS_FROM,
+  DONE_FROM,
+]
 
 const SITE_SHARE_OF_CONTROL_RADIUS = 0.3
 const GAP_BESIDE_DESCRIPTIONS = 12
@@ -77,11 +89,18 @@ export function HeroDemo({ run }: { run: DemoRun }) {
     m.mapCaption,
     m.centreCaption,
     m.sitesCaption(Math.round((run.siteCount * shownSites) / run.sites.length)),
+    m.areasCaption(
+      run.areas.length,
+      run.areas.reduce((sum, area) => sum + area.minutes, 0),
+    ),
     m.courseCaption(format.kilometres(run.lengthMeters * drawnShare), placedControls),
     m.descriptionsCaption,
     m.doneCaption(format.kilometres(run.lengthMeters), format.metres(run.climbMeters)),
   ]
   const centreShown = clamp((tick - CENTRE_FROM) / CENTRE_TICKS)
+  const areasShown =
+    clamp((tick - AREAS_FROM) / AREAS_TICKS) *
+    clamp(1 - (tick - DESCRIPTIONS_FROM) / AREAS_FADE_TICKS)
   const clipId = useId()
   const descriptions = run.descriptions
   const rowHeight = descriptions.height / descriptions.rows
@@ -121,6 +140,19 @@ export function HeroDemo({ run }: { run: DemoRun }) {
             preserveAspectRatio="none"
             opacity={clamp(tick / MAP_TICKS)}
           />
+
+          {run.areas.map((area, i) => (
+            <polygon
+              key={i}
+              points={area.hull.map(([x, y]) => `${x},${y}`).join(' ')}
+              fill="var(--colour-overprint)"
+              fillOpacity={AREA_FILL_OPACITY}
+              stroke="var(--colour-overprint)"
+              strokeWidth={symbols.lineWidth}
+              strokeDasharray={`${symbols.lineWidth * 4} ${symbols.lineWidth * 3}`}
+              opacity={areasShown}
+            />
+          ))}
 
           {run.sites.map(([x, y], i) => {
             const appears = SITES_FROM + i * SITE_EVERY
