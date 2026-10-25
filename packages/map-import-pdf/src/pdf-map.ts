@@ -16,6 +16,7 @@ import { readGeoReferences, type GeoReference } from './geo-pdf'
 import { detectPdfCourse } from './pdf-course'
 import { readPdfPages, type PdfPageContent } from './pdf-paths'
 import { symbolScaleOf } from './symbol-scale'
+import { findTextRuns, type TextRun } from './text-runs'
 
 export interface PdfMapPage {
   readonly page: PdfPageContent
@@ -30,6 +31,8 @@ export interface PdfMapPage {
   readonly paperFeatures: readonly PaperFeature[]
   // Paths that belong to the course and its description box, left out of the map.
   readonly coursePaths: ReadonlySet<number>
+  // Lines of text (titles, notices, labels), left out of the map too.
+  readonly textRuns: readonly TextRun[]
   // The page as a map at the given print scale: ground metres, origin at the page's corner.
   readonly info: (printScale: number) => MapInfo
   readonly features: (printScale: number) => MapFeature[]
@@ -69,7 +72,12 @@ export async function readPdfMap(bytes: Uint8Array): Promise<PdfMap> {
       ...(course?.coursePathIndices ?? []),
       ...(descriptionBox ? pathsInside(page, descriptionBox) : []),
     ])
-    const paperFeatures = classifyPage(page, symbolScale, excluded)
+    const textRuns = findTextRuns(page, excluded)
+    const notMap = new Set([
+      ...excluded,
+      ...textRuns.flatMap(run => run.glyphs.map(glyph => glyph.pathIndex)),
+    ])
+    const paperFeatures = classifyPage(page, symbolScale, notMap)
     const toLocal = (printScale: number) => (point: PaperPoint) => paperToLocal(point, printScale)
     return [
       {
@@ -83,6 +91,7 @@ export async function readPdfMap(bytes: Uint8Array): Promise<PdfMap> {
         geoReference,
         paperFeatures,
         coursePaths: excluded,
+        textRuns,
         info: printScale => {
           const corner = paperToLocal(paperPoint(page.width, page.height), printScale)
           return {
