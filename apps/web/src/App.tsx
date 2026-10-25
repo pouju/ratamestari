@@ -359,6 +359,11 @@ export function App() {
     }
   }, [engine, engineState, course, isGenerating])
   const overprintLayout = overprint && overprint.course === course ? overprint.layout : null
+  const keptMarks = useMemo(
+    () =>
+      course && !isGenerating ? keptMarksOf(kept, course, overprintLayout?.numberCentres) : [],
+    [kept, course, isGenerating, overprintLayout],
+  )
 
   useEffect(() => {
     if (!showCostMap || costMap || engineState !== 'ready') return
@@ -369,11 +374,6 @@ export function App() {
     if (!showSites || sites || engineState !== 'ready') return
     void engine.controlSites().then(setSites)
   }, [engine, engineState, showSites, sites])
-
-  const keptMarks = useMemo(
-    () => (course && !isGenerating ? keptMarksOf(kept, course) : []),
-    [kept, course, isGenerating],
-  )
 
   // Kept controls belong to one finish and one map; a new centre or map starts afresh.
   useEffect(() => setKept(NOTHING_KEPT), [competitionCentre])

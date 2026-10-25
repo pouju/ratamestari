@@ -10,6 +10,7 @@ const GUIDE_ORDER: readonly GuideName[] = [
   'setCourse',
   'legRoutes',
   'courseRoutes',
+  'keep',
   'drag',
   'setByHand',
   'planLeg',

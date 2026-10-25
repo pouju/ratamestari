@@ -10,6 +10,7 @@ import {
   compassDirection,
   evaluateLeg,
   fixControl,
+  isSameSite,
   moveControl,
   simplify,
   layOutOverprint,
@@ -368,7 +369,36 @@ function guideRun() {
     }
   }
 
+  // The shown leg kept, with both its controls, and the course set again around it (D15).
+  const keptControls = [shownLeg, shownLeg + 1].filter(
+    stop => stop >= 1 && stop <= course!.controls.length,
+  )
+  const keptSites = keptControls.map(stop => course!.controls[stop - 1]!)
+  const again =
+    keptSites.length === 2
+      ? setCourseOnPaper(
+          terrain,
+          sites,
+          {
+            ...editSpec,
+            seed: spec.seed + 1,
+            locks: { start: null, controls: keptSites, keptLegs: [false, true, false] },
+          },
+          'auto',
+        )
+      : null
+  const keptAgain = again && {
+    leg: shownLeg,
+    start: toPage(again.start.position),
+    controls: again.controls.map(site => toPage(site.position)),
+    numbers: layOutOverprint(again, overprintDetailOf(features)).numberCentres.map(toPage),
+    keptStops: keptSites.map(
+      site => again.controls.findIndex(other => isSameSite(other, site)) + 1,
+    ),
+  }
+
   return {
+    keep: keptAgain,
     leg: { index: shownLeg, ...legs[shownLeg]! },
     courseRoutes: legs.map(leg => leg?.routes ?? []),
     findings: course!.findings.length,

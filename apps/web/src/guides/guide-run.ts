@@ -17,7 +17,17 @@ export interface GuideLeg {
 
 // What the guides replay on the hero's sample run, in the same page units: recorded from the
 // engine by `pnpm record-demo-run` (scripts/record-demo-run.ts).
+// A course set again around a kept leg: its stops, and where the kept controls ended up.
+export interface GuideKeep {
+  readonly leg: number
+  readonly start: DemoPoint
+  readonly controls: readonly DemoPoint[]
+  readonly numbers: readonly DemoPoint[]
+  readonly keptStops: readonly number[]
+}
+
 export interface GuideRun {
+  readonly keep: GuideKeep | null
   readonly leg: GuideLeg & { readonly index: number }
   readonly courseRoutes: readonly (readonly GuideRoute[])[]
   readonly findings: number
@@ -56,6 +66,12 @@ const leg = (recordedLeg: {
 })
 
 export const GUIDE_RUN: GuideRun = {
+  keep: recorded.keep && {
+    ...recorded.keep,
+    start: point(recorded.keep.start),
+    controls: recorded.keep.controls.map(point),
+    numbers: recorded.keep.numbers.map(point),
+  },
   leg: { index: recorded.leg.index, ...leg(recorded.leg) },
   courseRoutes: recorded.courseRoutes.map(routes => routes.map(route)),
   findings: recorded.findings,

@@ -27,7 +27,14 @@ export interface Scene {
 }
 
 export type GuideName =
-  'setCourse' | 'legRoutes' | 'courseRoutes' | 'drag' | 'setByHand' | 'planLeg' | 'assistant'
+  | 'setCourse'
+  | 'legRoutes'
+  | 'courseRoutes'
+  | 'keep'
+  | 'drag'
+  | 'setByHand'
+  | 'planLeg'
+  | 'assistant'
 
 const FOCUS_PADDING = 40
 const WHOLE_PAGE: ViewBox = [0, 0, ...run.page]
@@ -54,6 +61,7 @@ export function scenes(m: Messages, format: Format): Record<GuideName, Scene | n
     setCourse: setCourseScene(m, format),
     legRoutes: legRoutesScene(m, format),
     courseRoutes: courseRoutesScene(m, format),
+    keep: keepScene(m),
     drag: dragScene(m),
     setByHand: setByHandScene(m),
     planLeg: planLegScene(m, format),
@@ -332,6 +340,125 @@ function courseRoutesScene(m: Messages, format: Format): Scene {
               })}
             </tbody>
           </table>
+        </>
+      )
+    },
+  }
+}
+
+function keepScene(m: Messages): Scene | null {
+  const again = guide.keep
+  if (!again) return null
+  const view = WHOLE_PAGE
+  const leg = again.leg
+  const legClick = 14
+  const keepPress = 28
+  const tryPress = 50
+  const revealed = 64
+  const lockedBefore = [stops[leg]!, stops[leg + 1]!] as const
+  const [firstKept, secondKept] = again.keptStops.map(stop => again.controls[stop - 1]!)
+  return {
+    loopTicks: 110,
+    stillTick: 109,
+    stepStarts: [0, keepPress, tryPress],
+    view,
+    map: tick => {
+      const isNew = tick >= revealed - 4
+      const keptNumbers = isNew
+        ? again.keptStops.map(stop => again.numbers[stop - 1])
+        : [leg, leg + 1].map(stop => run.numbers?.[stop - 1])
+      const locks =
+        isNew && firstKept && secondKept
+          ? [firstKept, secondKept, midpoint(firstKept, secondKept)]
+          : tick >= keepPress && !isNew
+            ? [...lockedBefore, midpoint(...lockedBefore)]
+            : []
+      return (
+        <>
+          {isNew ? (
+            <Overprint
+              run={run}
+              start={again.start}
+              controls={courseControls(again.controls)}
+              finish={run.finish}
+              numbers={again.numbers}
+              opacity={progress(tick, revealed - 4, 6)}
+            />
+          ) : (
+            <Overprint
+              run={run}
+              start={run.start}
+              controls={courseControls()}
+              finish={run.finish}
+              numbers={run.numbers ?? undefined}
+              highlightedLeg={tick >= legClick && tick < tryPress ? leg : null}
+              opacity={1 - progress(tick, tryPress + 2, 4)}
+            />
+          )}
+          {locks.map((at, i) => (
+            <KeptMark key={i} at={at} awayFrom={i === 2 ? null : (keptNumbers[i] ?? null)} />
+          ))}
+          <Pointer
+            view={view}
+            tick={tick}
+            clicks={[legClick]}
+            at={along(tick, [
+              [2, enteringFrom(view)],
+              [legClick - 2, midpoint(...lockedBefore)],
+            ])}
+            opacity={1 - progress(tick, legClick + 6, 2)}
+          />
+        </>
+      )
+    },
+    panel: tick => {
+      if (tick < legClick) return <p className="guide-soft">{m.leg.selectHint}</p>
+      if (tick < 40) {
+        const isKept = tick >= keepPress
+        return (
+          <>
+            <h3>{m.leg.title(stopNameOf(leg), stopNameOf(leg + 1))}</h3>
+            <p>
+              <strong>{m.keep.title}</strong>
+            </p>
+            <div className="guide-buttons">
+              <PanelButton
+                isPrimary={isKept}
+                isPointed={tick >= keepPress - 8}
+                isPressed={isPressing(tick, keepPress)}
+              >
+                {m.keep.leg}
+              </PanelButton>
+              <PanelButton isPrimary={isKept}>{m.keep.control(leg)}</PanelButton>
+              <PanelButton isPrimary={isKept}>{m.keep.control(leg + 1)}</PanelButton>
+            </div>
+            <p className="guide-soft">{m.keep.hint}</p>
+          </>
+        )
+      }
+      if (tick >= tryPress + 2 && tick < revealed)
+        return (
+          <p>
+            <strong>{m.course.setting}</strong>
+            <br />
+            <span className="guide-soft">{m.course.searchPhases.sections}</span>
+          </p>
+        )
+      return (
+        <>
+          <div className="guide-buttons">
+            <PanelButton isPrimary>{m.course.downloadPdf}</PanelButton>
+            <PanelButton
+              isPointed={tick >= tryPress - 8 && tick < revealed}
+              isPressed={isPressing(tick, tryPress)}
+            >
+              {m.course.tryAnother}
+            </PanelButton>
+          </div>
+          <p className="guide-note">{m.keep.summary(2, 1)}</p>
+          {tick >= revealed && (
+            <PanelLine label={m.course.controls} value={String(again.controls.length)} />
+          )}
         </>
       )
     },
@@ -672,6 +799,27 @@ function RoutesDrawn({
         />
       ))}
     </>
+  )
+}
+
+// The app's padlock: beside a kept control away from its number, or at the middle of a kept leg.
+function KeptMark({ at: [x, y], awayFrom }: { at: DemoPoint; awayFrom: DemoPoint | null }) {
+  const offset = awayFrom ? run.symbols.controlRadius * 1.6 : 0
+  const [dx, dy] = awayFrom ? [x - awayFrom[0], y - awayFrom[1]] : [0, 0]
+  const length = Math.hypot(dx, dy) || 1
+  const scale = (run.symbols.controlRadius * 0.6) / 11
+  const [markX, markY] = [x + (dx / length) * offset, y + (dy / length) * offset]
+  return (
+    <g transform={`translate(${markX} ${markY}) scale(${scale}) translate(-12 -12)`}>
+      <circle cx={12} cy={12} r={11} fill="var(--colour-map-white)" stroke="var(--colour-ink)" />
+      <path
+        d="M8.5 11V8.5a3.5 3.5 0 0 1 7 0V11"
+        fill="none"
+        stroke="var(--colour-ink)"
+        strokeWidth={2}
+      />
+      <rect x={6.5} y={11} width={11} height={7.5} rx={1.5} fill="var(--colour-ink)" />
+    </g>
   )
 }
 

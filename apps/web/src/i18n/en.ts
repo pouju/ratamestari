@@ -557,6 +557,17 @@ export const en = {
       tip: 'Layers › Routes on all legs turns the drawing on and off.',
       label: 'Animation: routes are found for every leg and listed in the panel.',
     },
+    keep: {
+      title: 'Keep what you like, try again',
+      intro: 'Like part of a course? Keep it, and let the engine set the rest again.',
+      steps: [
+        'Tap a leg, then press Keep this leg, or keep one of its controls.',
+        'Kept controls and legs get a padlock on the map.',
+        'Press Try another course. The kept ones stay in place and in order, and the rest is new.',
+      ],
+      label:
+        'Animation: a leg is kept, Try another course is pressed and a new course is set around the kept leg.',
+    },
     drag: {
       title: 'Move a control',
       intro: 'You can move any control, the start or the finish by hand.',

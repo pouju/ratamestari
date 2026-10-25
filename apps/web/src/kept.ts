@@ -94,16 +94,28 @@ export function withMovedStop(kept: Kept, before: Course, after: Course, stop: n
   }
 }
 
-// Beside a control circle (37.5 m radius on the ground, ISOM sym. 703), below and to the left.
-const KEPT_MARK_OFFSET_METERS = 45
+// Just outside a control circle (37.5 m radius on the ground, ISOM sym. 703).
+const KEPT_MARK_OFFSET_METERS = 60
 
-// Where the map shows a lock: beside each kept stop and at the middle of each kept leg.
-export function keptMarksOf(kept: Kept, course: Course): LocalPoint[] {
+// Where the map shows a lock: beside each kept stop, on the side away from its number (below and
+// to the left without one), and at the middle of each kept leg.
+export function keptMarksOf(
+  kept: Kept,
+  course: Course,
+  numberCentres: readonly (LocalPoint | undefined)[] = [],
+): LocalPoint[] {
   const stops = [course.start.position, ...course.controls.map(c => c.position), course.finish]
+  const awayFromNumber = (position: LocalPoint, stop: number): LocalPoint => {
+    const number = numberCentres[stop - 1]
+    const [dx, dy] = number ? [position[0] - number[0], position[1] - number[1]] : [-1, -1]
+    const length = Math.hypot(dx, dy) || 1
+    return localPoint(
+      position[0] + (dx / length) * KEPT_MARK_OFFSET_METERS,
+      position[1] + (dy / length) * KEPT_MARK_OFFSET_METERS,
+    )
+  }
   const atStops = stops.flatMap((position, stop) =>
-    isStopKept(kept, course, stop)
-      ? [localPoint(position[0] - KEPT_MARK_OFFSET_METERS, position[1] - KEPT_MARK_OFFSET_METERS)]
-      : [],
+    isStopKept(kept, course, stop) ? [awayFromNumber(position, stop)] : [],
   )
   const atLegs = stops.slice(1).flatMap((to, leg) => {
     const from = stops[leg]!
