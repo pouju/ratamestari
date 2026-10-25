@@ -58,6 +58,10 @@ const STRAIGHT_ON_DEGREES = 150
 const EXIT_LEG_STRETCH = 1.5
 const CANDIDATE_SHORTLIST = 3
 const MAX_DEPTH_FACTOR = 3
+const HOMING_FROM_SHARE = 0.6
+// Within about this distance of the exit, a crossing with the last leg counts as a bad one
+// (COURSE_LINE_CROSSING), so early legs keep clear of it to leave the way home open.
+const EXIT_CORRIDOR_METERS = 200
 
 const distanceBetween = (a: LocalPoint, b: LocalPoint) => Math.hypot(b[0] - a[0], b[1] - a[1])
 
@@ -113,7 +117,13 @@ export function fillSection(
   const stopsOf = (path: readonly number[]) => [entry, ...path.map(positionOf)]
 
   // The checks a new leg from the last stop of `path` to `site` must pass (as in the old build).
-  const legFits = (path: readonly number[], site: number, to: LocalPoint, isExit: boolean) => {
+  const legFits = (
+    path: readonly number[],
+    site: number,
+    to: LocalPoint,
+    isExit: boolean,
+    allowsCrossings = false,
+  ) => {
     const stops = stopsOf(path)
     const from = stops[stops.length - 1]!
     if (!context.isAllowedCourseLine(from, to)) return false
@@ -129,7 +139,7 @@ export function fillSection(
     ]
     const touches = (point: LocalPoint) =>
       distanceBetween(point, from) < 1 || distanceBetween(point, to) < 1
-    for (const [a, b] of legs) {
+    for (const [a, b] of allowsCrossings ? [] : legs) {
       if (touches(a) || touches(b)) continue
       if (crossingSeverity(a, b, from, to, near) > COURSE_LINE_CROSSING.acceptableSeverity)
         return false
@@ -190,24 +200,37 @@ export function fillSection(
   }
 
   const complete: { path: readonly number[]; total: number; cost: number }[] = []
+  // Closings whose only fault is crossing the course: better than a section far too short.
+  const crossingCloses: { path: readonly number[]; total: number; cost: number }[] = []
   const closings: { path: readonly number[]; total: number }[] = []
-  const tryClose = (state: State) => {
-    const stops = stopsOf(state.path)
+  // The time of a clean last leg from the end of `path` to the exit, or null if there is none.
+  const closingSeconds = (path: readonly number[], allowsCrossings = false): number | null => {
+    const stops = stopsOf(path)
     const from = stops[stops.length - 1]!
-    const last = state.path.length === 0 ? request.entry : state.path[state.path.length - 1]!
+    const last = path.length === 0 ? request.entry : path[path.length - 1]!
     const closing = toExit[last]!
-    if (!Number.isFinite(closing)) return
-    if (
-      distanceBetween(from, exitPosition) > longestLeg * EXIT_LEG_STRETCH &&
-      state.path.length > 0
-    )
-      return
-    if (!legFits(state.path, -1, exitPosition, true)) return
+    if (!Number.isFinite(closing)) return null
+    if (distanceBetween(from, exitPosition) > longestLeg * EXIT_LEG_STRETCH && path.length > 0)
+      return null
+    if (!legFits(path, -1, exitPosition, true, allowsCrossings)) return null
     if (
       request.afterExit &&
       angleAt(from, exitPosition, request.afterExit) < ACUTE_ANGLE.noteBelowDegrees
     )
+      return null
+    return closing
+  }
+  const tryClose = (state: State) => {
+    const closing = closingSeconds(state.path)
+    if (closing === null) {
+      const crossing = closingSeconds(state.path, true)
+      const total = crossing === null ? null : state.elapsed + crossing
+      if (total !== null && total >= earliest && total <= latest) {
+        const cost = costOf(state, crossing) + weights.crossingClose
+        crossingCloses.push({ path: state.path, total, cost })
+      }
       return
+    }
     const total = state.elapsed + closing
     if (total > latest) return
     closings.push({ path: state.path, total })
@@ -237,6 +260,11 @@ export function fillSection(
         const previous = stops[stops.length - 2]
         const isStraightOn =
           previous !== undefined && angleAt(previous, from, positionOf(i)) > STRAIGHT_ON_DEGREES
+        const passesExit =
+          request.exit !== 'finish' && i === request.exit
+            ? Number.POSITIVE_INFINITY
+            : distanceToSegment(exitPosition, from, positionOf(i))
+        const corridor = Math.max(0, 1 - passesExit / EXIT_CORRIDOR_METERS)
         const grown = {
           path: [...state.path, i],
           elapsed: state.elapsed + seconds,
@@ -245,7 +273,13 @@ export function fillSection(
           straightOn: state.straightOn + (isStraightOn ? 1 : 0),
           legs,
         }
-        return [{ ...grown, cost: costOf(grown, null) + weights.noise * random.next() }]
+        return [
+          {
+            ...grown,
+            cost:
+              costOf(grown, null) + weights.exitCorridor * corridor + weights.noise * random.next(),
+          },
+        ]
       })
       reachable.sort((a, b) => a.cost - b.cost)
       let taken = 0
@@ -253,15 +287,23 @@ export function fillSection(
         if (taken >= expansions) break
         const site = candidate.path[candidate.path.length - 1]!
         if (!legFits(state.path, site, positionOf(site), false)) continue
-        next.push(candidate)
+        // Late in the budget, a state that cannot close cleanly to the exit is a dead end: steer
+        // the beam home instead of letting it wander until nothing can finish.
+        const lateness = candidate.elapsed / budget - HOMING_FROM_SHARE
+        const homing =
+          lateness > 0 && closingSeconds(candidate.path) === null
+            ? weights.unclosable * lateness
+            : 0
+        next.push({ ...candidate, cost: candidate.cost + homing })
         taken++
       }
     }
     beam = next.sort((a, b) => a.cost - b.cost).slice(0, beamWidth)
   }
 
-  if (complete.length > 0) {
-    const best = complete.reduce((a, b) => (b.cost < a.cost ? b : a))
+  for (const candidates of [complete, crossingCloses]) {
+    if (candidates.length === 0) continue
+    const best = candidates.reduce((a, b) => (b.cost < a.cost ? b : a))
     return { controls: best.path, estimatedSeconds: best.total, short: false }
   }
   const nearest = closings.reduce<{ path: readonly number[]; total: number } | null>(

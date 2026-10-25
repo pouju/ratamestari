@@ -279,6 +279,11 @@ export const sectionFillSchema = citedSchema.extend({
     pacing: z.number().nonnegative(),
     straightOn: z.number().nonnegative(),
     budgetErrorPerPercent: z.number().nonnegative(),
+    // Per share of the budget past 60%, for a state whose last control cannot close cleanly.
+    unclosable: z.number().nonnegative(),
+    // A leg passing close to the section's exit, and a last leg that crosses the course.
+    exitCorridor: z.number().nonnegative(),
+    crossingClose: z.number().nonnegative(),
     noise: z.number().nonnegative(),
   }),
 })
@@ -298,6 +303,9 @@ export const SECTION_FILL: z.infer<typeof sectionFillSchema> = {
     pacing: 4,
     straightOn: 1,
     budgetErrorPerPercent: 0.3,
+    unclosable: 25,
+    exitCorridor: 2,
+    crossingClose: 10,
     noise: 0.3,
   },
   sources: [ratamestarikirja('1.2.6.S'), ratamestarikirja('2.S.2')],
