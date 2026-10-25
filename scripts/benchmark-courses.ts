@@ -1,5 +1,8 @@
+import { spawn } from 'node:child_process'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { availableParallelism } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import {
   localPoint,
@@ -49,10 +52,29 @@ const { values } = parseArgs({
     formats: { type: 'string', default: 'long,middle' },
     out: { type: 'string', default: DEFAULT_OUT },
     only: { type: 'string' },
+    // Searches run in parallel child processes, one per core by default.
+    jobs: { type: 'string', default: String(availableParallelism()) },
+    worker: { type: 'string' },
   },
 })
 const seeds = Array.from({ length: Number(values.seeds) }, (_, i) => i + 1)
 const formats = values.formats.split(',') as Format[]
+
+interface SearchJob {
+  readonly mapFile: string
+  readonly format: Format
+  readonly seed: number
+  readonly centre: readonly [number, number]
+}
+
+interface SearchResult {
+  readonly controls: number
+  readonly stops: readonly (readonly [number, number])[]
+  readonly printExtent: LocalExtent | null
+  readonly timeErrorPercent: number
+  readonly findings: number
+  readonly searchSeconds: number
+}
 
 interface Row {
   readonly source: string
@@ -78,6 +100,19 @@ const loadMap = async (file: string) => {
   return map
 }
 
+if (values.worker) {
+  console.log(JSON.stringify(await runSearchJob(JSON.parse(values.worker) as SearchJob)))
+  process.exit(0)
+}
+
+interface Benchmarked {
+  readonly title: string
+  readonly terrain: Terrain
+  readonly references: readonly Row[]
+  readonly jobs: readonly SearchJob[]
+}
+
+const benchmarked: Benchmarked[] = []
 for (const courseFile of courseFiles) {
   const data = readCourseData(readFileSync(join(MAPS_FOLDER, courseFile), 'utf8'))
   const scale = data.mapScale ?? 15000
@@ -96,66 +131,48 @@ for (const courseFile of courseFiles) {
   if (!mapFile) continue
   const map = await loadMap(mapFile)
   const terrain = buildTerrain(map.features(), map.info.extent)
-  const sites = findControlSites(map.features(), terrain).filter(s => describeControl(s) !== null)
   const centre = firstStops[firstStops.length - 1]!
+  benchmarked.push({
+    title: `## ${courseFile.replace(COURSES_SUFFIX, '')} (${data.courses.length} reference courses)`,
+    terrain,
+    references: references.map(reference => ({
+      source: `reference ${reference.name}`,
+      controls: reference.stops.length - 2,
+      stops: reference.stops,
+      printExtent:
+        fitPrintAreaToCourse(terrain, reference.stops, {
+          papers: ['A4', 'A3'],
+          printScale: scale,
+          descriptionRows: reference.stops.length + 2,
+        })?.extent ?? null,
+      timeErrorPercent: null,
+      findings: null,
+      searchSeconds: null,
+    })),
+    jobs: formats.flatMap(format =>
+      seeds.map(seed => ({ mapFile, format, seed, centre: [centre[0], centre[1]] as const })),
+    ),
+  })
+}
 
-  const rows: Row[] = references.map(reference => ({
-    source: `reference ${reference.name}`,
-    controls: reference.stops.length - 2,
-    stops: reference.stops,
-    printExtent:
-      fitPrintAreaToCourse(terrain, reference.stops, {
-        papers: ['A4', 'A3'],
-        printScale: scale,
-        descriptionRows: reference.stops.length + 2,
-      })?.extent ?? null,
-    timeErrorPercent: null,
-    findings: null,
-    searchSeconds: null,
-  }))
-  for (const format of formats) {
-    const target = courseTargetFor({
-      eventLevel: 'finnishChampionship',
-      format,
-      sex: 'H',
-      ageClass: 21,
-      skillLetter: 'A',
-    })!
-    for (const seed of seeds) {
-      const started = performance.now()
-      const course = setCourseOnPaper(
-        terrain,
-        sites,
-        {
-          target,
-          format,
-          printScale: printScaleFor('auto', format),
-          competitionCentre: centre,
-          seed,
-          paceSecondsPerKm: PACE_SECONDS_PER_KM,
-        },
-        'auto',
-      )
-      if (!course) continue
-      const stops = [course.start.position, ...course.controls.map(s => s.position), course.finish]
-      rows.push({
-        source: `${format} seed ${seed}`,
-        controls: course.controls.length,
-        stops,
-        printExtent: course.printArea?.extent ?? null,
-        timeErrorPercent:
-          (100 * (course.estimatedSeconds - course.targetSeconds)) / course.targetSeconds,
-        findings: course.findings.length,
-        searchSeconds: (performance.now() - started) / 1000,
-      })
-    }
+const allJobs = benchmarked.flatMap(entry => entry.jobs)
+const results = await runInParallel(allJobs, Math.max(1, Number(values.jobs)))
+for (const entry of benchmarked) {
+  const rows: Row[] = [...entry.references]
+  for (const job of entry.jobs) {
+    const result = results.get(job)
+    if (!result) continue
+    rows.push({
+      source: `${job.format} seed ${job.seed}`,
+      controls: result.controls,
+      stops: result.stops.map(([x, y]) => localPoint(x, y)),
+      printExtent: result.printExtent,
+      timeErrorPercent: result.timeErrorPercent,
+      findings: result.findings,
+      searchSeconds: result.searchSeconds,
+    })
   }
-  lines.push(
-    `## ${courseFile.replace(COURSES_SUFFIX, '')} (${data.courses.length} reference courses)`,
-    '',
-  )
-  lines.push(table(rows, terrain))
-  lines.push('')
+  lines.push(entry.title, '', table(rows, entry.terrain), '')
   console.log(lines.slice(-3).join('\n'))
 }
 
@@ -301,6 +318,7 @@ function legend(): string {
     `Crowd L/M: most controls within ${CROWDING.long.radiusMetres} m / ${CROWDING.middle.radiusMetres} m of one control (limit ${CROWDING.long.maxControls}).`,
     `End tangle: mean nearest-neighbour distance of the controls in the last ${END_SHARE * 100}% of the length over that of all controls (below 1: the end is denser).`,
     'Long/middle fit: distance from the leg-length target of that format (0 is a perfect match).',
+    `Search s: time of one search; with --jobs above 1 the searches share the processor, so use --jobs 1 to compare speed.`,
   ].join('\n')
 }
 
@@ -321,4 +339,76 @@ function median(values: readonly number[]): number {
 
 function percent(share: number): string {
   return `${Math.round(share * 100)}%`
+}
+
+// Long searches first, so the slowest jobs do not start last.
+async function runInParallel(
+  jobs: readonly SearchJob[],
+  concurrency: number,
+): Promise<Map<SearchJob, SearchResult | null>> {
+  const queue = [...jobs].sort((a, b) => Number(b.format === 'long') - Number(a.format === 'long'))
+  const results = new Map<SearchJob, SearchResult | null>()
+  const script = fileURLToPath(import.meta.url)
+  const runOne = (job: SearchJob) =>
+    new Promise<SearchResult | null>((resolve, reject) => {
+      const child = spawn(
+        process.execPath,
+        ['--import', 'tsx', script, '--worker', JSON.stringify(job)],
+        { stdio: ['ignore', 'pipe', 'inherit'] },
+      )
+      let output = ''
+      child.stdout.on('data', chunk => (output += chunk))
+      child.on('error', reject)
+      child.on('close', code =>
+        code === 0
+          ? resolve(JSON.parse(output.trim().split('\n').pop() ?? 'null') as SearchResult | null)
+          : reject(new Error(`${job.mapFile} ${job.format} seed ${job.seed} failed (${code})`)),
+      )
+    })
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    for (let job = queue.shift(); job; job = queue.shift()) {
+      results.set(job, await runOne(job))
+      console.log(`${results.size}/${jobs.length}: ${job.mapFile} ${job.format} seed ${job.seed}`)
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
+async function runSearchJob({ mapFile, format, seed, centre }: SearchJob) {
+  const map = await loadMap(mapFile)
+  const terrain = buildTerrain(map.features(), map.info.extent)
+  const sites = findControlSites(map.features(), terrain).filter(s => describeControl(s) !== null)
+  const target = courseTargetFor({
+    eventLevel: 'finnishChampionship',
+    format,
+    sex: 'H',
+    ageClass: 21,
+    skillLetter: 'A',
+  })!
+  const started = performance.now()
+  const course = setCourseOnPaper(
+    terrain,
+    sites,
+    {
+      target,
+      format,
+      printScale: printScaleFor('auto', format),
+      competitionCentre: localPoint(centre[0], centre[1]),
+      seed,
+      paceSecondsPerKm: PACE_SECONDS_PER_KM,
+    },
+    'auto',
+  )
+  if (!course) return null
+  const stops = [course.start.position, ...course.controls.map(s => s.position), course.finish]
+  return {
+    controls: course.controls.length,
+    stops: stops.map(([x, y]) => [x, y] as const),
+    printExtent: course.printArea?.extent ?? null,
+    timeErrorPercent:
+      (100 * (course.estimatedSeconds - course.targetSeconds)) / course.targetSeconds,
+    findings: course.findings.length,
+    searchSeconds: (performance.now() - started) / 1000,
+  } satisfies SearchResult
 }
