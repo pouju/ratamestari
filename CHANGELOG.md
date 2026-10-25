@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.5.0](https://github.com/pouju/ratamestari/compare/v0.4.0...v0.5.0) (2026-10-25)
+
+
+### Features
+
+* **agent:** name the app's buttons in the language the user sees ([bccbd01](https://github.com/pouju/ratamestari/commit/bccbd012c1174dc97a4ce4c8990fd848b9c1a7f7))
+* **core:** project latitude and longitude to map coordinates ([5bb3764](https://github.com/pouju/ratamestari/commit/5bb3764aecb84cdd3df5d90232edcfdeecac0599))
+* **course-detect:** read the course printed on a map ([32e17a7](https://github.com/pouju/ratamestari/commit/32e17a7780498281233f696224c6a39cb0cbe30c))
+* **engine:** plan the paper around kept controls when there is none yet ([1b1c566](https://github.com/pouju/ratamestari/commit/1b1c566be3e29f0580097b27fe92965981085b26))
+* **iof:** write a course known only by its stops as IOF XML ([aedd1b3](https://github.com/pouju/ratamestari/commit/aedd1b319a589abcb642c71af5f7ea485166c39e))
+* **map-import-pdf:** draw a PDF page without its course ([8e5028f](https://github.com/pouju/ratamestari/commit/8e5028f1b2b6d3968d74bd3cce31227520fa4a56))
+* **map-import-pdf:** find the printed course on a PDF page ([ffda6d9](https://github.com/pouju/ratamestari/commit/ffda6d9c6f565dd6a89a05921de5e099ec388c58))
+* **map-import-pdf:** leave map texts out of the map features ([15ee77d](https://github.com/pouju/ratamestari/commit/15ee77d04009e0dc4941fe83642a606859d4a046))
+* **map-import-pdf:** read control codes from the description table ([2ce1274](https://github.com/pouju/ratamestari/commit/2ce12748bd09c743959507a0d56c24059de6a9ea))
+* **map-import-pdf:** read map symbols from a PDF page ([03d679f](https://github.com/pouju/ratamestari/commit/03d679fb299739aa701e3566b4cbc0c39ee8aaf1))
+* **map-import-pdf:** read the georeference of a geospatial PDF ([5888014](https://github.com/pouju/ratamestari/commit/58880148b8cfae2f645b892a3965f4526bbf9c0d))
+* **map-import-pdf:** read vector paths and text from a PDF map ([23d8a9f](https://github.com/pouju/ratamestari/commit/23d8a9fa8c015ffa596095133de22432dff60a77))
+* **map-import-pdf:** tell a scanned PDF from a drawn map ([9006cc5](https://github.com/pouju/ratamestari/commit/9006cc5c17c379006e1f06bac171042d5407c62b))
+* **rules:** describe how ISOM symbols look on a printed map ([37f863a](https://github.com/pouju/ratamestari/commit/37f863a6aa1ccab982cc7d63896748dd32e6ee2d))
+* **web:** open a map from a PDF as a hidden experimental feature ([18bec69](https://github.com/pouju/ratamestari/commit/18bec69d7d78201740ffcad0c232abc20cb01a01))
+* **web:** open a printed course with the codes read from the PDF ([7d557e7](https://github.com/pouju/ratamestari/commit/7d557e7910fd6851ec3674453e8ea8b1c0665c53))
+* **web:** Ratamestari in Finnish ([4a3e5bd](https://github.com/pouju/ratamestari/commit/4a3e5bd31a997b8aa4bc2f788ec237357f4bb35c))
+* **web:** say when a PDF holds the map only as a picture ([ce2955a](https://github.com/pouju/ratamestari/commit/ce2955a88e17450f50b92ba90d0957d81e43452e))
+* **web:** set a course around a planned leg ([cfaf357](https://github.com/pouju/ratamestari/commit/cfaf357bd54321a3058fc60d0e628554141b0bee))
+* **web:** use a PDF's own print scale and coordinates ([f59bf2b](https://github.com/pouju/ratamestari/commit/f59bf2b045bf28e2e814e0421fe66c65457015c7))
+
+
+### Bug fixes
+
+* import the OCAD map loader by its new package name in the reel script ([d81f99a](https://github.com/pouju/ratamestari/commit/d81f99a70f3a1de64e9ec2a9ceb43fc91f5a6234))
+* **web:** draw marshes and scattered trees in the landing page map ([869557f](https://github.com/pouju/ratamestari/commit/869557fc434d2c80d4b0ff24fdf8455200dbc0fc))
+
+
+### Performance
+
+* **engine:** bound the time trees of single-control moves ([8e66136](https://github.com/pouju/ratamestari/commit/8e661367ca77d64557bb689bd4121b9c36112b6b))
+* **engine:** cache straight-line leg times and reuse route buffers ([e456187](https://github.com/pouju/ratamestari/commit/e456187dc62feb7fe503fe85d525d2839c9b9635))
+* **engine:** route without allocating per step ([0b7436d](https://github.com/pouju/ratamestari/commit/0b7436d4feb002b6e8dd25c4f3fa4419b39bbaaf))
+* **engine:** stop a section's time tree once its sites are known ([749043b](https://github.com/pouju/ratamestari/commit/749043b1a727b4925be6546c7f2bba2d9ccafcd8))
+
 ## [0.4.0](https://github.com/pouju/ratamestari/compare/v0.3.0...v0.4.0) (2026-10-25)
 
 
