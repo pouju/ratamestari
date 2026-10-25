@@ -134,9 +134,11 @@ interface PlanLegProps {
   plan: PlannedLeg
   routes: LegRoutesState
   onDone: () => void
+  // null until the competition centre is chosen.
+  onSetCourseAround: (() => void) | null
 }
 
-export function PlanLegPanel({ plan, routes, onDone }: PlanLegProps) {
+export function PlanLegPanel({ plan, routes, onDone, onSetCourseAround }: PlanLegProps) {
   const m = useMessages()
   const format = useFormat()
   const instruction =
@@ -179,6 +181,19 @@ export function PlanLegPanel({ plan, routes, onDone }: PlanLegProps) {
               <RouteTable leg={routes.leg} />
             </>
           )}
+          <div className="plan-leg-around">
+            <button
+              type="button"
+              className="course-primary"
+              disabled={!onSetCourseAround}
+              onClick={() => onSetCourseAround?.()}
+            >
+              {m.planLeg.setCourseAround}
+            </button>
+            <p className="leg-view-soft leg-view-small">
+              {onSetCourseAround ? m.planLeg.setCourseAroundHint : m.planLeg.chooseCentreFirst}
+            </p>
+          </div>
           <p className="leg-view-soft leg-view-small">{m.leg.fromSymbols}</p>
         </>
       )}

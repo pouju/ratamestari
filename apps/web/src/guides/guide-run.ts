@@ -17,13 +17,17 @@ export interface GuideLeg {
 
 // What the guides replay on the hero's sample run, in the same page units: recorded from the
 // engine by `pnpm record-demo-run` (scripts/record-demo-run.ts).
-// A course set again around a kept leg: its stops, and where the kept controls ended up.
-export interface GuideKeep {
-  readonly leg: number
+// A course set around kept controls: its stops, and where the kept controls ended up.
+export interface GuideCourse {
   readonly start: DemoPoint
   readonly controls: readonly DemoPoint[]
   readonly numbers: readonly DemoPoint[]
   readonly keptStops: readonly number[]
+}
+
+// The course set again after keeping leg `leg` of the sample course.
+export interface GuideKeep extends GuideCourse {
+  readonly leg: number
 }
 
 export interface GuideRun {
@@ -41,7 +45,14 @@ export interface GuideRun {
     readonly direction: CompassDirection
     readonly to: DemoPoint
   } | null
-  readonly plannedLeg: (GuideLeg & { readonly from: DemoPoint; readonly to: DemoPoint }) | null
+  readonly plannedLeg:
+    | (GuideLeg & {
+        readonly from: DemoPoint
+        readonly to: DemoPoint
+        // The course set around the planned leg.
+        readonly around: GuideCourse | null
+      })
+    | null
 }
 
 const point = ([x = 0, y = 0]: readonly number[]): DemoPoint => [x, y]
@@ -65,13 +76,21 @@ const leg = (recordedLeg: {
   routes: recordedLeg.routes.map(route),
 })
 
+interface RecordedCourse {
+  start: number[]
+  controls: number[][]
+  numbers: number[][]
+  keptStops: number[]
+}
+const guideCourse = (course: RecordedCourse): GuideCourse => ({
+  start: point(course.start),
+  controls: course.controls.map(point),
+  numbers: course.numbers.map(point),
+  keptStops: course.keptStops,
+})
+
 export const GUIDE_RUN: GuideRun = {
-  keep: recorded.keep && {
-    ...recorded.keep,
-    start: point(recorded.keep.start),
-    controls: recorded.keep.controls.map(point),
-    numbers: recorded.keep.numbers.map(point),
-  },
+  keep: recorded.keep && { leg: recorded.keep.leg, ...guideCourse(recorded.keep) },
   leg: { index: recorded.leg.index, ...leg(recorded.leg) },
   courseRoutes: recorded.courseRoutes.map(routes => routes.map(route)),
   findings: recorded.findings,
@@ -85,5 +104,6 @@ export const GUIDE_RUN: GuideRun = {
     ...leg(recorded.plannedLeg),
     from: point(recorded.plannedLeg.from),
     to: point(recorded.plannedLeg.to),
+    around: recorded.plannedLeg.around && guideCourse(recorded.plannedLeg.around),
   },
 }

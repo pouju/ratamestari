@@ -269,6 +269,10 @@ export const en = {
     dragHint: 'Drag either control. The routes follow as you drag.',
     straightLine: 'Straight line',
     bearing: 'Bearing',
+    setCourseAround: 'Set a course around this leg',
+    setCourseAroundHint:
+      'The leg is kept, and the course for the chosen class is set around it. Its ends snap to mapped features within 60 m.',
+    chooseCentreFirst: 'Choose the competition centre first; the course finishes there.',
   },
   setByHand: {
     title: 'Set it yourself',
@@ -602,8 +606,10 @@ export const en = {
         'Press Plan a leg in the map tools.',
         'Click where the leg starts, then where it ends.',
         'Compare the routes. Drag either end and the routes follow.',
+        'Press Set a course around this leg: the leg is kept and the course is set around it.',
       ],
-      label: 'Animation: two points are clicked and the routes between them appear.',
+      label:
+        'Animation: two points are clicked, the routes between them appear, and a course is set around the leg.',
     },
     assistant: {
       title: 'Ask the assistant',

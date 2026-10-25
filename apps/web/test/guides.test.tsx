@@ -22,6 +22,7 @@ describe('the recorded guides run', () => {
   it('shows a real route choice on the leg and the planned leg', () => {
     expect(GUIDE_RUN.leg.routes.length).toBeGreaterThan(1)
     expect(GUIDE_RUN.plannedLeg!.routes.length).toBeGreaterThan(1)
+    expect(GUIDE_RUN.plannedLeg!.around?.keptStops).toHaveLength(2)
     expect(GUIDE_RUN.courseRoutes).toHaveLength(SAMPLE_RUN.controls.length + 1)
   })
 })

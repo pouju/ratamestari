@@ -4,6 +4,7 @@ import type { ControlSiteCandidate, Course } from '@ratamestari/engine'
 import {
   isLegKept,
   isStopKept,
+  keptAroundLeg,
   keptCount,
   locksFor,
   NOTHING_KEPT,
@@ -57,6 +58,12 @@ describe('kept controls', () => {
       keptLegs: [false, false, true],
     })
     expect(locksFor(NOTHING_KEPT, COURSE)).toBeNull()
+  })
+
+  it('keeps the leg a course was set around', () => {
+    const kept = keptAroundLeg(COURSE, [localPoint(195, 10), localPoint(310, -5)])
+    expect(isLegKept(kept, COURSE, 2)).toBe(true)
+    expect(keptCount(kept, COURSE)).toEqual({ controls: 2, legs: 1 })
   })
 
   it('keeps a moved control kept, with its legs', () => {

@@ -23,6 +23,7 @@ import {
   peripheralLayout,
   planCourse,
   setCourseOnPaper,
+  type ControlSiteCandidate,
 } from '@ratamestari/engine'
 import { describeControl, descriptionSheet, renderDescriptionSheet } from '@ratamestari/iof'
 import { loadOcadMap } from '@ratamestari/map-ocad'
@@ -357,7 +358,12 @@ function guideRun() {
     site => !inCourse.has(site.id) && isShown(site.position, PLANNED_LEG_PAGE_INSET_SHARE),
   )
   let planned:
-    ({ from: LocalPoint; to: LocalPoint } & NonNullable<ReturnType<typeof routesOf>>) | null = null
+    | ({
+        from: LocalPoint
+        to: LocalPoint
+        sites: [ControlSiteCandidate, ControlSiteCandidate]
+      } & NonNullable<ReturnType<typeof routesOf>>)
+    | null = null
   for (let i = 0; i < plannable.length && !planned; i += PLANNED_LEG_SITE_STEP) {
     for (let j = i + 1; j < plannable.length && !planned; j += PLANNED_LEG_SITE_STEP) {
       const from = plannable[i]!.position
@@ -365,9 +371,34 @@ function guideRun() {
       const meters = Math.hypot(to[0] - from[0], to[1] - from[1])
       if (meters < PLANNED_LEG_METERS[0] || meters > PLANNED_LEG_METERS[1]) continue
       const routes = routesOf(from, to)
-      if (routes && routes.routes.length > 1) planned = { from, to, ...routes }
+      if (routes && routes.routes.length > 1)
+        planned = { from, to, sites: [plannable[i]!, plannable[j]!], ...routes }
     }
   }
+
+  // A course set around the planned leg (D15), on the same page as the rest so the guide can show it.
+  const aroundPlanned =
+    planned &&
+    setCourseOnPaper(
+      terrain,
+      sites,
+      {
+        ...editSpec,
+        locks: { start: null, controls: planned.sites, keptLegs: [false, true, false] },
+      },
+      'auto',
+    )
+  const around = aroundPlanned &&
+    [aroundPlanned.start, ...aroundPlanned.controls].every(site => isShown(site.position)) && {
+      start: toPage(aroundPlanned.start.position),
+      controls: aroundPlanned.controls.map(site => toPage(site.position)),
+      numbers: layOutOverprint(aroundPlanned, overprintDetailOf(features)).numberCentres.map(
+        toPage,
+      ),
+      keptStops: planned!.sites.map(
+        site => aroundPlanned.controls.findIndex(other => isSameSite(other, site)) + 1,
+      ),
+    }
 
   // The shown leg kept, with both its controls, and the course set again around it (D15).
   const keptControls = [shownLeg, shownLeg + 1].filter(
@@ -409,7 +440,14 @@ function guideRun() {
     assistant: moves[0]
       ? { control: asked, direction: moves[0].direction, to: toPage(moves[0].to) }
       : null,
-    plannedLeg: planned && { ...planned, from: toPage(planned.from), to: toPage(planned.to) },
+    plannedLeg: planned && {
+      straightMeters: planned.straightMeters,
+      bearingDegrees: planned.bearingDegrees,
+      routes: planned.routes,
+      from: toPage(planned.from),
+      to: toPage(planned.to),
+      around: around || null,
+    },
   }
 }
 

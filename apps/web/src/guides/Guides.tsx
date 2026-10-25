@@ -111,7 +111,11 @@ function GuideSection({ name, scene }: { name: GuideName; scene: Scene }) {
       </div>
       <figure className="guide-figure">
         <div className="guide-stage">
-          <MapStage run={SAMPLE_RUN} view={scene.view} label={guide.label}>
+          <MapStage
+            run={SAMPLE_RUN}
+            view={scene.viewAt?.(clock.tick) ?? scene.view}
+            label={guide.label}
+          >
             {scene.map(clock.tick)}
           </MapStage>
           <div className="guide-panel" aria-hidden="true">

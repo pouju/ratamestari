@@ -22,6 +22,8 @@ export interface Scene {
   readonly stillTick: number
   readonly stepStarts: readonly number[]
   readonly view: ViewBox
+  // When the scene zooms, the view at each tick.
+  readonly viewAt?: (tick: number) => ViewBox
   readonly map: (tick: number) => ReactNode
   readonly panel: (tick: number) => ReactNode
 }
@@ -621,7 +623,8 @@ function setByHandScene(m: Messages): Scene {
 
 function planLegScene(m: Messages, format: Format): Scene | null {
   const planned = guide.plannedLeg
-  if (!planned) return null
+  if (!planned?.around) return null
+  const around = planned.around
   const view = focusBox(
     [planned.from, planned.to, ...planned.routes.flatMap(route => route.points)],
     FOCUS_PADDING,
@@ -631,24 +634,49 @@ function planLegScene(m: Messages, format: Format): Scene | null {
   const fromClick = 20
   const toClick = 34
   const routesFrom = 37
+  const aroundPress = 66
+  const zoomOut = 70
+  const revealed = 82
+  const [firstKept, secondKept] = around.keptStops.map(stop => around.controls[stop - 1]!)
+  const keptNumbers = around.keptStops.map(stop => around.numbers[stop - 1])
   return {
-    loopTicks: 100,
-    stillTick: 99,
-    stepStarts: [0, 14, routesFrom],
+    loopTicks: 135,
+    stillTick: 134,
+    stepStarts: [0, 14, routesFrom, aroundPress],
     view,
+    viewAt: tick => {
+      const t = progress(tick, zoomOut, 8)
+      return view.map((value, i) => value + (WHOLE_PAGE[i]! - value) * t) as unknown as ViewBox
+    },
     map: tick => (
       <>
-        <RoutesDrawn routes={planned.routes} tick={tick} from={routesFrom} />
-        <Overprint
-          run={run}
-          start={null}
-          controls={[
-            ...(tick >= fromClick ? [{ at: planned.from }] : []),
-            ...(tick >= toClick ? [{ at: planned.to }] : []),
-          ]}
-          finish={null}
-          hasNumbers={false}
-        />
+        <g opacity={1 - progress(tick, revealed - 6, 4)}>
+          <RoutesDrawn routes={planned.routes} tick={tick} from={routesFrom} />
+          <Overprint
+            run={run}
+            start={null}
+            controls={[
+              ...(tick >= fromClick ? [{ at: planned.from }] : []),
+              ...(tick >= toClick ? [{ at: planned.to }] : []),
+            ]}
+            finish={null}
+            hasNumbers={false}
+          />
+        </g>
+        {tick >= revealed - 4 && firstKept && secondKept && (
+          <g opacity={progress(tick, revealed - 4, 6)}>
+            <Overprint
+              run={run}
+              start={around.start}
+              controls={courseControls(around.controls)}
+              finish={run.finish}
+              numbers={around.numbers}
+            />
+            <KeptMark at={firstKept} awayFrom={keptNumbers[0] ?? null} />
+            <KeptMark at={secondKept} awayFrom={keptNumbers[1] ?? null} />
+            <KeptMark at={midpoint(firstKept, secondKept)} awayFrom={null} />
+          </g>
+        )}
         <Pointer
           view={view}
           tick={tick}
@@ -658,7 +686,7 @@ function planLegScene(m: Messages, format: Format): Scene | null {
             [fromClick - 2, planned.from],
             [toClick - 2, planned.to],
           ])}
-          opacity={tick < 12 ? 0 : 1}
+          opacity={tick < 12 ? 0 : 1 - progress(tick, toClick + 6, 2)}
         />
       </>
     ),
@@ -674,6 +702,21 @@ function planLegScene(m: Messages, format: Format): Scene | null {
               </PanelButton>
               <PanelButton>{m.map.editControls}</PanelButton>
             </div>
+          </>
+        )
+      if (tick >= aroundPress + 2 && tick < revealed)
+        return (
+          <p>
+            <strong>{m.course.setting}</strong>
+            <br />
+            <span className="guide-soft">{m.course.searchPhases.sections}</span>
+          </p>
+        )
+      if (tick >= revealed)
+        return (
+          <>
+            <PanelLine label={m.course.controls} value={String(around.controls.length)} />
+            <p className="guide-note">{m.keep.summary(2, 1)}</p>
           </>
         )
       const shownRoutes = planned.routes.filter((_, i) => tick >= routeShownAt(routesFrom, i))
@@ -693,8 +736,16 @@ function planLegScene(m: Messages, format: Format): Scene | null {
                 label={m.planLeg.straightLine}
                 value={format.distance(planned.straightMeters)}
               />
-              <PanelLine label={m.planLeg.bearing} value={format.bearing(planned.bearingDegrees)} />
               <RouteTable m={m} format={format} leg={planned} shownRoutes={shownRoutes} />
+              <div className="guide-buttons">
+                <PanelButton
+                  isPrimary
+                  isPointed={tick >= aroundPress - 8}
+                  isPressed={isPressing(tick, aroundPress)}
+                >
+                  {m.planLeg.setCourseAround}
+                </PanelButton>
+              </div>
             </>
           )}
         </>

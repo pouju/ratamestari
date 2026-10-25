@@ -162,3 +162,18 @@ export const forgetStops = (kept: Kept, course: Course, stops: readonly number[]
       isStopKept(current, course, stop) ? toggleStop(current, course, stop) : current,
     kept,
   )
+
+// A course set around a planned leg keeps that leg: the one whose ends lie nearest the planned
+// ends, which the engine snapped to control sites.
+export function keptAroundLeg(course: Course, [from, to]: readonly [LocalPoint, LocalPoint]): Kept {
+  const distance = (a: LocalPoint, b: LocalPoint) => Math.hypot(a[0] - b[0], a[1] - b[1])
+  const controls = course.controls.map(site => site.position)
+  const nearest = controls.slice(1).reduce(
+    (best, next, k) => {
+      const gap = distance(controls[k]!, from) + distance(next, to)
+      return gap < best.gap ? { leg: k + 1, gap } : best
+    },
+    { leg: -1, gap: Number.POSITIVE_INFINITY },
+  )
+  return nearest.leg < 0 ? NOTHING_KEPT : toggleLeg(NOTHING_KEPT, course, nearest.leg)
+}

@@ -33,6 +33,7 @@ import {
   papersFor,
   peripheralLayout,
   setCourseOnPaperSteps,
+  siteForPoint,
   type CourseLocks,
   type CourseSpec,
   type PrintArea,
@@ -205,8 +206,12 @@ const engine = {
     printFrame: PrintFrame | null,
     onProgress: (progress: SearchProgress) => void,
     startDistanceFromFinishMeters: readonly [number, number] | null = null,
-    // Kept controls, set again on the paper of the course they were kept from.
-    kept: { readonly locks: CourseLocks; readonly printArea: PrintArea | null } | null = null,
+    // Kept controls, set again on the paper of the course they were kept from; or a planned leg
+    // to keep, whose ends snap to control sites as a click does.
+    kept:
+      | { readonly locks: CourseLocks; readonly printArea: PrintArea | null }
+      | { readonly legEnds: readonly [LocalPoint, LocalPoint] }
+      | null = null,
   ): Promise<Course | null> {
     if (!terrain) throw new Error('No map loaded in the engine')
     const automatic = specFor(
@@ -221,15 +226,24 @@ const engine = {
     const framed = printFrame
       ? { ...automatic, printFrame, printScale: printFrame.scale }
       : automatic
-    const spec = kept
-      ? {
-          ...framed,
-          locks: kept.locks,
-          ...(kept.printArea && !printFrame
-            ? { printArea: kept.printArea, printScale: kept.printArea.scale }
-            : {}),
-        }
-      : framed
+    const spec: CourseSpec = !kept
+      ? framed
+      : 'legEnds' in kept
+        ? {
+            ...framed,
+            locks: {
+              start: null,
+              controls: kept.legEnds.map(end => siteForPoint(sites, framed, end)),
+              keptLegs: [false, true, false],
+            },
+          }
+        : {
+            ...framed,
+            locks: kept.locks,
+            ...(kept.printArea && !printFrame
+              ? { printArea: kept.printArea, printScale: kept.printArea.scale }
+              : {}),
+          }
     lastSetting = { spec, paper }
     return runSliced(setCourseOnPaperSteps(terrain, sites, spec, paper), onProgress)
   },

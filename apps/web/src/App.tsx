@@ -71,6 +71,7 @@ import {
   isLegKept,
   isStopKept,
   keepStopsAndLegs,
+  keptAroundLeg,
   keptCount,
   keptIndices,
   keptMarksOf,
@@ -386,9 +387,10 @@ export function App() {
     pace: number | null,
     centre = competitionCentre,
     wish = startWish,
+    aroundLeg: readonly [LocalPoint, LocalPoint] | null = null,
   ): Promise<Course | null> {
     if (!centre || pace === null) return null
-    const locks = course && locksFor(keptRef.current, course)
+    const locks = !aroundLeg && course ? locksFor(keptRef.current, course) : null
     const frame = frameFor(placedFrame, paper, printScale, nextRequest)
     if (frame && !hasRoomForCentre(frame, centre)) {
       setEditMessage(messages.print.centreOutside)
@@ -416,9 +418,10 @@ export function App() {
           setSearch(current => current && { ...current, phase }),
         ),
         wish,
-        locks && { locks, printArea: course!.printArea },
+        aroundLeg ? { legEnds: aroundLeg } : locks && { locks, printArea: course!.printArea },
       )
       setCourse(result)
+      if (result && aroundLeg) setKept(keptAroundLeg(result, aroundLeg))
       if (result) {
         setDrawCourseKey(key => key + 1)
         track('course-set', {
@@ -426,7 +429,7 @@ export function App() {
           level: nextRequest.eventLevel,
           format: nextRequest.format,
           courseClass: courseNameOf(nextRequest),
-          keptControls: locks?.controls.length ?? 0,
+          keptControls: aroundLeg ? 2 : (locks?.controls.length ?? 0),
         })
       } else setEditMessage(messages.course.noCourse)
       return result
@@ -1171,7 +1174,27 @@ export function App() {
           />
         )}
         {plannedLeg && (
-          <PlanLegPanel plan={plannedLeg} routes={planRoutes} onDone={() => setPlannedLeg(null)} />
+          <PlanLegPanel
+            plan={plannedLeg}
+            routes={planRoutes}
+            onDone={() => setPlannedLeg(null)}
+            onSetCourseAround={
+              competitionCentre && paceSecondsPerKm !== null && !isGenerating
+                ? () => {
+                    const ends = plannedEnds(plannedLeg)
+                    if (ends)
+                      void generateCourse(
+                        request,
+                        seed,
+                        paceSecondsPerKm,
+                        competitionCentre,
+                        startWish,
+                        ends,
+                      )
+                  }
+                : null
+            }
+          />
         )}
         <PanelLine
           label={messages.workspace.mapLine}
