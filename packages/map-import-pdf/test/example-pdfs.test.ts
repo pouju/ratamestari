@@ -1,76 +1,144 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import type { PaperPoint } from '@ratamestari/core'
-import { readCourseData } from '@ratamestari/iof'
+import {
+  localPoint,
+  paperPoint,
+  type LocalPoint,
+  type MapFeature,
+  type PaperPoint,
+} from '@ratamestari/core'
+import { readCourseData, type ImportedCourseData } from '@ratamestari/iof'
+import { loadOcadMap } from '@ratamestari/map-import-ocad'
 import { describe, expect, it } from 'vitest'
-import { detectPdfCourse, readPdfPages } from '../src'
+import { readPdfMap, type PaperGeometry, type PdfMapPage } from '../src'
+import { scoreFeatures } from './feature-score'
+import { fitSimilarity, type Point, type Similarity } from './similarity'
 
-// Real event PDFs in the git-ignored maps/ folder, with the IOF XML of the courses printed on them.
+// Real event PDFs in the git-ignored maps/ folder, with the OCAD map and the IOF XML of the
+// courses printed on them.
 const mapsFolder = fileURLToPath(new URL('../../../maps/', import.meta.url))
 const examples = [
   {
     pdf: 'map-a-course-c.pdf',
     producer: 'OCAD 2020',
+    ocd: 'map-a.ocd',
     xml: 'map-a.Courses.xml',
+    printScale: 7500,
     pages: [{ course: 'C', controls: 10 }],
   },
   {
     pdf: 'map-b-forked.pdf',
     producer: 'Condes',
+    ocd: 'map-b.ocd',
     xml: 'map-b-forked-courses.xml',
+    printScale: 10000,
     pages: [null, { course: 'A (a)', controls: 12 }, { course: 'A (b)', controls: 12 }],
   },
 ]
-const MAX_ERROR_METRES = 3
+const MAX_COURSE_ERROR_METRES = 3
+const MIN_FEATURE_PRECISION = 0.9
+const MIN_FEATURE_RECALL = 0.85
 const MILLIMETRES_PER_PAPER_UNIT = 0.01
+const TIMEOUT_MS = 60_000
 
-describe.each(examples)('the course printed on $pdf ($producer)', example => {
-  const available = existsSync(mapsFolder + example.pdf) && existsSync(mapsFolder + example.xml)
+describe.each(examples)('$pdf ($producer)', example => {
+  const available = [example.pdf, example.ocd, example.xml].every(file =>
+    existsSync(mapsFolder + file),
+  )
+  const read = async () => ({
+    pages: await readPdfMap(new Uint8Array(readFileSync(mapsFolder + example.pdf))),
+    data: readCourseData(readFileSync(mapsFolder + example.xml, 'utf8')),
+  })
 
-  it.skipIf(!available)('is read in order and lies on the course in the XML', async () => {
-    const pages = await readPdfPages(new Uint8Array(readFileSync(mapsFolder + example.pdf)))
-    const data = readCourseData(readFileSync(mapsFolder + example.xml, 'utf8'))
-
+  it.skipIf(!available)('has its course read in order, where the XML puts it', async () => {
+    const { pages, data } = await read()
     example.pages.forEach((expected, index) => {
-      const course = detectPdfCourse(pages[index]!)!
+      const course = pages[index]!.course!
       if (expected === null) {
         expect(course.ordered).toBe(false)
         return
       }
       expect(course.ordered).toBe(true)
       expect(course.controls).toHaveLength(expected.controls)
-      const xmlCourse = data.courses.find(candidate => candidate.name === expected.course)!
-      const truth = xmlCourse.controlIds.map(id => data.controls.get(id)!.mapPositionMillimetres!)
-      const found = [course.start!, ...course.controls, course.finish!].map(
-        ([x, y]: PaperPoint) =>
-          [x * MILLIMETRES_PER_PAPER_UNIT, y * MILLIMETRES_PER_PAPER_UNIT] as const,
-      )
-      const errorMetres = (rmsAfterSimilarity(found, truth) * data.mapScale!) / 1000
-      expect(errorMetres).toBeLessThan(MAX_ERROR_METRES)
+      const errorMetres =
+        (courseFit(pages[index]!, data, expected.course).rms * data.mapScale!) / 1000
+      expect(errorMetres).toBeLessThan(MAX_COURSE_ERROR_METRES)
     })
   })
+
+  it.skipIf(!available)(
+    'suggests the print scale and reads the map like the OCAD file has it',
+    async () => {
+      const { pages, data } = await read()
+      const map = await loadOcadMap(new Uint8Array(readFileSync(mapsFolder + example.ocd)))
+      const index = example.pages.findIndex(expected => expected !== null)
+      const page = pages[index]!
+      expect(page.suggestedPrintScale).toBe(example.printScale)
+
+      const fit = courseFit(page, data, example.pages[index]!.course)
+      const toLocal = (point: PaperPoint) => {
+        const [x, y] = fit.apply([
+          point[0] * MILLIMETRES_PER_PAPER_UNIT,
+          point[1] * MILLIMETRES_PER_PAPER_UNIT,
+        ])
+        return localPoint((x * map.info.scale) / 1000, (y * map.info.scale) / 1000)
+      }
+      const predicted: MapFeature[] = page.paperFeatures.map(feature => ({
+        isomCode: feature.isomCode,
+        symbolNumber: 0,
+        symbolRotationDegreesCounterClockwise: 0,
+        geometry: inLocal(feature.geometry, toLocal),
+      }))
+      const corners = [
+        [0, 0],
+        [page.page.width, 0],
+        [page.page.width, page.page.height],
+        [0, page.page.height],
+      ].map(([x, y]) => toLocal(paperPoint(x!, y!)))
+      const scores = scoreFeatures(predicted, map.features(), [
+        Math.min(...corners.map(([x]) => x)),
+        Math.min(...corners.map(([, y]) => y)),
+        Math.max(...corners.map(([x]) => x)),
+        Math.max(...corners.map(([, y]) => y)),
+      ])
+      const total = [...scores.values()].reduce(
+        (sum, score) => ({
+          overlap: sum.overlap + score.overlap,
+          predicted: sum.predicted + score.predictedCells,
+          truth: sum.truth + score.truthCells,
+        }),
+        { overlap: 0, predicted: 0, truth: 0 },
+      )
+      expect(total.overlap / total.predicted).toBeGreaterThan(MIN_FEATURE_PRECISION)
+      expect(total.overlap / total.truth).toBeGreaterThan(MIN_FEATURE_RECALL)
+    },
+    TIMEOUT_MS,
+  )
 })
 
-type Point = readonly [number, number]
+// The PDF's page position and print scale are unknown, so the course fixes them: a fit from the
+// page (millimetres) onto OCAD paper millimetres.
+function courseFit(page: PdfMapPage, data: ImportedCourseData, courseName: string): Similarity {
+  const course = page.course!
+  const xmlCourse = data.courses.find(candidate => candidate.name === courseName)!
+  const truth = xmlCourse.controlIds.map(id => data.controls.get(id)!.mapPositionMillimetres!)
+  const found = [course.start!, ...course.controls, course.finish!].map(([x, y]): Point => [
+    x * MILLIMETRES_PER_PAPER_UNIT,
+    y * MILLIMETRES_PER_PAPER_UNIT,
+  ])
+  return fitSimilarity(found, truth)
+}
 
-// The PDF's page position and print scale are unknown, so fit scale, rotation and offset first.
-function rmsAfterSimilarity(from: readonly Point[], to: readonly Point[]): number {
-  const mean = (points: readonly Point[]) =>
-    [0, 1].map(axis => points.reduce((sum, point) => sum + point[axis]!, 0) / points.length)
-  const [fromX, fromY] = mean(from) as [number, number]
-  const [toX, toY] = mean(to) as [number, number]
-  let [real, imaginary, norm] = [0, 0, 0]
-  from.forEach(([x, y], i) => {
-    const [px, py] = [x - fromX, y - fromY]
-    const [qx, qy] = [to[i]![0] - toX, to[i]![1] - toY]
-    real += qx * px + qy * py
-    imaginary += qy * px - qx * py
-    norm += px * px + py * py
-  })
-  const [a, b] = [real / norm, imaginary / norm]
-  const squaredErrors = from.map(([x, y], i) => {
-    const [px, py] = [x - fromX, y - fromY]
-    return (a * px - b * py + toX - to[i]![0]) ** 2 + (b * px + a * py + toY - to[i]![1]) ** 2
-  })
-  return Math.sqrt(squaredErrors.reduce((sum, error) => sum + error, 0) / squaredErrors.length)
+function inLocal(
+  geometry: PaperGeometry,
+  toLocal: (point: PaperPoint) => LocalPoint,
+): MapFeature['geometry'] {
+  switch (geometry.type) {
+    case 'Point':
+      return { type: 'Point', coordinates: toLocal(geometry.coordinates) }
+    case 'LineString':
+      return { type: 'LineString', coordinates: geometry.coordinates.map(toLocal) }
+    case 'Polygon':
+      return { type: 'Polygon', coordinates: geometry.coordinates.map(ring => ring.map(toLocal)) }
+  }
 }

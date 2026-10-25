@@ -16,6 +16,7 @@
   },
   "devDependencies": {
     "@ratamestari/iof": "workspace:*",
+    "@ratamestari/map-import-ocad": "workspace:*",
     "pdf-lib": "^1.17.1"
   }
 }

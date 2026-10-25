@@ -373,6 +373,9 @@ importers:
       '@ratamestari/iof':
         specifier: workspace:*
         version: link:../iof
+      '@ratamestari/map-import-ocad':
+        specifier: workspace:*
+        version: link:../map-import-ocad
       pdf-lib:
         specifier: ^1.17.1
         version: 1.17.1

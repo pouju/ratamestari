@@ -8,12 +8,22 @@ import {
 
 export type PdfPaint =
   | { readonly kind: 'color'; readonly color: string }
-  | { readonly kind: 'pattern'; readonly tile: readonly PdfPath[] }
+  | {
+      readonly kind: 'pattern'
+      readonly tile: readonly PdfPath[]
+      // The two vectors the tile repeats along, in paper units.
+      readonly lattice: readonly [readonly [number, number], readonly [number, number]]
+    }
 
 export interface PdfSubpath {
   readonly points: readonly PaperPoint[]
   readonly closed: boolean
   readonly curved: boolean
+}
+
+export interface PdfClip {
+  readonly subpaths: readonly PdfSubpath[]
+  readonly evenOdd: boolean
 }
 
 export interface PdfPath {
@@ -23,6 +33,8 @@ export interface PdfPath {
   readonly stroke: PdfPaint | null
   readonly lineWidth: number
   readonly dash: readonly number[]
+  // The path is only visible inside all of these.
+  readonly clips: readonly PdfClip[]
 }
 
 export interface PdfText {
@@ -52,6 +64,7 @@ interface GraphicsState {
   stroke: PdfPaint | null
   lineWidth: number
   dash: readonly number[]
+  clips: readonly PdfClip[]
 }
 
 const HUNDREDTHS_MM_PER_PDF_POINT = (25.4 / 72) * 100
@@ -133,7 +146,9 @@ function readPaths(operatorList: OperatorList, baseMatrix: Matrix): PdfPath[] {
     stroke: { kind: 'color', color: '#000000' },
     lineWidth: 1,
     dash: [],
+    clips: [],
   }
+  let pendingClip: { evenOdd: boolean } | null = null
   const save = () => stack.push({ ...state })
   const restore = () => {
     state = stack.pop() ?? state
@@ -185,7 +200,19 @@ function readPaths(operatorList: OperatorList, baseMatrix: Matrix): PdfPath[] {
       case OPS.setStrokeColorN:
         state.stroke = patternPaint(args)
         return
+      case OPS.clip:
+      case OPS.eoClip:
+        pendingClip = { evenOdd: fn === OPS.eoClip }
+        return
       case OPS.constructPath: {
+        if (pendingClip) {
+          const [, [data]] = args as [number, [ArrayLike<number> | null]]
+          if (data) {
+            const clip = { subpaths: flattenPath(data, state.matrix), evenOdd: pendingClip.evenOdd }
+            state.clips = [...state.clips, clip]
+          }
+          pendingClip = null
+        }
         const path = paintedPath(args, state)
         if (path) paths.push(path)
         return
@@ -196,11 +223,25 @@ function readPaths(operatorList: OperatorList, baseMatrix: Matrix): PdfPath[] {
 }
 
 function patternPaint(args: unknown[]): PdfPaint | null {
-  const [kind, , operatorList, matrix] = args as [string, unknown, OperatorList, Matrix]
+  const [kind, , operatorList, matrix, , xStep, yStep] = args as [
+    string,
+    unknown,
+    OperatorList,
+    Matrix | undefined,
+    unknown,
+    number,
+    number,
+  ]
   if (kind !== 'TilingPattern') return null
+  const tileToPaper = multiply(matrix ?? IDENTITY, POINT_TO_PAPER)
+  const [a, b, c, d] = tileToPaper
   return {
     kind: 'pattern',
-    tile: readPaths(operatorList, multiply(matrix ?? IDENTITY, POINT_TO_PAPER)),
+    tile: readPaths(operatorList, tileToPaper),
+    lattice: [
+      [a * xStep, b * xStep],
+      [c * yStep, d * yStep],
+    ],
   }
 }
 
@@ -221,6 +262,7 @@ function paintedPath(args: unknown[], state: GraphicsState): PdfPath | null {
     stroke: strokes ? state.stroke : null,
     lineWidth: state.lineWidth * scale,
     dash: state.dash.map(length => length * scale),
+    clips: state.clips,
   }
 }
 
