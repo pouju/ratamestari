@@ -149,6 +149,8 @@ export const en = {
     turnOffExperimental: 'Turn off experimental features',
     printScale: 'Print scale of the PDF',
     printScaleHint: 'Guessed from the size of the symbols. Change it if the PDF says otherwise.',
+    printScaleFromGeoreference:
+      'Read from the coordinates in the PDF. At another scale the map has no coordinates.',
   },
   course: {
     centreLine: 'Competition centre',

@@ -147,6 +147,8 @@ export const fi: Messages = {
     turnOffExperimental: 'Poista kokeelliset ominaisuudet käytöstä',
     printScale: 'PDF:n tulostusmittakaava',
     printScaleHint: 'Arvioitu merkkien koosta. Muuta sitä, jos PDF:ssä lukee toisin.',
+    printScaleFromGeoreference:
+      'Luettu PDF:n koordinaateista. Muussa mittakaavassa kartalla ei ole koordinaatteja.',
   },
   course: {
     centreLine: 'Kilpailukeskus',

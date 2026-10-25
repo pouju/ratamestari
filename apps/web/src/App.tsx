@@ -1521,18 +1521,24 @@ export function App() {
                 <div className="settings-row">
                   <div>
                     <label htmlFor="settings-print-scale">{messages.settings.printScale}</label>
-                    <p className="settings-soft">{messages.settings.printScaleHint}</p>
+                    <p className="settings-soft">
+                      {state.pdf.page.geoReference
+                        ? messages.settings.printScaleFromGeoreference
+                        : messages.settings.printScaleHint}
+                    </p>
                   </div>
                   <select
                     id="settings-print-scale"
                     value={state.pdf.printScale}
                     onChange={e => void changePdfPrintScale(Number(e.target.value))}
                   >
-                    {PDF_PRINT_SCALES.map(scale => (
-                      <option key={scale} value={scale}>
-                        {format.scale(scale)}
-                      </option>
-                    ))}
+                    {[...new Set([...PDF_PRINT_SCALES, state.pdf.page.suggestedPrintScale])]
+                      .sort((a, b) => a - b)
+                      .map(scale => (
+                        <option key={scale} value={scale}>
+                          {format.scale(scale)}
+                        </option>
+                      ))}
                   </select>
                 </div>
               ) : (
