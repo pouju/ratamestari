@@ -19,7 +19,8 @@
     "render-course": "tsx scripts/render-course.ts",
     "benchmark-courses": "tsx scripts/benchmark-courses.ts",
     "crop-ocad": "tsx scripts/crop-ocad.ts",
-    "record-demo-run": "tsx scripts/record-demo-run.ts"
+    "record-demo-run": "tsx scripts/record-demo-run.ts",
+    "record-reel": "tsx scripts/record-reel.ts"
   },
   "devDependencies": {
     "@ratamestari/core": "workspace:*",

@@ -1,4 +1,5 @@
 export {
+  mapWindow,
   printPageSvg,
   type PrintPage,
   type PrintPageInput,

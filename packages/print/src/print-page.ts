@@ -95,7 +95,7 @@ export function printPageSvg({
 }
 
 // Shows the given ground extent of the map SVG in a box on the page, in millimetres.
-function mapWindow(
+export function mapWindow(
   mapSvg: string,
   mapScale: number,
   [minX, minY, maxX, maxY]: LocalExtent,
