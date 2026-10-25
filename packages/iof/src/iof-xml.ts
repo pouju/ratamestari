@@ -101,3 +101,51 @@ export function courseDataXml({
     .join('\n')
     .concat('\n')
 }
+
+export interface CourseStopsOptions {
+  readonly eventName: string
+  readonly courseName: string
+  readonly start: LocalPoint
+  readonly controls: readonly { readonly code: string; readonly position: LocalPoint }[]
+  readonly finish: LocalPoint
+  readonly map: MapInfo
+  readonly createdAt: Date
+}
+
+// A course known only by its stops, such as one read from a printed map.
+export function courseStopsXml({
+  eventName,
+  courseName,
+  start,
+  controls,
+  finish,
+  map,
+  createdAt,
+}: CourseStopsOptions): string {
+  const toMapMillimetres = (metres: number) =>
+    ((metres * MILLIMETRES_PER_METRE) / map.scale).toFixed(MAP_DECIMALS)
+  const control = (id: string, [x, y]: LocalPoint, type: 'Start' | 'Control' | 'Finish') =>
+    `<Control type="${type}"><Id>${escapeXml(id)}</Id>` +
+    `<MapPosition x="${toMapMillimetres(x)}" y="${toMapMillimetres(y)}" unit="mm"/></Control>`
+  const courseControl = (id: string, type: 'Start' | 'Control' | 'Finish') =>
+    `<CourseControl type="${type}"><Control>${escapeXml(id)}</Control></CourseControl>`
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    `<CourseData xmlns="${IOF_NAMESPACE}" iofVersion="3.0" createTime="${createdAt.toISOString()}" creator="${CREATOR}">`,
+    `<Event><Name>${escapeXml(eventName)}</Name></Event>`,
+    '<RaceCourseData>',
+    `<Map><Scale>${map.scale}</Scale></Map>`,
+    control(START_ID, start, 'Start'),
+    ...controls.map(({ code, position }) => control(code, position, 'Control')),
+    control(FINISH_ID, finish, 'Finish'),
+    '<Course>',
+    `<Name>${escapeXml(courseName)}</Name>`,
+    courseControl(START_ID, 'Start'),
+    ...controls.map(({ code }) => courseControl(code, 'Control')),
+    courseControl(FINISH_ID, 'Finish'),
+    '</Course>',
+    '</RaceCourseData>',
+    '</CourseData>',
+    '',
+  ].join('\n')
+}

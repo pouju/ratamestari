@@ -21,7 +21,12 @@ export {
   LOCATION_PICTOGRAMS,
   START_TRIANGLE,
 } from './pictograms'
-export { courseDataXml, type CourseDataOptions } from './iof-xml'
+export {
+  courseDataXml,
+  courseStopsXml,
+  type CourseDataOptions,
+  type CourseStopsOptions,
+} from './iof-xml'
 export {
   readCourseData,
   type ImportedControl,
