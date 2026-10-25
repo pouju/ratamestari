@@ -20,13 +20,15 @@
     "benchmark-courses": "tsx scripts/benchmark-courses.ts",
     "crop-ocad": "tsx scripts/crop-ocad.ts",
     "record-demo-run": "tsx scripts/record-demo-run.ts",
-    "record-reel": "tsx scripts/record-reel.ts"
+    "record-reel": "tsx scripts/record-reel.ts",
+    "score-pdf": "tsx scripts/score-pdf.ts"
   },
   "devDependencies": {
     "@ratamestari/core": "workspace:*",
     "@ratamestari/engine": "workspace:*",
     "@ratamestari/iof": "workspace:*",
     "@ratamestari/map-import-ocad": "workspace:*",
+    "@ratamestari/map-import-pdf": "workspace:*",
     "@ratamestari/print": "workspace:*",
     "@ratamestari/rules": "workspace:*",
     "@resvg/resvg-js": "^2.6.2",

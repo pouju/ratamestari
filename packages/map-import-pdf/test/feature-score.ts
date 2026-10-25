@@ -11,30 +11,18 @@ const CELL_METRES = 2
 const POINT_RADIUS_METRES = 3
 const LINE_RADIUS_CELLS = 1
 
+type Visible = readonly [minX: number, minY: number, maxX: number, maxY: number]
+
 // Compares two feature sets per ISOM code on a grid: points as small disks, lines as narrow
 // bands, areas filled. Precision is overlap / predicted cells, recall overlap / truth cells.
-// `visible` is the part of the map the page shows, as [minX, minY, maxX, maxY] in metres.
+// `visible` is the part of the map the page shows, in metres.
 export function scoreFeatures(
   predicted: readonly MapFeature[],
   truth: readonly MapFeature[],
-  [minX, minY, maxX, maxY]: readonly [number, number, number, number],
+  visible: Visible,
 ): Map<string, CodeScore> {
-  const columns = Math.ceil((maxX - minX) / CELL_METRES)
-  const rows = Math.ceil((maxY - minY) / CELL_METRES)
-  const frame = { minX, minY, columns, rows }
-
-  const rasterise = (features: readonly MapFeature[]) => {
-    const byCode = new Map<string, Set<number>>()
-    for (const feature of features) {
-      if (feature.isomCode === null) continue
-      const cells = byCode.get(feature.isomCode) ?? new Set<number>()
-      markFeature(feature, frame, cells)
-      byCode.set(feature.isomCode, cells)
-    }
-    return byCode
-  }
-  const predictedCells = rasterise(predicted)
-  const truthCells = rasterise(truth)
+  const predictedCells = rasteriseByCode(predicted, visible)
+  const truthCells = rasteriseByCode(truth, visible)
   const codes = new Set([...predictedCells.keys(), ...truthCells.keys()])
   return new Map(
     [...codes].sort().map(code => {
@@ -44,6 +32,26 @@ export function scoreFeatures(
       return [code, { truthCells: t.size, predictedCells: p.size, overlap }]
     }),
   )
+}
+
+export function rasteriseByCode(
+  features: readonly MapFeature[],
+  [minX, minY, maxX, maxY]: Visible,
+): Map<string, Set<number>> {
+  const frame = {
+    minX,
+    minY,
+    columns: Math.ceil((maxX - minX) / CELL_METRES),
+    rows: Math.ceil((maxY - minY) / CELL_METRES),
+  }
+  const byCode = new Map<string, Set<number>>()
+  for (const feature of features) {
+    if (feature.isomCode === null) continue
+    const cells = byCode.get(feature.isomCode) ?? new Set<number>()
+    markFeature(feature, frame, cells)
+    byCode.set(feature.isomCode, cells)
+  }
+  return byCode
 }
 
 interface Frame {

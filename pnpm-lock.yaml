@@ -178,6 +178,9 @@ importers:
       '@ratamestari/map-import-ocad':
         specifier: workspace:*
         version: link:packages/map-import-ocad
+      '@ratamestari/map-import-pdf':
+        specifier: workspace:*
+        version: link:packages/map-import-pdf
       '@ratamestari/print':
         specifier: workspace:*
         version: link:packages/print
