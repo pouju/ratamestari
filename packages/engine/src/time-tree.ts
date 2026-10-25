@@ -20,15 +20,38 @@ const NEIGHBOUR_OFFSETS = [
   [-1, -1],
 ] as const
 
-export function secondsFrom(
+export const secondsFrom = (
   grid: CostGrid,
   source: LocalPoint,
   paceSecondsPerKm: number,
   maxSeconds: number,
-): Float32Array {
+): Float32Array => secondsUntil(grid, source, paceSecondsPerKm, maxSeconds).seconds
+
+export interface TimeTree {
+  readonly seconds: Float32Array
+  // Every cell up to this time from the source is exact; cells beyond it may be over-estimated.
+  readonly exactUpTo: number
+}
+
+// Like secondsFrom, but also stops once every cell in `targets` is settled: their times are then
+// exact, as cells are settled in order of time.
+export function secondsUntil(
+  grid: CostGrid,
+  source: LocalPoint,
+  paceSecondsPerKm: number,
+  maxSeconds: number,
+  targets: readonly number[] = [],
+): TimeTree {
   const seconds = new Float32Array(grid.columns * grid.rows).fill(Number.POSITIVE_INFINITY)
   const start = routableCellOf(grid, source)
-  if (start === null) return seconds
+  if (start === null) return { seconds, exactUpTo: Number.POSITIVE_INFINITY }
+  const isTarget = new Uint8Array(targets.length > 0 ? seconds.length : 0)
+  let targetsLeft = 0
+  for (const target of targets) {
+    if (!isTarget[target]) targetsLeft++
+    isTarget[target] = 1
+  }
+  let exactUpTo = Number.POSITIVE_INFINITY
 
   const secondsPerMeterAtFullSpeed = paceSecondsPerKm / 1000
   const done = new Uint8Array(seconds.length)
@@ -40,7 +63,14 @@ export function secondsFrom(
     if (done[current]) continue
     done[current] = 1
     const currentSeconds = seconds[current]!
-    if (currentSeconds > maxSeconds) break
+    if (currentSeconds > maxSeconds) {
+      exactUpTo = maxSeconds
+      break
+    }
+    if (isTarget.length > 0 && isTarget[current] && --targetsLeft === 0) {
+      exactUpTo = currentSeconds
+      break
+    }
     const column = current % grid.columns
     const row = Math.floor(current / grid.columns)
     for (const [dc, dr] of NEIGHBOUR_OFFSETS) {
@@ -70,5 +100,5 @@ export function secondsFrom(
       }
     }
   }
-  return seconds
+  return { seconds, exactUpTo }
 }

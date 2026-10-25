@@ -69,7 +69,7 @@ import { BLOCKED, routableCellOf, type CostGrid } from './cost-grid'
 import { seededRandom, type Random } from './random'
 import { cellCenterOf, cellIndexOf } from './raster'
 import type { Terrain } from './terrain'
-import { secondsFrom } from './time-tree'
+import { secondsFrom, secondsUntil } from './time-tree'
 
 export interface CourseSpec {
   readonly target: CourseTarget
@@ -499,7 +499,11 @@ export interface PlanningContext {
   readonly toFinish: Float32Array
   readonly quality: Float32Array
   // Bounded trees are much cheaper; a full tree, when there is one, serves every bound.
-  readonly timesFrom: (poolIndex: number, limitSeconds?: number) => Float32Array
+  readonly timesFrom: (
+    poolIndex: number,
+    limitSeconds?: number,
+    targets?: readonly number[],
+  ) => Float32Array
   readonly legSeconds: (from: number, to: number) => number
   readonly straightSeconds: (from: LocalPoint, to: LocalPoint) => number
   readonly routeChoiceValue: (from: LocalPoint, to: LocalPoint, fastestSeconds: number) => number
@@ -528,25 +532,39 @@ function planningContextFor(
   const timesCache = new Map<number, Float32Array>()
   // A bounded tree is exact up to its limit, so it serves any smaller limit too.
   const boundedCache = new Map<number, { readonly limit: number; readonly times: Float32Array }>()
-  const treeFrom = (poolIndex: number, limit: number) => {
-    const tree = secondsFrom(grid, pool[poolIndex]!.position, paceSecondsPerKm, limit)
-    return Float32Array.from(poolCells, cell =>
-      cell === null ? Number.POSITIVE_INFINITY : tree[cell]!,
+  const treeFrom = (poolIndex: number, limit: number, targets: readonly number[] = []) => {
+    const targetCells = targets.flatMap(i => {
+      const cell = poolCells[i]
+      return cell === null || cell === undefined ? [] : [cell]
+    })
+    const tree = secondsUntil(grid, pool[poolIndex]!.position, paceSecondsPerKm, limit, targetCells)
+    const times = Float32Array.from(poolCells, cell =>
+      cell === null ? Number.POSITIVE_INFINITY : tree.seconds[cell]!,
     )
+    return { limit: Math.min(limit, tree.exactUpTo), times }
   }
-  const timesFrom = (poolIndex: number, limitSeconds = treeLimit): Float32Array => {
+  // With `targets`, only their times need be exact, so the tree may stop once they are known.
+  const timesFrom = (
+    poolIndex: number,
+    limitSeconds = treeLimit,
+    targets?: readonly number[],
+  ): Float32Array => {
     const cached = timesCache.get(poolIndex)
     if (cached) return cached
-    if (limitSeconds >= treeLimit) {
-      const times = treeFrom(poolIndex, treeLimit)
+    if (limitSeconds >= treeLimit && !targets) {
+      const { times } = treeFrom(poolIndex, treeLimit)
       timesCache.set(poolIndex, times)
       return times
     }
+    const limit = Math.min(limitSeconds, treeLimit)
     const bounded = boundedCache.get(poolIndex)
-    if (bounded && bounded.limit >= limitSeconds) return bounded.times
-    const times = treeFrom(poolIndex, limitSeconds)
-    boundedCache.set(poolIndex, { limit: limitSeconds, times })
-    return times
+    const covers = (tree: { readonly limit: number; readonly times: Float32Array }) =>
+      tree.limit >= limit ||
+      (targets !== undefined && targets.every(i => tree.times[i]! <= tree.limit))
+    if (bounded && covers(bounded)) return bounded.times
+    const tree = treeFrom(poolIndex, limit, targets)
+    boundedCache.set(poolIndex, tree)
+    return tree.times
   }
   const knownSeconds = (from: number, to: number): number | null => {
     const full = timesCache.get(from)

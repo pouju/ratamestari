@@ -98,8 +98,11 @@ export function fillSection(
   const budget = request.budgetSeconds
   const latest = budget * (1 + budgetTolerance)
   const earliest = budget * (1 - budgetTolerance)
+  // Only the entry's and the allowed sites' times to the exit are read.
   const toExit: ArrayLike<number> =
-    request.exit === 'finish' ? toFinish : context.timesFrom(request.exit, latest)
+    request.exit === 'finish'
+      ? toFinish
+      : context.timesFrom(request.exit, latest, [request.entry, ...request.allowed])
   const legTime = (from: LocalPoint, to: LocalPoint) => context.straightSeconds(from, to)
   const meanLegSeconds = meanLegOf(mix) * (context.paceSecondsPerKm / 1000) * 1.2
   const expectedLegs = Math.max(1, budget / meanLegSeconds)
