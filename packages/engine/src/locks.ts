@@ -3,7 +3,7 @@ import type { LocalPoint } from '@ratamestari/core'
 import { FEATURELESS_SITE_ID, type ControlSiteCandidate } from './control-sites'
 import type { PlanningContext } from './course-search'
 import type { Random } from './random'
-import { angleAt, fillSection } from './section-fill'
+import { angleAt, fillSection, type SectionFill } from './section-fill'
 
 // Controls the user keeps when the course is set again (D15).
 export interface CourseLocks {
@@ -108,23 +108,44 @@ export function fillAroundLocks(
   for (const k of segments) {
     if (k > 0) order.push(locked.controls[k - 1]!)
     if (isKeptSegment(locked, k)) continue
+    const homes = stops[k + 1] === 'finish' ? homeControls(k) : []
+    // Some controls near the finish leave no clean way in past the legs already set, so a few are
+    // tried before settling for the stretch that came nearest its budget.
+    let best: { controls: readonly number[]; fill: SectionFill } | null = null
+    for (const home of homes.length > 0 ? homes : [null]) {
+      const fill = fillStretch(k, home)
+      if (!best || (best.fill.short && fill.estimatedSeconds > best.fill.estimatedSeconds)) {
+        best = { controls: home === null ? fill.controls : [...fill.controls, home], fill }
+      }
+      if (!fill.short) break
+    }
+    const controls = best!.controls
+    const filled = [stopAt(k), ...controls.map(positionOf), stopAt(k + 1)]
+    filled.slice(1).forEach((stop, j) => filledLines.push([filled[j]!, stop]))
+    for (const control of controls) {
+      order.push(control)
+      used.add(control)
+    }
+  }
+  return order
+
+  function fillStretch(k: number, home: number | null): SectionFill {
     const entry = stops[k] as number
-    const home = stops[k + 1] === 'finish' ? homeControl(k) : null
-    const exit = home ?? stops[k + 1]!
     const exitPosition = home === null ? stopAt(k + 1) : positionOf(home)
     const budget = budgetOf(k) - (home === null ? 0 : context.toFinish[home]!)
     const reach = budget * (1 + SECTION_FILL.budgetTolerance)
     const allowed = pool.flatMap((site, i) =>
       !used.has(i) &&
+      i !== home &&
       flatSeconds(stopAt(k), site.position) + flatSeconds(site.position, exitPosition) <= reach
         ? [i]
         : [],
     )
-    const fill = fillSection(
+    return fillSection(
       context,
       {
         entry,
-        exit,
+        exit: home ?? stops[k + 1]!,
         budgetSeconds: budget,
         allowed,
         legBandMetres: FORMAT_TEMPLATES[context.spec.format].technicalLegMetres,
@@ -140,21 +161,13 @@ export function fillAroundLocks(
       },
       random,
     )
-    const controls = home === null ? fill.controls : [...fill.controls, home]
-    const filled = [stopAt(k), ...controls.map(positionOf), stopAt(k + 1)]
-    filled.slice(1).forEach((stop, j) => filledLines.push([filled[j]!, stop]))
-    for (const control of controls) {
-      order.push(control)
-      used.add(control)
-    }
   }
-  return order
 
-  // A free site within the final leg's limit that the run-in can turn through without a sharp
-  // angle, picked at random so drafts differ; null when the entry is already that near.
-  function homeControl(k: number): number | null {
+  // Free sites within the final leg's limit that the run-in can turn through without a sharp
+  // angle, in random order so drafts differ; none when the entry is already that near.
+  function homeControls(k: number): number[] {
     const entry = stops[k] as number
-    if (context.toFinish[entry]! <= finalLegMaxSeconds) return null
+    if (context.toFinish[entry]! <= finalLegMaxSeconds) return []
     const from = stopAt(k)
     const candidates = pool.flatMap((site, i) =>
       !used.has(i) &&
@@ -165,9 +178,16 @@ export function fillAroundLocks(
         ? [i]
         : [],
     )
-    return random.pick(candidates) ?? null
+    const tried: number[] = []
+    while (tried.length < HOMES_TRIED && candidates.length > 0) {
+      const picked = random.pick(candidates)!
+      tried.push(picked)
+      candidates.splice(candidates.indexOf(picked), 1)
+    }
+    return tried
   }
 }
 
+const HOMES_TRIED = 4
 const HOME_MIN_METERS_FROM_FINISH = 90
 const HOME_MIN_TURN_DEGREES = 1.5 * ACUTE_ANGLE.noteBelowDegrees

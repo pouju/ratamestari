@@ -175,6 +175,8 @@ const LONG_MIN_AREA_QUALITY = 0.3
 const MAX_DRAFTS = 3
 // Filling around kept controls is cheap next to planning a skeleton.
 const MAX_LOCKED_DRAFTS = 8
+// A start right beside a kept control would make the first leg trivial.
+const LOCKED_START_CLEARANCE_METERS = 150
 const IMPROVEMENT_STEPS_PER_PROGRESS = 25
 const ANNEALING = { startTemperature: 5, endTemperature: 0.05, rebuildShare: 0.5 }
 const WINDOW_CONTROLS: readonly [number, number] = [3, 6]
@@ -249,7 +251,13 @@ export function* searchCourseSteps(
         locked.start ??
         planning.pickStart(
           locked.controls.slice(0, 1).map(i => pool[i]!.position),
-          i => anchors.has(i),
+          i =>
+            anchors.has(i) ||
+            locked.controls.some(
+              kept =>
+                distanceBetween(pool[i]!.position, pool[kept]!.position) <
+                LOCKED_START_CLEARANCE_METERS,
+            ),
           random,
         )
       const scored = evaluation.score(
