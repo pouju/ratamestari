@@ -13,11 +13,12 @@ import {
 interface Props {
   course: Course
   legs: readonly LegRoutesState[] | null
+  selectedLeg: number | null
   onFindAll: () => void
   onSelectLeg: (leg: number) => void
 }
 
-export function CourseRoutesPanel({ course, legs, onFindAll, onSelectLeg }: Props) {
+export function CourseRoutesPanel({ course, legs, selectedLeg, onFindAll, onSelectLeg }: Props) {
   const m = useMessages().courseRoutes
   const format = useFormat()
 
@@ -54,7 +55,15 @@ export function CourseRoutesPanel({ course, legs, onFindAll, onSelectLeg }: Prop
           {legs.map((state, leg) => {
             const name = m.legName(stopName(course, leg), stopName(course, leg + 1))
             return (
-              <tr key={leg} className={hasChoice(state) ? 'has-route-choice' : undefined}>
+              <tr
+                key={leg}
+                className={
+                  [hasChoice(state) && 'has-route-choice', leg === selectedLeg && 'is-selected']
+                    .filter(Boolean)
+                    .join(' ') || undefined
+                }
+                aria-current={leg === selectedLeg || undefined}
+              >
                 <th scope="row">
                   <button
                     type="button"

@@ -263,6 +263,13 @@ button.link {
   outline: 2px solid var(--colour-overprint);
   outline-offset: 2px;
 }
+.course-routes-table tbody tr.is-selected {
+  background: var(--colour-field-grey);
+  box-shadow: inset 3px 0 0 var(--colour-overprint);
+}
+.course-routes-table tbody tr.is-selected th button {
+  padding-left: var(--space-2);
+}
 .course-routes-table tbody tr:not(.has-route-choice) th {
   font-weight: var(--font-weight-body);
 }

@@ -214,19 +214,19 @@ function courseRoutesScene(m: Messages, format: Format): Scene {
   const opened = guide.leg.index
   return {
     loopTicks: allFound + 50,
-    stillTick: allFound + 10,
+    stillTick: allFound + 49,
     stepStarts: [0, findFrom, allFound + 6],
     view,
     map: tick => (
       <>
         {legs.map((routes, leg) => (
-          <g key={leg} opacity={tick >= rowPress && leg !== opened ? 0.2 : 1}>
+          <g key={leg}>
             {routes.map((route, i) => (
               <RoutePath
                 key={i}
                 points={route.points}
                 colour={routeColour(i, routes.length)}
-                width={routeWidth}
+                width={tick >= rowPress && leg === opened ? routeWidth * 1.6 : routeWidth}
                 shown={progress(tick, foundAt(leg) - ticksPerLeg, ticksPerLeg)}
               />
             ))}
@@ -257,8 +257,16 @@ function courseRoutesScene(m: Messages, format: Format): Scene {
         )
       const found = legs.filter((_, leg) => tick >= foundAt(leg)).length
       const withChoice = legs.filter((routes, leg) => tick >= foundAt(leg) && routes.length > 1)
+      const openedLeg = tick >= rowPress + 2 ? guide.leg : null
       return (
         <>
+          {openedLeg && (
+            <>
+              <p className="guide-back">‹ {m.leg.wholeCourse}</p>
+              <h3>{m.leg.title(stopNameOf(opened), stopNameOf(opened + 1))}</h3>
+              <RouteTable m={m} format={format} leg={openedLeg} shownRoutes={openedLeg.routes} />
+            </>
+          )}
           <h3>{m.courseRoutes.title}</h3>
           <p>
             {found < legs.length
@@ -278,7 +286,17 @@ function courseRoutesScene(m: Messages, format: Format): Scene {
                 const [fastest, best] = routes
                 const isFound = tick >= foundAt(leg)
                 return (
-                  <tr key={leg} className={isFound && best ? 'has-route-choice' : undefined}>
+                  <tr
+                    key={leg}
+                    className={
+                      [
+                        isFound && best && 'has-route-choice',
+                        openedLeg && leg === opened && 'is-selected',
+                      ]
+                        .filter(Boolean)
+                        .join(' ') || undefined
+                    }
+                  >
                     <th scope="row">
                       <span className="guide-row-name">
                         {m.courseRoutes.legName(stopNameOf(leg), stopNameOf(leg + 1))}

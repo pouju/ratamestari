@@ -769,6 +769,22 @@ export function App() {
     changePrint(area?.paper ?? (paper === 'auto' ? 'A4' : paper), printScale, startFrame)
   }
 
+  // The list of all legs stays beside an open leg, so the leg can be compared with the rest.
+  const courseRoutesList = course && !isSettingByHand && !isGenerating && (
+    <CourseRoutesPanel
+      course={course}
+      legs={legRoutesOfCourse}
+      selectedLeg={selectedLeg}
+      onFindAll={findRoutesOnAllLegs}
+      onSelectLeg={selectLeg}
+    />
+  )
+
+  function findRoutesOnAllLegs() {
+    setIsRouteListWanted(true)
+    setShowCourseRoutes(true)
+  }
+
   function selectLeg(leg: number | null) {
     if (leg !== null) setSheetSize(atLeastHalf)
     setPlannedLeg(null)
@@ -1078,6 +1094,7 @@ export function App() {
             onSelectLeg={selectLeg}
           />
         )}
+        {selectedLeg !== null && courseRoutesList}
         {isSettingByHand && (
           <SetByHandPanel
             course={course}
@@ -1228,15 +1245,10 @@ export function App() {
 
         {assistantKey.apiKey && <ChatPanel apiKey={assistantKey.apiKey} tools={chatTools} />}
 
-        {course && selectedLeg === null && !isSettingByHand && !isGenerating && (
+        {selectedLeg === null && courseRoutesList && (
           <>
             <p className="note">{messages.leg.selectHint}</p>
-            <CourseRoutesPanel
-              course={course}
-              legs={legRoutesOfCourse}
-              onFindAll={() => setIsRouteListWanted(true)}
-              onSelectLeg={selectLeg}
-            />
+            {courseRoutesList}
           </>
         )}
 

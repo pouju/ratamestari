@@ -540,7 +540,7 @@ export const en = {
       steps: [
         'With the course on the map, press Find routes on all legs in the panel.',
         'The routes of each leg are drawn as they are found.',
-        'The list shows which legs have a choice. Tap a row to open that leg.',
+        'Tap a row or a leg on the map. Its routes open above the list, and the list stays.',
       ],
       tip: 'Layers › Routes on all legs turns the drawing on and off.',
       label: 'Animation: routes are found for every leg and listed in the panel.',

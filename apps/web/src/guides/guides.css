@@ -205,6 +205,13 @@
 .guide-table tr.has-route-choice th {
   font-weight: var(--font-weight-strong);
 }
+.guide-table tr.is-selected {
+  background: var(--colour-map-white);
+  box-shadow: inset 3px 0 0 var(--colour-overprint);
+}
+.guide-table tr.is-selected th {
+  padding-left: var(--space-2);
+}
 .guide-row-name {
   position: relative;
 }
