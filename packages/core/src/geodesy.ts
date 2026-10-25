@@ -52,12 +52,65 @@ function projectionFor(epsg: number): TransverseMercator | null {
   return null
 }
 
+export function geographicToProjected(point: GeographicPoint, epsg: number): ProjectedPoint | null {
+  const projection = projectionFor(epsg)
+  return projection && transverseMercator(point, projection)
+}
+
+// A projected system for a place that has none of its own: ETRS-TM35FIN in Finland, as Finnish
+// maps use, otherwise the WGS 84 UTM zone.
+const FINLAND = { west: 19, east: 32, south: 59, north: 71 }
+
+export function projectedSystemFor({ longitudeDegrees, latitudeDegrees }: GeographicPoint): number {
+  const inFinland =
+    longitudeDegrees >= FINLAND.west &&
+    longitudeDegrees <= FINLAND.east &&
+    latitudeDegrees >= FINLAND.south &&
+    latitudeDegrees <= FINLAND.north
+  if (inFinland) return ETRS_TM35FIN
+  const zone = Math.min(UTM_ZONES, Math.floor((longitudeDegrees + 180) / 6) + 1)
+  return (latitudeDegrees >= 0 ? WGS84_UTM_NORTH : WGS84_UTM_SOUTH) + zone
+}
+
 export function projectedToGeographic(point: ProjectedPoint, epsg: number): GeographicPoint | null {
   const projection = projectionFor(epsg)
   return projection && inverseTransverseMercator(point, projection)
 }
 
 // Krüger series to third order, accurate to well under a millimetre within a UTM zone.
+function transverseMercator(
+  { longitudeDegrees, latitudeDegrees }: GeographicPoint,
+  p: TransverseMercator,
+): ProjectedPoint {
+  const n = p.flattening / (2 - p.flattening)
+  const rectifyingRadius = (p.semiMajorAxis / (1 + n)) * (1 + n ** 2 / 4 + n ** 4 / 64)
+  const alpha = [
+    n / 2 - (2 * n ** 2) / 3 + (5 * n ** 3) / 16,
+    (13 * n ** 2) / 48 - (3 * n ** 3) / 5,
+    (61 * n ** 3) / 240,
+  ]
+  const latitude = (latitudeDegrees * Math.PI) / 180
+  const longitude = ((longitudeDegrees - p.centralMeridianDegrees) * Math.PI) / 180
+  const eccentricityTerm = (2 * Math.sqrt(n)) / (1 + n)
+  const t = Math.sinh(
+    Math.atanh(Math.sin(latitude)) -
+      eccentricityTerm * Math.atanh(eccentricityTerm * Math.sin(latitude)),
+  )
+  const xiPrime = Math.atan2(t, Math.cos(longitude))
+  const etaPrime = Math.atanh(Math.sin(longitude) / Math.sqrt(1 + t * t))
+  let xi = xiPrime
+  let eta = etaPrime
+  alpha.forEach((a, i) => {
+    const k = 2 * (i + 1)
+    xi += a * Math.sin(k * xiPrime) * Math.cosh(k * etaPrime)
+    eta += a * Math.cos(k * xiPrime) * Math.sinh(k * etaPrime)
+  })
+  return [
+    p.falseEasting + p.scaleFactor * rectifyingRadius * eta,
+    p.falseNorthing + p.scaleFactor * rectifyingRadius * xi,
+  ] as const as ProjectedPoint
+}
+
 function inverseTransverseMercator(
   [easting, northing]: ProjectedPoint,
   p: TransverseMercator,
