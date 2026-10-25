@@ -17,7 +17,7 @@ Full decision log with reasoning and rejected alternatives: [`docs/decisions.md`
 
 - **Static web app on GitHub Pages**, no backend (D4). Visits and main actions are counted with Umami Cloud on the published site only; events never carry map data (D23). Landing page at `/`, workspace at `/app/`, animated how-to guides at `/guides/`, as a Vite multi-page app (D14).
 - **Stack** (D11): strict TypeScript, pnpm workspace, React + Vite, TanStack Store + Form, Zod, OpenLayers, Comlink, Vitest. Internal packages export TS source directly (no per-package build).
-  - `packages/core` (types, branded units/coordinates), `packages/rules` (ISOM symbol table, runnability classes, course rule values; every value cites its source and flags `interpretation`; mirrors `docs/rules`), `packages/map-import-ocad` (only importer of ocad2geojson), `packages/engine` (no DOM), `packages/iof` (descriptions, IOF XML), `packages/agent` (LlmProvider, tools), `apps/web`.
+  - `packages/core` (types, branded units/coordinates), `packages/rules` (ISOM symbol table, runnability classes, course rule values; every value cites its source and flags `interpretation`; mirrors `docs/rules`), `packages/map-import-ocad` (only importer of ocad2geojson), `packages/map-import-pdf` and later `packages/map-import-image` (PDF and image maps, D22), `packages/course-detect` (the printed course on a PDF or image map), `packages/engine` (no DOM), `packages/iof` (descriptions, IOF XML), `packages/agent` (LlmProvider, tools), `apps/web`.
   - Engine works in ground metres only; coordinate systems are branded types — don't mix them. Zod schemas are the source of truth for spec, rules config and LLM tool inputs.
   - Coordinates: engine and view use the map's **local frame** (ground metres, map north up = OCAD paper × scale). Convert to the projected CRS (dev map: EPSG:3067) only via `core` (`localToProjected`); don't use ocad2geojson's `toMapCoord` (buggy).
   - Map display: OCAD rendered in-browser to SVG, rasterised once to PNG, shown in OpenLayers as a static image. No online base map tiles.
@@ -37,7 +37,7 @@ Full decision log with reasoning and rejected alternatives: [`docs/decisions.md`
 - **Formatting:** Prettier, no semicolons, single quotes, 100 columns (`.prettierrc.json`).
 - **Rule digests** (`docs/rules/*.md`): written in English from the PDFs in `docs/sources` (git-ignored; see its README), never from memory. Every statement cites document + section (`ISOM 2017-2 sym. 406`, `Lajisäännöt 2026 §11.25`). Our own readings are marked **Interpretation:**. Read the relevant digest before working on rules, the cost map or control sites.
 - **Course engine**: a browser-independent TypeScript package (so it can later run in Node), behind three interfaces:
-  - `MapSource` — OCAD now; OMAP/XMAP if time allows; later PNG + world file
+  - `MapSource` — OCAD; vector PDF next, then scans and phone photos (D22); OMAP/XMAP later
   - `LlmProvider` — user's own Claude API key stored in the browser (MVP); later a server proxy or local model
   - `Storage` — browser now, database later
 - **Map input** (D1): [ocad2geojson](https://github.com/perliedman/ocad2geojson) by Per Liedman, wrapped in **one adapter module** that outputs our internal map format: features with a category (forbidden, impassable, water, path, control feature…), plus scale and georeference. Course logic must not depend on ocad2geojson directly. Features carry OCAD symbol numbers, which map to ISOM/ISSprOM categories.

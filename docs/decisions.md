@@ -608,6 +608,46 @@ Extends "Routes on a leg" (D15):
 
 ---
 
+## D22: Map input from PDF and images, and reading the printed course
+
+**Date:** 2026-10-25
+**Status:** Decided
+
+### Decision
+
+Ratamestari also reads a map from a **PDF** or an **image** (a scan or a phone photo of a paper map), because course setters often don't have the OCAD file. If a course is printed on the map, it is read as a course (start, controls, order, finish) and removed from the map, so the user can check or edit it, export it as IOF XML, or set a new course on the clean map.
+
+- **Vector PDF first** (as exported from OCAD or OpenOrienteering Mapper). Its paths keep their exact geometry, colour and line width, and ISOM fixes colours and widths per symbol, so most symbols can be told apart. Scans and phone photos come later and reuse the same symbol classification and course reading.
+- **Packages**, all named for what they do:
+  - `packages/map-import-pdf`: PDF → internal map format (`MapFeature`s with ISOM codes), using pdf.js. Returns the same shape as the OCAD reader, so the engine doesn't change.
+  - `packages/map-import-image`: later; image correction (perspective, folds, light) and pixel classes → internal map format.
+  - `packages/course-detect`: the purple overprint (start triangle, control circles and numbers, legs, finish) → course, and the map with the course removed.
+  - `packages/map-ocad` is renamed `packages/map-import-ocad` to match.
+- **Scale:** a PDF page is in millimetres, so the user gives the map scale (often printed on the map). An image also needs a known distance, marked by the user.
+- Everything runs in the browser (D3). The map, PDF or photo is never sent to an LLM or a server.
+- Hand-drawn routes a runner has drawn on the map are out of scope: runners mostly record a GPX track.
+
+### Why
+
+- Map owners often share a print PDF, not the `.ocd`. Without PDF input, many course setters can't use the app at all.
+- A vector PDF keeps much of what the engine needs (contours as lines, point symbols, areas). A raster loses it, so it gets the same pipeline later with a lower quality bar.
+- `maps/` has OCAD files with their courses (`*.Courses.xml`), so a PDF made from them can be scored against the true features and the true course.
+
+### Alternatives considered
+
+- **Raster or photo first:** most useful for the "photo of my paper map" case, but the hardest. Doing it first would mean building the symbol table and course reading on noisy input.
+- **Vision model reads the map:** rejected by D2 and D3 (it places things plausibly but wrongly, and the map would leave the computer).
+- **Asking users to export from OpenOrienteering Mapper:** needs the source map file, which is exactly what they don't have.
+
+### Consequences
+
+- PDF features have no OCAD symbol numbers. The classifier gives each one an ISOM code and confidence, and the engine and description logic work from ISOM codes.
+- Classification is a table of colour, width and shape → ISOM code in `packages/rules`, with sources cited like the other rule values.
+- The app's file picker accepts `.pdf` (and later images) and asks for the scale when the file doesn't say it.
+- Real OCAD and OOM PDF exports are needed as test inputs alongside PDFs we render ourselves; they stay in the git-ignored `maps/`.
+
+---
+
 ## D23: Count visits and main actions with Umami Cloud
 
 **Date:** 2026-10-25
