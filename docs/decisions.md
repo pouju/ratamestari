@@ -341,7 +341,7 @@ The site and app follow [`site-ux-plan.md`](site-ux-plan.md):
 - The whole workflow works on phones: the map fills the screen and the panel becomes a bottom sheet.
 - English first. All UI text comes from typed message catalogues, so another language is one new file.
 - Visual language from the orienteering map: white paper, black ink, overprint purple as the only accent, one typeface (Atkinson Hyperlegible Next), no boxes, no all-caps labels.
-- A small sample map © Vehkalahden Veikot is committed under `apps/web/public/sample/`.
+- A small sample map, © its club, is committed under `apps/web/public/sample/`.
 - A credits section names the author (Pouju), ocad2geojson by Per Liedman and the sample map.
 
 ### Why

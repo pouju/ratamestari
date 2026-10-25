@@ -49,14 +49,14 @@ Sections, top to bottom (see the "Landing page" and "Phone · landing" artboards
 4. **Every check names its rule:** one short paragraph (measured, not guessed; you stay the course setter) next to a real finding with its citation, instead of a three-up principles band.
 5. **Status:** _Works now / Coming next / Later_, kept in one data file (one per language) so it is easy to update.
 6. **Privacy and the assistant:** no server, nothing uploaded; the assistant is optional, uses your own key and only receives text and numbers. A short sample exchange.
-7. **Credits:** quiet, near the bottom. **Made by Pouju** is the biggest line in it (author name, one line about you, GitHub, Send feedback). Next to it, smaller: ocad2geojson by Per Liedman, the sample map © Vehkalahden Veikot, the IOF and SSL rule documents, and what it is built with.
+7. **Credits:** quiet, near the bottom. **Made by Pouju** is the biggest line in it (author name, one line about you, GitHub, Send feedback). Next to it, smaller: ocad2geojson by Per Liedman, the sample map with its owner's copyright, the IOF and SSL rule documents, and what it is built with.
 8. **Footer:** "Ratamestari by Pouju · AGPL-3.0-or-later · Source code", Credits link, language switch. D1 requires the source link and the ocad2geojson credit; both are visible.
 
 ## Sample map
 
-- A small area (about 1 km², a few hundred kB at most) cut from a Vehkalahden Veikot map in OCAD, saved as `.ocd`: the open rock area of Leirikangas.
-- Lives in `apps/web/public/sample/` with a `README.md` stating: © Vehkalahden Veikot, for trying Ratamestari only, not covered by the AGPL. This is a deliberate exception to "club maps go in git-ignored `maps/`"; D14 records it.
-- Shown with its copyright: on the map in the app ("© Vehkalahden Veikot · sample map"), in the PDF footer, and in the landing page credits.
+- A small area (about 1 km², a few hundred kB at most) cut from a club's map in OCAD, saved as `.ocd`: an open rock area.
+- Lives in `apps/web/public/sample/` with a `README.md` stating: © the club, for trying Ratamestari only, not covered by the AGPL. This is a deliberate exception to "club maps go in git-ignored `maps/`"; D14 records it.
+- Shown with its copyright: on the map in the app ("© <club> · sample map"), in the PDF footer, and in the landing page credits.
 - Bonus: map-dependent tests can use it, so they run in CI instead of skipping.
 
 ## Workspace
@@ -198,7 +198,7 @@ Water blue and vegetation green appear only inside the map, plus the blue magnet
 
 The guidance lists the tells of generated pages; we checked the mockups against them.
 
-- No all-caps labels above headings or fields. A line says what it is ("Ruissalo 2026, 1:10 000"), or gets a sentence-case heading.
+- No all-caps labels above headings or fields. A line says what it is ("Forest Cup 2026, 1:10 000"), or gets a sentence-case heading.
 - No strings joined with middle dots; use spacing or plain sentences.
 - No monospace face for small data.
 - No three-up feature band. The principles are shown where they are proven: "Every check names its rule" sits next to a real finding with its citation.
@@ -259,6 +259,6 @@ The demo is tomorrow. The course setter tools come first, in today's UI, because
 ## Answered questions
 
 1. **Credits text:** "Pouju" only.
-2. **Sample map:** the open rock area of Leirikangas (about 1 km × 0.8 km, the bare-rock hills between the power line and the road), with a simple course in it.
+2. **Sample map:** an open rock area (about 1 km × 0.8 km, the bare-rock hills between the power line and the road), with a simple course in it.
 3. **Name in the UI:** "Ratamestari" alone; the other texts explain what it is.
 4. **Language detection:** decided when the Finnish catalogue exists (after the demo); until then the app is English only.

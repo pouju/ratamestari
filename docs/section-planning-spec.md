@@ -28,7 +28,7 @@
 - **Ask the user** before introducing a new convention (CLAUDE.md). The new engine files named in section 4 are approved by this spec.
 - **Measure every phase.** Run `pnpm benchmark-courses` before and after each phase and render courses with `pnpm render-course` (section 9). Stop after each phase and report to the user:
   - the benchmark table;
-  - the paths of 4–6 renders (long on `maps/onkamaa.ocd`, middle on `leirikangas` and `ruissalo`);
+  - the paths of 4–6 renders (long on `maps/map-b.ocd`, middle on `map-a` and `map-c`);
   - what you could not finish.
 
   The user is an orienteer and judges the renders. The numbers alone are not enough.
@@ -47,8 +47,8 @@ User feedback (2026-10-24):
 
 Renders on the club maps confirm all three. For example:
 
-- Middle on leirikangas, seed 2: 8 of 14 controls bunch around the start.
-- Long on onkamaa, seed 3: controls 4–6 are 0.5-minute legs, controls 13, 17, 18 and 19 are in one spot, and controls 20→25 run home in a straight line.
+- Middle on map-a, seed 2: 8 of 14 controls bunch around the start.
+- Long on map-b, seed 3: controls 4–6 are 0.5-minute legs, controls 13, 17, 18 and 19 are in one spot, and controls 20→25 run home in a straight line.
 
 ### Root causes in today's search (`course-search.ts`)
 
@@ -62,7 +62,7 @@ Renders on the club maps confirm all three. For example:
    - Experiment: setting the shares to `[0.08, 0.35, 0.4, 0.1, 0.07, 0, 0]` removed most middle bunching and cut middle search time from 7–13 s to 1.5–2.5 s.
 4. **Crowding is not penalised.** Spacing is only checked for pairs (about 60 m), so ten controls 80 m apart are legal. The middle `closeness` weight is 5.
 5. **The improvement step can't restructure.** It uses single-control moves and accepts only strict improvements, and `addsLineProblems` vetoes many moves. A cluster of 8 controls is a deep local optimum. The draft loop stops at the first draft that reaches 85% of the target time, so in practice only one draft is built.
-6. **Middle area placement.** The core has a fixed 750 m radius, the start is forced inside it, and the finish stays at the centre the user picked, wherever the core is. The result is courses that run back past the start, or a 1.1 km final leg (ruissalo).
+6. **Middle area placement.** The core has a fixed 750 m radius, the start is forced inside it, and the finish stays at the centre the user picked, wherever the core is. The result is courses that run back past the start, or a 1.1 km final leg (map-c).
 
 ---
 
@@ -101,7 +101,7 @@ Key properties:
 
 | #   | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Where                                                        |
 | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| a   | Middle leg-mix target `[0.08, 0.35, 0.4, 0.1, 0.07, 0, 0]` _(tune)_. Cite RMK 2.S.2 ("legs are short on average, the shortest a few tens of metres"). Flag it as interpretation calibrated on the reference courses in `maps/` (benchmark 2026-10-24). Check the long shares against the onkamaa long reference ("Pitkuri") too, and report; don't change them blindly.                                                                                    | `course-quality.ts`                                          |
+| a   | Middle leg-mix target `[0.08, 0.35, 0.4, 0.1, 0.07, 0, 0]` _(tune)_. Cite RMK 2.S.2 ("legs are short on average, the shortest a few tens of metres"). Flag it as interpretation calibrated on the reference courses in `maps/` (benchmark 2026-10-24). Check the long shares against the long reference course on map-b too, and report; don't change them blindly.                                                                                        | `course-quality.ts`                                          |
 | b   | **Crowding metric** `crowding(stops, radiusMetres, maxControls)`: for each control, count the controls within the radius (itself included). The value is the sum of `max(0, count − maxControls)`. Config: long 300 m / 3, middle 150 m / 3 _(tune, interpretation)_, weight 40 _(tune)_. Add it as a `ScoreTermName` with a note naming the controls. Also add it as a filter in `buildGreedy` (until phase 3 replaces it) and later in the section fill. | `course-metrics.ts`, `course-quality.ts`, `course-search.ts` |
 | c   | **End-of-course benchmark columns:** max controls in any crowding circle, and an "end tangle" ratio: the mean nearest-neighbour distance of the controls in the last 25% of the time ÷ that of all controls. Also add these to the reference rows.                                                                                                                                                                                                         | `scripts/benchmark-courses.ts`                               |
 | d   | Build all `MAX_DRAFTS` drafts and keep the best by score. Drop the 85% early exit, but keep the `yield null` pause between drafts.                                                                                                                                                                                                                                                                                                                         | `course-search.ts`                                           |
@@ -302,9 +302,9 @@ export type Search = Generator<SearchStep, Course | null, boolean | undefined>
 
 ## 9. Evaluation and acceptance
 
-**Benchmark:** `pnpm benchmark-courses` (long on onkamaa, seeds 1–5; middle on all maps with references, seeds 1–3), with the phase 0c columns added. Also add columns for the number of sections and connecting legs, and the connecting legs' route-choice values.
+**Benchmark:** `pnpm benchmark-courses` (long on map-b, seeds 1–5; middle on all maps with references, seeds 1–3), with the phase 0c columns added. Also add columns for the number of sections and connecting legs, and the connecting legs' route-choice values.
 
-**Renders:** for every phase, `pnpm render-course` for long onkamaa seeds 1–3 and middle leirikangas and ruissalo seeds 1–2. Report the paths. The `--areas` overlay applies from phase 1.
+**Renders:** for every phase, `pnpm render-course` for long map-b seeds 1–3 and middle map-a and map-c seeds 1–2. Report the paths. The `--areas` overlay applies from phase 1.
 
 **Accept the planner (phases 1–3) when, across the benchmark runs:**
 
