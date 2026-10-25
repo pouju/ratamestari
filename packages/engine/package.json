@@ -13,6 +13,6 @@
     "@ratamestari/rules": "workspace:*"
   },
   "devDependencies": {
-    "@ratamestari/map-ocad": "workspace:*"
+    "@ratamestari/map-import-ocad": "workspace:*"
   }
 }

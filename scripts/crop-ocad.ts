@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
 import type { LocalExtent } from '@ratamestari/core'
 import { buildTerrain, findPeripheralInformation } from '@ratamestari/engine'
-import { loadOcadMap } from '@ratamestari/map-ocad'
+import { loadOcadMap } from '@ratamestari/map-import-ocad'
 import { PERIPHERAL_INFORMATION } from '@ratamestari/rules'
 
 // Writes a small OCAD 12/2018 file cut from a larger one: the objects inside a box (clipped at

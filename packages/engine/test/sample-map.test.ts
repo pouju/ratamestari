@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { loadOcadMap } from '@ratamestari/map-ocad'
+import { loadOcadMap } from '@ratamestari/map-import-ocad'
 import { courseTargetFor } from '@ratamestari/rules'
 import { routableCellOf } from '../src/cost-grid'
 import { findControlSites, type ControlSiteCandidate } from '../src/control-sites'

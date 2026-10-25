@@ -54,7 +54,7 @@ import {
   readCourseData,
   type ImportedCourseData,
 } from '@ratamestari/iof'
-import { loadOcadMap, type IsomCodeOverrides, type OcadMap } from '@ratamestari/map-ocad'
+import { loadOcadMap, type IsomCodeOverrides, type OcadMap } from '@ratamestari/map-import-ocad'
 import {
   classFromCourseName,
   courseRequestSchema,

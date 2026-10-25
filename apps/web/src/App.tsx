@@ -28,7 +28,7 @@ import {
   isomCodeForOcadSymbol,
   loadOcadMap,
   type OcadMap,
-} from '@ratamestari/map-ocad'
+} from '@ratamestari/map-import-ocad'
 import { renderCostMap, type CostMapImage } from './cost-map-image'
 import { ChatPanel } from './ChatPanel'
 import { useAssistantKey } from './assistant-key'

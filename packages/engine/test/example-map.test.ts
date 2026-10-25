@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 import { localPoint, type LocalPoint } from '@ratamestari/core'
-import { loadOcadMap } from '@ratamestari/map-ocad'
+import { loadOcadMap } from '@ratamestari/map-import-ocad'
 import { BLOCKED, type CostGrid } from '../src/cost-grid'
 import { findControlSites } from '../src/control-sites'
 import { evaluateLeg } from '../src/leg'

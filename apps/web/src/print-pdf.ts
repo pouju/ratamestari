@@ -1,7 +1,7 @@
 import { PDFDocument } from 'pdf-lib'
 import type { Course, OverprintLayout, PeripheralInformation } from '@ratamestari/engine'
 import type { DescriptionSheet } from '@ratamestari/iof'
-import type { OcadMap } from '@ratamestari/map-ocad'
+import type { OcadMap } from '@ratamestari/map-import-ocad'
 import { printPageSvg } from '@ratamestari/print'
 import { saveFile } from './save-file'
 

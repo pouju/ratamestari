@@ -41,16 +41,16 @@ The source code is open so anyone can check this.
 
 A static web app with no backend: TypeScript, React, Vite and OpenLayers, with the course engine in a Web Worker. The rule values (control spacing, winning times, course lengths) live in [`packages/rules`](packages/rules) and each one cites its source document. The reasoning behind the design is in the [decision log](docs/decisions.md).
 
-| Package                                  | Role                                                    |
-| ---------------------------------------- | ------------------------------------------------------- |
-| [`packages/core`](packages/core)         | Shared types, units and coordinate frames               |
-| [`packages/map-ocad`](packages/map-ocad) | Reads OCAD files into the internal map format           |
-| [`packages/rules`](packages/rules)       | ISOM symbols, runnability and course rules from IOF/SSL |
-| [`packages/engine`](packages/engine)     | Cost map, routing, course search and rule checks        |
-| [`packages/iof`](packages/iof)           | Control descriptions and IOF XML                        |
-| [`packages/print`](packages/print)       | The print page                                          |
-| [`packages/agent`](packages/agent)       | The optional AI assistant and its tools                 |
-| [`apps/web`](apps/web)                   | The landing page and the app                            |
+| Package                                                | Role                                                    |
+| ------------------------------------------------------ | ------------------------------------------------------- |
+| [`packages/core`](packages/core)                       | Shared types, units and coordinate frames               |
+| [`packages/map-import-ocad`](packages/map-import-ocad) | Reads OCAD files into the internal map format           |
+| [`packages/rules`](packages/rules)                     | ISOM symbols, runnability and course rules from IOF/SSL |
+| [`packages/engine`](packages/engine)                   | Cost map, routing, course search and rule checks        |
+| [`packages/iof`](packages/iof)                         | Control descriptions and IOF XML                        |
+| [`packages/print`](packages/print)                     | The print page                                          |
+| [`packages/agent`](packages/agent)                     | The optional AI assistant and its tools                 |
+| [`apps/web`](apps/web)                                 | The landing page and the app                            |
 
 ## Development
 

@@ -27,7 +27,7 @@ import {
   type Terrain,
 } from '@ratamestari/engine'
 import { describeControl, readCourseData, type ImportedCourseData } from '@ratamestari/iof'
-import { loadOcadMap, type OcadMap } from '@ratamestari/map-ocad'
+import { loadOcadMap, type OcadMap } from '@ratamestari/map-import-ocad'
 import {
   COURSE_SHAPE,
   CROWDING,

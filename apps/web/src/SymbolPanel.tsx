@@ -4,7 +4,7 @@ import {
   formatOcadSymbolNumber,
   isomCodeForOcadSymbol,
   type MapSymbol,
-} from '@ratamestari/map-ocad'
+} from '@ratamestari/map-import-ocad'
 import { ISOM_SYMBOL_RULES, isomSymbolRule, type IsomCode } from '@ratamestari/rules'
 import { useMessages } from './i18n'
 import type { SymbolCorrections } from './symbol-corrections'

@@ -26,7 +26,7 @@ import {
   type ControlSiteCandidate,
 } from '@ratamestari/engine'
 import { describeControl, descriptionSheet, renderDescriptionSheet } from '@ratamestari/iof'
-import { loadOcadMap } from '@ratamestari/map-ocad'
+import { loadOcadMap } from '@ratamestari/map-import-ocad'
 import { printPageSvg } from '@ratamestari/print'
 import { en } from '../apps/web/src/i18n/en'
 import {

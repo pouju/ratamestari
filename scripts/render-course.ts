@@ -23,7 +23,7 @@ import {
   type Course,
 } from '@ratamestari/engine'
 import { courseDataXml, describeControl, descriptionSheet, descriptionText } from '@ratamestari/iof'
-import { loadOcadMap } from '@ratamestari/map-ocad'
+import { loadOcadMap } from '@ratamestari/map-import-ocad'
 import { printPageSvg } from '@ratamestari/print'
 import {
   courseRequestSchema,
