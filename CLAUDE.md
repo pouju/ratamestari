@@ -15,7 +15,7 @@ Full decision log with reasoning and rejected alternatives: [`docs/decisions.md`
 
 ## Architecture
 
-- **Static web app on GitHub Pages**, no backend (D4). Landing page at `/`, workspace at `/app/`, animated how-to guides at `/guides/`, as a Vite multi-page app (D14).
+- **Static web app on GitHub Pages**, no backend (D4). Visits and main actions are counted with Umami Cloud on the published site only; events never carry map data (D23). Landing page at `/`, workspace at `/app/`, animated how-to guides at `/guides/`, as a Vite multi-page app (D14).
 - **Stack** (D11): strict TypeScript, pnpm workspace, React + Vite, TanStack Store + Form, Zod, OpenLayers, Comlink, Vitest. Internal packages export TS source directly (no per-package build).
   - `packages/core` (types, branded units/coordinates), `packages/rules` (ISOM symbol table, runnability classes, course rule values; every value cites its source and flags `interpretation`; mirrors `docs/rules`), `packages/map-ocad` (only importer of ocad2geojson), `packages/engine` (no DOM), `packages/iof` (descriptions, IOF XML), `packages/agent` (LlmProvider, tools), `apps/web`.
   - Engine works in ground metres only; coordinate systems are branded types — don't mix them. Zod schemas are the source of truth for spec, rules config and LLM tool inputs.

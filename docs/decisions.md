@@ -605,3 +605,34 @@ Extends "Routes on a leg" (D15):
 
 - The worker gets `previewControl` (snap as a tap does, then the fastest routes).
 - Plan a leg and the selected leg use the same queue, so they never wait behind more than one leg's search.
+
+---
+
+## D23: Count visits and main actions with Umami Cloud
+
+**Date:** 2026-10-25
+**Status:** Decided
+
+### Decision
+
+- The published site loads Umami Cloud's script on the landing page, the workspace and the guides. It counts page views and a few actions: a map opened (sample or own), a course set (event level, distance, class, number of kept controls), setting a course by hand started, a course file checked, PDF or IOF XML downloaded, the assistant turned on, and a message sent to it.
+- Events never carry the map, file names, coordinates, course geometry or chat text.
+- Only the production build includes the script, and its `data-domains` limits counting to `pouju.github.io`, so `pnpm dev`, local builds and previews send nothing. Without a website ID in `apps/web/vite.config.ts` no script is added.
+- The landing page's credits say what is counted and why. The privacy promise at the top stays about the map, which never leaves the computer.
+
+### Why
+
+- Page views alone cannot tell whether people use the app or only look at it; a handful of actions can.
+- Umami sets no cookies, keeps no personal data and builds no profiles, so no consent banner is needed and the D3 promise about the map is unchanged.
+- The script is loaded from Umami, not bundled, so it adds no dependency to the AGPL app (D1).
+
+### Alternatives considered
+
+- **No counting:** no way to know whether the app is used.
+- **Google Analytics:** cookies, profiles and a consent banner.
+- **Self-hosted Umami or Plausible:** needs a server, which D4 rules out.
+- **Mentioning it next to the privacy promise at the top:** noise beside the main message that the map stays on the computer.
+
+### Consequences
+
+- New actions worth counting go through `track` in `apps/web/src/analytics.ts`, whose event types say what each may carry.

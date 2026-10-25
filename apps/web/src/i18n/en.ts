@@ -502,6 +502,11 @@ export const en = {
         },
         { title: 'Rules', text: 'IOF and Suomen Suunnistusliitto rule documents', link: null },
         {
+          title: 'Visit counts',
+          text: 'Umami Cloud counts visits and a few actions, such as setting a course, so we can see whether the app is used. It sets no cookies, collects no personal data and builds no profile of you. Your map and courses are never part of it.',
+          link: null,
+        },
+        {
           title: 'Built with',
           text: 'OpenLayers, React, Vite, pdf-lib, and Claude for the assistant',
           link: null,

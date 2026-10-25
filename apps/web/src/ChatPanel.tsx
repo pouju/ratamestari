@@ -4,6 +4,7 @@ import {
   createClaudeProvider,
   type AgentTool,
 } from '@ratamestari/agent'
+import { track } from './analytics'
 import { useMessages } from './i18n'
 
 interface ChatMessage {
@@ -35,6 +36,7 @@ export function ChatPanel({ apiKey, tools }: { apiKey: string; tools: readonly A
     if (!chat || !text || isReplying) return
     setDraft('')
     setIsReplying(true)
+    track('assistant-asked')
     setMessages(previous => [...previous, { role: 'user', text }, { role: 'assistant', text: '' }])
     const appendToReply = (delta: string) =>
       setMessages(previous => {

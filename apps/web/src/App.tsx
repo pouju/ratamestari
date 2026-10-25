@@ -44,6 +44,7 @@ import {
   saveCorrections,
   type SymbolCorrections,
 } from './symbol-corrections'
+import { track } from './analytics'
 import { courseNameOf } from './course-labels'
 import { createEngine, progressCallback } from './engine'
 import type { CheckedCourse, ImportedCourseSummary } from './engine.worker'
@@ -250,7 +251,7 @@ export function App() {
       if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
       const file = new File([await response.arrayBuffer()], SAMPLE_MAP.fileName)
       setIsSampleCoursePending(true)
-      await openFile(file)
+      await openFile(file, 'sample')
       setIsSampleMap(true)
     } catch (e) {
       setIsSampleCoursePending(false)
@@ -272,7 +273,8 @@ export function App() {
     void generateCourse(SAMPLE_MAP.request, seed, paceSecondsPerKm, centre)
   })
 
-  async function openFile(file: File) {
+  async function openFile(file: File, map: 'sample' | 'own' = 'own') {
+    track('map-opened', { map })
     setIsSampleMap(false)
     setCourseFile(null)
     setSuggestion(null)
@@ -417,8 +419,16 @@ export function App() {
         locks && { locks, printArea: course!.printArea },
       )
       setCourse(result)
-      if (result) setDrawCourseKey(key => key + 1)
-      else setEditMessage(messages.course.noCourse)
+      if (result) {
+        setDrawCourseKey(key => key + 1)
+        track('course-set', {
+          map: isSampleMap ? 'sample' : 'own',
+          level: nextRequest.eventLevel,
+          format: nextRequest.format,
+          courseClass: courseNameOf(nextRequest),
+          keptControls: locks?.controls.length ?? 0,
+        })
+      } else setEditMessage(messages.course.noCourse)
       return result
     } catch (e) {
       setEditMessage(messages.course.generationFailed(errorMessage(e)))
@@ -583,6 +593,7 @@ export function App() {
   }
 
   function startSettingByHand() {
+    track('set-by-hand-started')
     setPlannedLeg(null)
     setSelectedLeg(null)
     setSelectedStop(null)
@@ -867,6 +878,7 @@ export function App() {
         checked: null,
         deduced: null,
       })
+      track('course-file-checked')
       await checkCourse(courses, 0, request, 'deduce')
     } catch (e) {
       setEditMessage(messages.check.readFailed(errorMessage(e)))
@@ -1265,6 +1277,7 @@ export function App() {
             onDownloadPdf={() => {
               if (!course || !descriptionBox || state.status !== 'ready') return
               setIsPreparingPdf(true)
+              track('pdf-downloaded')
               setPrintError(null)
               const { map } = state
               engine
@@ -1291,6 +1304,7 @@ export function App() {
             onDownloadXml={() => {
               if (course && descriptionBox && mapInfo) {
                 downloadCourseXml(course, descriptionBox.sheet, request, mapInfo)
+                track('xml-downloaded')
               }
             }}
           />

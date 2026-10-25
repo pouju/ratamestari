@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { track } from './analytics'
 import type { AssistantKey } from './assistant-key'
 import { SOURCE_CODE_URL } from './config'
 import { useMessages } from './i18n'
@@ -101,6 +102,7 @@ function AssistantSettings({ assistantKey }: { assistantKey: AssistantKey }) {
     const key = draft.trim()
     if (!key) return
     assistantKey.save(key)
+    track('assistant-turned-on')
     setDraft('')
   }
 
