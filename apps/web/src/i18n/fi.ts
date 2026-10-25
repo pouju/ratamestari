@@ -77,6 +77,8 @@ export const fi: Messages = {
     openMap: 'Avaa OCAD-kartta',
     openMapHint: 'Pudota .ocd-tiedosto mihin tahansa tähän ikkunaan tai valitse se.',
     pdfWithoutMap: 'Tästä PDF:stä ei löytynyt karttaa.',
+    pdfIsPicture:
+      'Tässä PDF:ssä kartta on kuvana, esimerkiksi skannauksena, eikä piirroksena. Toistaiseksi voidaan lukea vain piirrettyjä karttoja, kuten OCADista tai Condesista vietyjä.',
     printedCourse: 'Kartalle painettu rata',
     openMapHintWithPdf:
       'Pudota .ocd-tiedosto tai kartan PDF mihin tahansa tähän ikkunaan tai valitse se.',

@@ -79,6 +79,8 @@ export const en = {
     openMap: 'Open an OCAD map',
     openMapHint: 'Drop a .ocd file anywhere in this window, or choose one.',
     pdfWithoutMap: 'No map was found in this PDF.',
+    pdfIsPicture:
+      'This PDF holds the map as a picture, such as a scan, not as a drawing. Only drawn maps, as exported from OCAD or Condes, can be read for now.',
     printedCourse: 'Course printed on the map',
     openMapHintWithPdf:
       'Drop a .ocd file or a PDF of the map anywhere in this window, or choose one.',

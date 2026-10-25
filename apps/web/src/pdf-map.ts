@@ -16,22 +16,28 @@ const FIRST_CONTROL_CODE = 31
 
 export const isPdfFile = (file: File) => file.name.toLowerCase().endsWith('.pdf')
 
+export type PdfMapReading =
+  | { readonly kind: 'map'; readonly page: PdfMapPage }
+  | { readonly kind: 'picture' }
+  | { readonly kind: 'nothing' }
+
 // pdf.js is large, so it loads only when a PDF is opened.
-export async function readPdfMapFile(bytes: Uint8Array): Promise<PdfMapPage | null> {
+export async function readPdfMapFile(bytes: Uint8Array): Promise<PdfMapReading> {
   const [{ readPdfMap, setPdfWorkerUrl }, { default: workerUrl }] = await Promise.all([
     import('@ratamestari/map-import-pdf'),
     import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
   ])
   setPdfWorkerUrl(workerUrl)
-  const { pages } = await readPdfMap(bytes)
-  return (
-    pages.find(page => page.course?.ordered) ??
+  const { pages, isPicture } = await readPdfMap(bytes)
+  const page =
+    pages.find(candidate => candidate.course?.ordered) ??
     pages.reduce<PdfMapPage | null>(
-      (best, page) =>
-        !best || page.paperFeatures.length > best.paperFeatures.length ? page : best,
+      (best, candidate) =>
+        !best || candidate.paperFeatures.length > best.paperFeatures.length ? candidate : best,
       null,
     )
-  )
+  if (page) return { kind: 'map', page }
+  return { kind: isPicture ? 'picture' : 'nothing' }
 }
 
 export async function pdfLoadedMap(page: PdfMapPage, printScale: number): Promise<LoadedMap> {

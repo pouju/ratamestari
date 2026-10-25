@@ -358,9 +358,10 @@ export function App() {
     setCorrections(new Map())
     try {
       const t0 = performance.now()
-      const page = await readPdfMapFile(bytes)
-      if (!page) throw new Error(messages.workspace.pdfWithoutMap)
-      await showPdfPage(fileName, page, page.suggestedPrintScale, t0)
+      const reading = await readPdfMapFile(bytes)
+      if (reading.kind === 'picture') throw new Error(messages.workspace.pdfIsPicture)
+      if (reading.kind === 'nothing') throw new Error(messages.workspace.pdfWithoutMap)
+      await showPdfPage(fileName, reading.page, reading.page.suggestedPrintScale, t0)
     } catch (e) {
       setEngineState('error')
       setState({ status: 'error', message: errorMessage(e) })
