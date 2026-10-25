@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useFormat, useMessages, type Messages } from '../i18n'
 import { APP_VERSION, RELEASE_URL, SAMPLE_QUERY, SOURCE_CODE_URL, SUBPAGE_PATHS } from '../config'
+import { LanguageSwitch } from '../i18n/language-root'
 import { SAMPLE_RUN } from '../landing/demo-run'
 import { ControlMark } from '../landing/Landing'
 import { MapStage, SceneControls, useSceneClock } from './scene'
@@ -35,6 +36,7 @@ export function Guides() {
         </a>
         <nav aria-label={m.landing.nav.label} className="landing-nav">
           <a href={SOURCE_CODE_URL}>{m.landing.nav.sourceCode}</a>
+          <LanguageSwitch className="landing-nav-language" />
           <a href={SUBPAGE_PATHS.app} className="landing-nav-app">
             {m.landing.nav.openApp}
           </a>
@@ -82,7 +84,7 @@ export function Guides() {
         <span>{m.landing.footer.licence}</span>
         <a href={SOURCE_CODE_URL}>{m.landing.footer.sourceCode}</a>
         <a href={RELEASE_URL}>{m.landing.footer.version(APP_VERSION)}</a>
-        <span className="landing-footer-language">{m.landing.footer.language}</span>
+        <LanguageSwitch className="landing-footer-language" />
       </footer>
     </div>
   )

@@ -1,7 +1,8 @@
 import { createContext, useContext, useMemo } from 'react'
 import { en } from './en'
+import { fi } from './fi'
 
-export type { StopName } from './en'
+export type { FindingLimits, FindingText, StopName } from './en'
 export type Messages = typeof en
 
 export interface Language {
@@ -10,6 +11,10 @@ export interface Language {
 }
 
 export const ENGLISH: Language = { locale: 'en', messages: en }
+export const FINNISH: Language = { locale: 'fi', messages: fi }
+
+export const LANGUAGES = { en: ENGLISH, fi: FINNISH } as const
+export type LanguageCode = keyof typeof LANGUAGES
 
 const LanguageContext = createContext<Language>(ENGLISH)
 export const LanguageProvider = LanguageContext.Provider

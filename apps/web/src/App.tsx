@@ -17,7 +17,12 @@ import {
   type IsomCode,
   type PrintScaleChoice,
 } from '@ratamestari/rules'
-import { createCourseTools, type CourseWorkspace, type GenerateOptions } from '@ratamestari/agent'
+import {
+  createCourseTools,
+  type CourseWorkspace,
+  type GenerateOptions,
+  type UiNameKey,
+} from '@ratamestari/agent'
 import {
   formatOcadSymbolNumber,
   isomCodeForOcadSymbol,
@@ -63,7 +68,8 @@ import {
   type LegRoutesState,
   type PlannedLeg,
 } from './leg-routes'
-import { useFormat, useMessages } from './i18n'
+import { useFormat, useMessages, type Messages } from './i18n'
+import { useLanguageChoice } from './i18n/language-root'
 import { MapView } from './MapView'
 import { EditControlsTool, LayersMenu, PlanLegTool, PrintFrameBar, PrintLabel } from './MapTools'
 import {
@@ -170,6 +176,7 @@ export function App() {
   const latestLegRoutesRequest = useRef(0)
   const messages = useMessages()
   const format = useFormat()
+  const { code: locale } = useLanguageChoice()
   const [showCostMap, setShowCostMap] = useState(false)
   const [costMap, setCostMap] = useState<CostMapImage | null>(null)
   const [showSites, setShowSites] = useState(false)
@@ -466,6 +473,7 @@ export function App() {
   const latestWorkspace = useRef<CourseWorkspace | null>(null)
   latestWorkspace.current = {
     status: () => ({
+      ui: { language: locale, names: uiNamesOf(messages) },
       mapLoaded: state.status === 'ready' && engineState === 'ready',
       mapScale: state.status === 'ready' ? state.map.info.scale : null,
       hasCompetitionCentre: competitionCentre !== null,
@@ -992,8 +1000,8 @@ export function App() {
     !hasRoomForCentre(printFrame, competitionCentre)
 
   const descriptionBox = useMemo(
-    () => (course && mapInfo ? descriptionBoxFor(course, request, mapInfo) : null),
-    [course, request, mapInfo],
+    () => (course && mapInfo ? descriptionBoxFor(course, request, mapInfo, messages.labels) : null),
+    [course, request, mapInfo, messages.labels],
   )
 
   return (
@@ -1326,7 +1334,7 @@ export function App() {
             }}
             onDownloadXml={() => {
               if (course && descriptionBox && mapInfo) {
-                downloadCourseXml(course, descriptionBox.sheet, request, mapInfo)
+                downloadCourseXml(course, descriptionBox.sheet, request, mapInfo, messages.labels)
                 track('xml-downloaded')
               }
             }}
@@ -1433,3 +1441,22 @@ export function App() {
     </div>
   )
 }
+
+// The names the assistant gives the user for the panel steps and buttons, as shown in the app.
+const uiNamesOf = (m: Messages): Record<UiNameKey, string> => ({
+  mapStep: m.workspace.mapLine,
+  centreStep: m.workspace.centreLine,
+  courseStep: m.workspace.courseLine,
+  setCourse: m.course.setCourse,
+  stop: m.course.stop,
+  tryAnother: m.course.tryAnother,
+  fix: m.course.fix,
+  downloadPdf: m.course.downloadPdf,
+  downloadXml: m.course.downloadXml,
+  setByHand: m.setByHand.entry,
+  undo: m.setByHand.undo,
+  keepLeg: m.keep.leg,
+  planLeg: m.map.planLeg,
+  setCourseAround: m.planLeg.setCourseAround,
+  settings: m.workspace.settings,
+})

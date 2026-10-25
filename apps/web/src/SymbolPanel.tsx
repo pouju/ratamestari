@@ -6,6 +6,7 @@ import {
   type MapSymbol,
 } from '@ratamestari/map-ocad'
 import { ISOM_SYMBOL_RULES, isomSymbolRule, type IsomCode } from '@ratamestari/rules'
+import { useMessages } from './i18n'
 import type { SymbolCorrections } from './symbol-corrections'
 
 const AUTOMATIC = 'auto'
@@ -18,20 +19,15 @@ interface Props {
   onCorrect: (symbolNumber: number, isomCode: IsomCode | null | undefined) => void
 }
 
-const isomLabel = (code: IsomCode | null) =>
-  code === null ? 'ignored' : `${code} ${isomSymbolRule(code)?.name ?? ''}`.trim()
-
 export function SymbolPanel({ symbols, corrections, isApplying, onCorrect }: Props) {
+  const m = useMessages().symbols
   const [editing, setEditing] = useState<number | null>(null)
+  const isomLabel = (code: IsomCode | null) =>
+    code === null ? m.ignored : `${code} ${isomSymbolRule(code)?.name ?? ''}`.trim()
   return (
     <details className="symbols">
-      <summary>
-        Map symbols ({symbols.length}, {corrections.size} corrected)
-      </summary>
-      <p className="note">
-        How each OCAD symbol is read. Correct a symbol if the club uses it for something else, e.g.
-        a motorway drawn with a road symbol. Corrections are saved for this map in this browser.
-      </p>
+      <summary>{m.summary(symbols.length, corrections.size)}</summary>
+      <p className="note">{m.intro}</p>
       <table>
         <tbody>
           {symbols.map(symbol => {
@@ -62,9 +58,9 @@ export function SymbolPanel({ symbols, corrections, isApplying, onCorrect }: Pro
                       }}
                     >
                       <option value={AUTOMATIC}>
-                        Automatic: {isomLabel(isomCodeForOcadSymbol(symbol.number))}
+                        {m.automatic(isomLabel(isomCodeForOcadSymbol(symbol.number)))}
                       </option>
-                      <option value={IGNORED}>Ignore this symbol</option>
+                      <option value={IGNORED}>{m.ignore}</option>
                       {ISOM_SYMBOL_RULES.map(rule => (
                         <option key={rule.code} value={rule.code}>
                           {rule.code} {rule.name}

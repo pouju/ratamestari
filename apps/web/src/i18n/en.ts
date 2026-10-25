@@ -1,9 +1,54 @@
-import type { CompassDirection, Course } from '@ratamestari/engine'
+import type { CompassDirection, Course, Finding } from '@ratamestari/engine'
 import type { SearchPhase } from '../search-progress'
 
 export type StopName = number | 'start' | 'finish'
 
+// Rule values a finding's text may quote, from the rules config.
+export interface FindingLimits {
+  readonly sharpAngleDegrees: number
+  readonly angleNoteDegrees: number
+  readonly featureMatchMetres: number
+}
+
+// The stops a rule finding names (control numbers, 0 = start) and the finish's stop number.
+export type FindingText = (
+  stops: readonly number[],
+  finishStop: number,
+  limits: FindingLimits,
+) => string
+
 const stopWord = (stop: StopName) => (typeof stop === 'number' ? String(stop) : stop)
+
+const stopNamed = (stop: number, finishStop: number) =>
+  stop === 0 ? 'the start' : stop === finishStop ? 'the finish' : `control ${stop}`
+const lineNamed = (from: number, to: number, finishStop: number) =>
+  `the line ${stopNamed(from, finishStop)}–${stopNamed(to, finishStop)}`
+
+const findingTexts: Record<Finding['kind'], FindingText> = {
+  spacing: ([a = 0, b = 0], f) =>
+    `${stopNamed(a, f)} and ${stopNamed(b, f)} are too close together`,
+  acuteAngleWarnings: ([a = 0], f, { sharpAngleDegrees }) =>
+    `sharp angle under ${sharpAngleDegrees}° at ${stopNamed(a, f)}`,
+  acuteAngleNotes: ([a = 0], f, { angleNoteDegrees }) =>
+    `angle under ${angleNoteDegrees}° at ${stopNamed(a, f)}`,
+  difficultyOutsideRange: ([a = 0], f) =>
+    `${stopNamed(a, f)} does not match the class's technical difficulty`,
+  courseLineCrossings: ([a = 0, b = 0, c = 0, d = 0], f) =>
+    `${lineNamed(a, b, f)} crosses ${lineNamed(c, d, f)}`,
+  courseLinesThroughControls: ([a = 0, b = 0, c = 0], f) =>
+    `${lineNamed(a, b, f)} passes through the circle of ${stopNamed(c, f)}`,
+  courseLinesOutsideMap: ([a = 0, b = 0], f) => `${lineNamed(a, b, f)} leaves the mapped area`,
+  courseLinesOverDescriptions: ([a = 0, b = 0], f) =>
+    `${lineNamed(a, b, f)} runs under the description box`,
+  stopsOutsidePrintArea: ([a = 0], f) => `${stopNamed(a, f)} is outside the print area`,
+  overlappingCircles: ([a = 0, b = 0], f) =>
+    `the circles of ${stopNamed(a, f)} and ${stopNamed(b, f)} overlap`,
+  winningTimeOutsideRange: () =>
+    "the course cannot reach the class's winning-time range; the terrain within reach of the competition centre, or inside the chosen print area, may be too small for this class",
+  controlsWithoutFeature: ([a = 0], f, { featureMatchMetres }) =>
+    `no map feature found within ${featureMatchMetres} m of ${stopNamed(a, f)}; check the position`,
+  finalLegTooLong: () => 'the last leg into the finish is long',
+}
 
 export const en = {
   leg: {
@@ -320,6 +365,33 @@ export const en = {
       ' when trying again.',
     forget: 'Forget them',
   },
+  // Printed on the description box and written into IOF XML files.
+  labels: {
+    eventLevels: {
+      national: 'National event',
+      finnishChampionship: 'Finnish championship (SM) final',
+    },
+    formats: { long: 'Long distance', middle: 'Middle distance' },
+  },
+  findings: {
+    texts: findingTexts,
+    ourCheck: 'our check',
+    ourCheckNoRoutes: 'our check (no marked routes yet)',
+  },
+  symbols: {
+    summary: (count: number, corrected: number) => `Map symbols (${count}, ${corrected} corrected)`,
+    intro:
+      'How each OCAD symbol is read. Correct a symbol if the club uses it for something else, e.g. a motorway drawn with a road symbol. Corrections are saved for this map in this browser.',
+    automatic: (label: string) => `Automatic: ${label}`,
+    ignore: 'Ignore this symbol',
+    ignored: 'ignored',
+  },
+  language: {
+    label: 'Language',
+    ownName: 'English',
+    // Shown in the language it switches to.
+    switchTo: 'Suomeksi',
+  },
   courseRoutes: {
     title: 'Routes',
     findAll: 'Find routes on all legs',
@@ -454,6 +526,7 @@ export const en = {
             'Print PDF and IOF XML 3.0',
             'Phones and tablets',
             'An optional assistant with your own Claude API key: set, edit and improve courses in plain words',
+            'In Finnish',
           ],
         },
         {
@@ -464,7 +537,6 @@ export const en = {
             'Several classes side by side',
             'Open courses, finals and qualifications',
             'OpenOrienteering Mapper files',
-            'Finnish',
           ],
         },
         {
@@ -521,7 +593,6 @@ export const en = {
       licence: 'AGPL-3.0-or-later',
       sourceCode: 'Source code',
       version: (version: string) => `Version ${version}`,
-      language: 'English',
     },
   },
   guides: {

@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { CourseRequest } from '@ratamestari/rules'
 import type { CourseFileCheck } from '../src/CheckPanel'
 import { CoursePanel } from '../src/CoursePanel'
+import { FINNISH, LanguageProvider } from '../src/i18n'
 import { deduceClass } from '../src/course-fit'
 import type { SearchStatus } from '../src/search-progress'
 
@@ -16,43 +17,57 @@ const REQUEST: CourseRequest = {
 
 const ignore = () => {}
 
-const render = (
+const renderPanel = (
   hasCentre: boolean,
   check: CourseFileCheck | null = null,
   search: SearchStatus | null = null,
-) =>
-  renderToStaticMarkup(
-    <CoursePanel
-      request={REQUEST}
-      onRequestChange={ignore}
-      isAssistantOn={false}
-      hasCentre={hasCentre}
-      isPickingCentre={false}
-      onMoveCentre={ignore}
-      canSetCourse={hasCentre}
-      search={search}
-      onSetCourse={ignore}
-      onSetByHand={ignore}
-      onStop={ignore}
-      onTryAnother={ignore}
-      kept={null}
-      onForgetKept={ignore}
-      course={null}
-      isEditing={false}
-      isPreparingPdf={false}
-      onDownloadPdf={ignore}
-      onDownloadXml={ignore}
-      onFixControl={ignore}
-      check={check}
-      onOpenCourseFile={ignore}
-      onSelectCheckedCourse={ignore}
-      onCloseCheck={ignore}
-      onDeduceClass={ignore}
-      suggestion={null}
-      onAcceptSuggestion={ignore}
-      onDismissSuggestion={ignore}
-    />,
-  )
+) => (
+  <CoursePanel
+    request={REQUEST}
+    onRequestChange={ignore}
+    isAssistantOn={false}
+    hasCentre={hasCentre}
+    isPickingCentre={false}
+    onMoveCentre={ignore}
+    canSetCourse={hasCentre}
+    search={search}
+    onSetCourse={ignore}
+    onSetByHand={ignore}
+    onStop={ignore}
+    onTryAnother={ignore}
+    kept={null}
+    onForgetKept={ignore}
+    course={null}
+    isEditing={false}
+    isPreparingPdf={false}
+    onDownloadPdf={ignore}
+    onDownloadXml={ignore}
+    onFixControl={ignore}
+    check={check}
+    onOpenCourseFile={ignore}
+    onSelectCheckedCourse={ignore}
+    onCloseCheck={ignore}
+    onDeduceClass={ignore}
+    suggestion={null}
+    onAcceptSuggestion={ignore}
+    onDismissSuggestion={ignore}
+  />
+)
+
+const render = (...args: Parameters<typeof renderPanel>) =>
+  renderToStaticMarkup(renderPanel(...args))
+
+describe('CoursePanel in Finnish', () => {
+  it('builds the request sentence in Finnish word order', () => {
+    const html = renderToStaticMarkup(
+      <LanguageProvider value={FINNISH}>{renderPanel(true)}</LanguageProvider>,
+    )
+    expect(html).toContain('SM-tason')
+    expect(html).toContain('sarjalle')
+    expect(html).toContain('taitotaso A')
+    expect(html).toContain('Tee rata')
+  })
+})
 
 describe('CoursePanel', () => {
   it('asks for the competition centre before anything else', () => {

@@ -10,6 +10,7 @@ import {
   SAMPLE_QUERY,
   SOURCE_CODE_URL,
 } from '../config'
+import { LanguageSwitch } from '../i18n/language-root'
 import { SAMPLE_RUN } from './demo-run'
 import { HeroDemo } from './HeroDemo'
 
@@ -31,6 +32,7 @@ export function Landing() {
           <a href="#privacy">{m.nav.privacy}</a>
           <a href={GUIDES_PATH}>{m.nav.guides}</a>
           <a href={SOURCE_CODE_URL}>{m.nav.sourceCode}</a>
+          <LanguageSwitch className="landing-nav-language" />
           <a href={APP_PATH} className="landing-nav-app">
             {m.nav.openApp}
           </a>
@@ -180,7 +182,7 @@ export function Landing() {
         <a href={GUIDES_PATH}>{m.nav.guides}</a>
         <a href={SOURCE_CODE_URL}>{m.footer.sourceCode}</a>
         <a href={RELEASE_URL}>{m.footer.version(APP_VERSION)}</a>
-        <span className="landing-footer-language">{m.footer.language}</span>
+        <LanguageSwitch className="landing-footer-language" />
       </footer>
     </div>
   )

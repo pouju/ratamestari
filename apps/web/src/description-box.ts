@@ -2,7 +2,8 @@ import { localExtent, type LocalExtent, type MapInfo } from '@ratamestari/core'
 import { placeDescriptionBox, type Course } from '@ratamestari/engine'
 import { descriptionSheet, renderDescriptionSheet, type DescriptionSheet } from '@ratamestari/iof'
 import type { CourseRequest } from '@ratamestari/rules'
-import { courseNameOf, FORMAT_LABELS } from './course-labels'
+import { courseNameOf } from './course-labels'
+import type { Messages } from './i18n'
 
 export interface DescriptionBox {
   readonly sheet: DescriptionSheet
@@ -20,9 +21,10 @@ export function descriptionBoxFor(
   course: Course,
   request: CourseRequest,
   map: MapInfo,
+  labels: Messages['labels'],
 ): DescriptionBox {
   const sheet = descriptionSheet(course, {
-    title: FORMAT_LABELS[request.format],
+    title: labels.formats[request.format],
     courseName: courseNameOf(request),
   })
   const rendered = renderDescriptionSheet(sheet, {

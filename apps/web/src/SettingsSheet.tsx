@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { track } from './analytics'
 import type { AssistantKey } from './assistant-key'
 import { SOURCE_CODE_URL } from './config'
-import { useMessages } from './i18n'
+import { LANGUAGES, useMessages } from './i18n'
+import { isLanguageCode, useLanguageChoice } from './i18n/language-root'
 
 interface Props {
   isOpen: boolean
@@ -52,6 +53,8 @@ export function SettingsSheet({
             </svg>
           </button>
         </div>
+
+        <LanguageSettings />
 
         <AssistantSettings assistantKey={assistantKey} />
 
@@ -142,6 +145,32 @@ function AssistantSettings({ assistantKey }: { assistantKey: AssistantKey }) {
           <dd>{m.neverReceivesText}</dd>
         </div>
       </dl>
+    </section>
+  )
+}
+
+// Each language is named in itself, so it can be found whatever the current one.
+function LanguageSettings() {
+  const m = useMessages().language
+  const { code, choose } = useLanguageChoice()
+  return (
+    <section className="settings-section">
+      <div className="settings-row">
+        <label htmlFor="settings-language">{m.label}</label>
+        <select
+          id="settings-language"
+          value={code}
+          onChange={e => {
+            if (isLanguageCode(e.target.value)) choose(e.target.value)
+          }}
+        >
+          {Object.entries(LANGUAGES).map(([option, language]) => (
+            <option key={option} value={option} lang={language.locale}>
+              {language.messages.language.ownName}
+            </option>
+          ))}
+        </select>
+      </div>
     </section>
   )
 }

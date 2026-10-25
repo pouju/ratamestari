@@ -1,5 +1,5 @@
-import { describeFinding, type Severity } from '@ratamestari/agent'
-import type { Course } from '@ratamestari/engine'
+import { describeFinding, OUR_CHECK, OUR_CHECK_NO_ROUTES, type Severity } from '@ratamestari/agent'
+import { CONTROL_FEATURE_MATCH_METRES, type Course } from '@ratamestari/engine'
 import {
   ageClassSchema,
   eventLevelSchema,
@@ -7,6 +7,7 @@ import {
   sexSchema,
   skillLetterSchema,
   type CourseRequest,
+  ACUTE_ANGLE,
 } from '@ratamestari/rules'
 import { useEffect, useState } from 'react'
 import { offeredAgeClasses, withOfferedClass } from './class-choice'
@@ -23,6 +24,12 @@ import {
 import { ScoreBreakdown } from './ScoreBreakdown'
 import { PanelLine } from './WorkspaceStart'
 import type { SearchStatus } from './search-progress'
+
+const FINDING_LIMITS = {
+  sharpAngleDegrees: ACUTE_ANGLE.warningBelowDegrees,
+  angleNoteDegrees: ACUTE_ANGLE.noteBelowDegrees,
+  featureMatchMetres: CONTROL_FEATURE_MATCH_METRES,
+}
 
 interface Props {
   request: CourseRequest
@@ -318,8 +325,23 @@ function Findings({
   fixLabel: string
   fixLabelFor: (controlNumber: number) => string
 }) {
-  const m = useMessages().course
-  const findings = course.findings.map(finding => describeFinding(finding, course.controls.length))
+  const { course: m, findings: texts } = useMessages()
+  const finishStop = course.controls.length + 1
+  // The severity, rule and Fix target come from the agent package; the words from the catalogue.
+  const findings = course.findings.map(finding => {
+    const described = describeFinding(finding, course.controls.length)
+    const text = texts.texts[finding.kind](finding.stops, finishStop, FINDING_LIMITS)
+    return {
+      ...described,
+      text: text.charAt(0).toUpperCase() + text.slice(1),
+      basis:
+        described.basis === OUR_CHECK
+          ? texts.ourCheck
+          : described.basis === OUR_CHECK_NO_ROUTES
+            ? texts.ourCheckNoRoutes
+            : described.basis,
+    }
+  })
 
   return (
     <section className="findings" aria-labelledby="findings-title">
