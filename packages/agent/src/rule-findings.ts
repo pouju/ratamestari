@@ -17,7 +17,9 @@ export interface FindingDescription {
   readonly fixableControl: number | null
 }
 
-const OUR_CHECK = 'our check'
+// Bases that are our own checks rather than a rule; the app shows them in the user's language.
+export const OUR_CHECK = 'our check'
+export const OUR_CHECK_NO_ROUTES = `${OUR_CHECK} (no marked routes yet)`
 const WINNING_TIME_SOURCES = [lajisaannot('11.25'), lajisaannot('19.41'), lajisaannot('19.44')]
 const citations = (sources: readonly Source[]) =>
   sources.map(({ document, section }) => `${document} ${section}`).join(', ')
@@ -69,11 +71,7 @@ export function describeFinding(finding: Finding, controlCount: number): Finding
         citations(CONTROL_CIRCLE.sources),
       )
     case 'courseLinesOutsideMap':
-      return describe(
-        'error',
-        `${leg(a, b)} leaves the mapped area`,
-        `${OUR_CHECK} (no marked routes yet)`,
-      )
+      return describe('error', `${leg(a, b)} leaves the mapped area`, OUR_CHECK_NO_ROUTES)
     case 'courseLinesOverDescriptions':
       return describe('error', `${leg(a, b)} runs under the description box`, 'D7')
     case 'stopsOutsidePrintArea':

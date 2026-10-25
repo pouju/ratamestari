@@ -3,6 +3,7 @@ import type { Course, StartWish } from '@ratamestari/engine'
 import type { CourseRequest } from '@ratamestari/rules'
 import {
   createCourseTools,
+  UI_NAME_KEYS,
   type CourseWorkspace,
   type GenerateOptions,
   type MapSymbolInfo,
@@ -11,6 +12,12 @@ import {
 import { COURSE, H21_LONG_SM } from './fixtures'
 
 const READY: WorkspaceStatus = {
+  ui: {
+    language: 'en',
+    names: Object.fromEntries(
+      UI_NAME_KEYS.map(key => [key, key]),
+    ) as WorkspaceStatus['ui']['names'],
+  },
   mapLoaded: true,
   mapScale: 15000,
   hasCompetitionCentre: true,

@@ -20,7 +20,29 @@ import { isomEffect } from './map-symbols'
 import { describeFinding } from './rule-findings'
 import { defineTool, type AgentTool } from './llm-provider'
 
+// Panel steps and buttons the assistant may tell the user to use, by their key in the system prompt.
+export const UI_NAME_KEYS = [
+  'mapStep',
+  'centreStep',
+  'courseStep',
+  'setCourse',
+  'stop',
+  'tryAnother',
+  'fix',
+  'downloadPdf',
+  'downloadXml',
+  'setByHand',
+  'undo',
+  'keepLeg',
+  'planLeg',
+  'setCourseAround',
+  'settings',
+] as const
+export type UiNameKey = (typeof UI_NAME_KEYS)[number]
+
 export interface WorkspaceStatus {
+  // The app's language, and its steps and buttons as the user sees them.
+  readonly ui: { readonly language: string; readonly names: Readonly<Record<UiNameKey, string>> }
   readonly mapLoaded: boolean
   readonly mapScale: number | null
   readonly hasCompetitionCentre: boolean
@@ -171,7 +193,7 @@ export function createCourseTools(workspace: CourseWorkspace): AgentTool[] {
     defineTool({
       name: 'get_workspace',
       description:
-        'Tells whether a map is open, its scale, whether the competition centre is set, the current course request, the winner pace, the start wish, the leg the user has selected on the map, and a summary of the current course. Call it before answering questions about the current state, and when the user says "here", "this leg" or "this control".',
+        'Tells the app\'s language and the names of its panel steps and buttons as the user sees them, whether a map is open, its scale, whether the competition centre is set, the current course request, the winner pace, the start wish, the leg the user has selected on the map, and a summary of the current course. Call it before answering questions about the current state, and when the user says "here", "this leg" or "this control".',
       inputSchema: z.object({}),
       run: async () => {
         const { course, selectedLeg, kept, ...status } = workspace.status()
