@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0](https://github.com/pouju/ratamestari/compare/v0.2.0...v0.3.0) (2026-10-25)
+
+
+### Features
+
+* **web:** show a D14 course with clear controls in the hero ([f41bbda](https://github.com/pouju/ratamestari/commit/f41bbda5a8e44685418842e5578006061fffdbe4))
+
+
+### Bug fixes
+
+* **engine:** keep the way home open when filling a section ([7bf11f2](https://github.com/pouju/ratamestari/commit/7bf11f22acc77636d451d825d656d0abd8908652))
+* **engine:** take only clear vegetation corners as control sites ([4b68124](https://github.com/pouju/ratamestari/commit/4b681243dbb04a0aa3c9ff99613542d79cf6ee0d))
+
 ## [0.2.0](https://github.com/pouju/ratamestari/compare/v0.1.0...v0.2.0) (2026-10-25)
 
 
