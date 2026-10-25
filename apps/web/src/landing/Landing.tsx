@@ -4,6 +4,7 @@ import {
   APP_VERSION,
   AUTHOR_URL,
   FEEDBACK_URL,
+  GUIDES_PATH,
   OCAD2GEOJSON_URL,
   RELEASE_URL,
   SAMPLE_QUERY,
@@ -28,6 +29,7 @@ export function Landing() {
           <a href="#how">{m.nav.how}</a>
           <a href="#status">{m.nav.status}</a>
           <a href="#privacy">{m.nav.privacy}</a>
+          <a href={GUIDES_PATH}>{m.nav.guides}</a>
           <a href={SOURCE_CODE_URL}>{m.nav.sourceCode}</a>
           <a href={APP_PATH} className="landing-nav-app">
             {m.nav.openApp}
@@ -175,6 +177,7 @@ export function Landing() {
           {m.footer.by} <a href={AUTHOR_URL}>{m.credits.author}</a>
         </span>
         <span>{m.footer.licence}</span>
+        <a href={GUIDES_PATH}>{m.nav.guides}</a>
         <a href={SOURCE_CODE_URL}>{m.footer.sourceCode}</a>
         <a href={RELEASE_URL}>{m.footer.version(APP_VERSION)}</a>
         <span className="landing-footer-language">{m.footer.language}</span>
@@ -183,7 +186,7 @@ export function Landing() {
   )
 }
 
-function ControlMark() {
+export function ControlMark() {
   return (
     <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
       <circle cx="13" cy="13" r="10" fill="none" stroke="currentColor" strokeWidth="2.6" />

@@ -15,7 +15,11 @@ export default defineConfig({
   worker: { format: 'es' },
   build: {
     rolldownOptions: {
-      input: { landing: page('./index.html'), app: page('./app/index.html') },
+      input: {
+        landing: page('./index.html'),
+        app: page('./app/index.html'),
+        guides: page('./guides/index.html'),
+      },
     },
   },
   resolve: {

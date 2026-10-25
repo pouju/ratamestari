@@ -77,6 +77,7 @@ import {
   SAMPLE_MAP,
   SAMPLE_QUERY,
   SOURCE_CODE_URL,
+  SUBPAGE_PATHS,
 } from './config'
 
 type LoadState =
@@ -1253,6 +1254,9 @@ export function App() {
         )}
 
         <footer className="panel-footer">
+          <a href={SUBPAGE_PATHS.guides} target="_blank" rel="noreferrer">
+            {messages.workspace.guides}
+          </a>
           <a href={SOURCE_CODE_URL} target="_blank" rel="noreferrer">
             {messages.workspace.sourceCode}
           </a>

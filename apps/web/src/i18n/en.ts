@@ -1,4 +1,4 @@
-import type { Course } from '@ratamestari/engine'
+import type { CompassDirection, Course } from '@ratamestari/engine'
 import type { SearchPhase } from '../search-progress'
 
 export type StopName = number | 'start' | 'finish'
@@ -51,6 +51,7 @@ export const en = {
     afterMap: 'Comes after the map',
     courseLine: 'Course',
     afterCentre: 'Comes after the centre',
+    guides: 'How-to guides',
     sourceCode: 'Source code',
     version: (version: string) => `Version ${version}`,
     licence: 'AGPL-3.0-or-later',
@@ -330,6 +331,7 @@ export const en = {
       status: 'Status',
       privacy: 'Privacy',
       sourceCode: 'Source code',
+      guides: 'Guides',
       openApp: 'Open the app',
     },
     hero: {
@@ -500,6 +502,142 @@ export const en = {
       sourceCode: 'Source code',
       version: (version: string) => `Version ${version}`,
       language: 'English',
+    },
+  },
+  guides: {
+    pageTitle: 'Guides · Ratamestari',
+    title: 'How to use Ratamestari',
+    lead: 'Short demos of what you can do in the workspace, played on the sample map. Some of it is one tap away and easy to miss.',
+    contents: 'Guides',
+    trySample: 'Try it with the sample map',
+    backHome: 'Ratamestari home',
+    credit:
+      'Map © Vehkalahden Veikot. Routes and controls recorded from the engine on the sample map.',
+    setCourse: {
+      title: 'Set a course',
+      intro: 'Open your map, or the sample map, and choose the class and distance in the panel.',
+      steps: [
+        'Click the competition centre on the map. The finish goes there and the start near it.',
+        'Press Set course. The panel shows what the engine is doing; Stop keeps the best course so far.',
+        'The course appears with its control descriptions, checked against the rules.',
+      ],
+      label:
+        'Animation: the competition centre is clicked, Set course is pressed and the course appears.',
+    },
+    legRoutes: {
+      title: 'See the route choices of a leg',
+      intro: 'Every leg can show its routes, worked out from the map symbols.',
+      steps: [
+        'Tap a leg line or a control on the map.',
+        'The fastest route is drawn green, other real route choices blue and red.',
+        'The panel compares length and time. The arrows step to the next leg.',
+      ],
+      label: 'Animation: a leg is tapped and its routes appear on the map and in the panel.',
+    },
+    courseRoutes: {
+      title: 'Find route choices on every leg',
+      intro: 'See at a glance which legs have a real route choice.',
+      steps: [
+        'With the course on the map, press Find routes on all legs in the panel.',
+        'The routes of each leg are drawn as they are found.',
+        'The list shows which legs have a choice. Tap a row to open that leg.',
+      ],
+      tip: 'Layers › Routes on all legs turns the drawing on and off.',
+      label: 'Animation: routes are found for every leg and listed in the panel.',
+    },
+    drag: {
+      title: 'Move a control',
+      intro: 'You can move any control, the start or the finish by hand.',
+      steps: [
+        'Press on a control and drag it. On a touch screen, tap its leg first.',
+        'Let go: it snaps to the nearest mapped feature within 60 m.',
+        'The length, the descriptions and the rule checks update at once.',
+      ],
+      label: 'Animation: a control is dragged to a new spot and the rules are checked again.',
+    },
+    setByHand: {
+      title: 'Set the course yourself',
+      intro: 'Place every control by hand and let Ratamestari check, describe and print it.',
+      steps: [
+        'Press Set it yourself in the panel, or Edit controls on the map.',
+        'Click the start, then each control in order. The finish is at the competition centre.',
+        'Click a control to select it, then press Delete to remove it.',
+        'Undo, or Ctrl+Z, brings it back.',
+      ],
+      label:
+        'Animation: a start and three controls are placed by hand, one is deleted and the delete is undone.',
+    },
+    planLeg: {
+      title: 'Plan a single leg',
+      intro: 'Try out a leg anywhere on the map before it is part of a course.',
+      steps: [
+        'Press Plan a leg in the map tools.',
+        'Click where the leg starts, then where it ends.',
+        'Compare the routes. Drag either end and the routes follow.',
+      ],
+      label: 'Animation: two points are clicked and the routes between them appear.',
+    },
+    assistant: {
+      title: 'Ask the assistant',
+      intro: 'Optional: turn it on in Settings with your own Claude API key.',
+      steps: [
+        'Write what you want in your own words.',
+        'The engine makes the change. The assistant only reads words and numbers, never the map.',
+        'It tells you what changed. Ask it to undo if you change your mind.',
+      ],
+      question: (control: number, direction: string) =>
+        `Move control ${control} a bit ${direction}`,
+      answer: (control: number, direction: string) =>
+        `Done. Control ${control} is now on a site to the ${direction} of the old one. The course length and rule checks are updated in the panel.`,
+      directions: {
+        N: 'north',
+        NE: 'northeast',
+        E: 'east',
+        SE: 'southeast',
+        S: 'south',
+        SW: 'southwest',
+        W: 'west',
+        NW: 'northwest',
+      } satisfies Record<CompassDirection, string>,
+      label:
+        'Animation: the assistant is asked to move a control and the control moves on the map.',
+    },
+    tips: {
+      title: 'More to find',
+      items: [
+        {
+          title: 'Cost map',
+          text: 'Layers › Cost map shows how fast each part of the map is to run, the basis of every route.',
+        },
+        {
+          title: 'Candidate control sites',
+          text: 'Layers › Candidate control sites shows every site the engine could use, coloured by difficulty.',
+        },
+        {
+          title: 'Fix buttons',
+          text: 'A rule problem tied to one control has a Fix button that moves that control to a better site.',
+        },
+        {
+          title: 'Print area and paper',
+          text: 'Adjust print, under the map, changes paper, scale and orientation, or lets you drag the print area.',
+        },
+        {
+          title: 'Check a course you set',
+          text: 'Open the IOF XML file of a course from OCAD or Purple Pen. It is checked against the rules for its class.',
+        },
+        {
+          title: 'Map symbols',
+          text: 'Settings › Map symbols shows how each OCAD symbol is read. Correct one if your club uses it differently.',
+        },
+        {
+          title: 'Another course',
+          text: 'Try another course sets a new one with the same settings.',
+        },
+        {
+          title: 'Export',
+          text: 'Download PDF gives the print page and a description sheet. IOF XML opens in OCAD, Condes and Purple Pen.',
+        },
+      ],
     },
   },
   scoreBreakdown: {

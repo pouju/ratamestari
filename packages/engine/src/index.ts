@@ -8,6 +8,7 @@ export {
   type ContourIndex,
 } from './contours'
 export { evaluateLeg, type LegEvaluation } from './leg'
+export { simplify } from './polyline'
 export { buildTerrain, type Terrain, type TerrainOptions } from './terrain'
 export {
   descriptionFeatureOf,

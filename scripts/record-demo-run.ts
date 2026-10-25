@@ -7,6 +7,11 @@ import { DOMImplementation, XMLSerializer } from 'xmldom'
 import type { LocalPoint } from '@ratamestari/core'
 import {
   buildTerrain,
+  compassDirection,
+  evaluateLeg,
+  fixControl,
+  moveControl,
+  simplify,
   layOutOverprint,
   overprintDetailOf,
   cellCenterOf,
@@ -41,6 +46,7 @@ const { values } = parseArgs({
     background: { type: 'string', default: 'apps/web/src/landing/sample-page.png' },
     descriptions: { type: 'string', default: 'apps/web/src/landing/sample-descriptions.svg' },
     preview: { type: 'string', default: 'apps/web/public/social-preview.png' },
+    guides: { type: 'string', default: 'apps/web/src/guides/guide-run.json' },
     seed: { type: 'string', default: '2' },
   },
 })
@@ -56,6 +62,11 @@ const REQUEST: CourseRequest = {
   skillLetter: 'A',
 }
 const PACE_SECONDS_PER_KM = 300
+const ROUTE_SIMPLIFY_METERS = 2
+const DRAG_METERS = [70, 160] as const
+const PLANNED_LEG_METERS = [300, 550] as const
+const PLANNED_LEG_SITE_STEP = 7
+const PLANNED_LEG_PAGE_INSET_SHARE = 0.2
 const PAGE_UNITS_PER_MILLIMETRE = 600 / 210
 const SHOWN_SITES = 60
 const BACKGROUND_WIDTH_PIXELS = 1200
@@ -183,9 +194,15 @@ const run = {
 }
 writeFileSync(values.out, `${JSON.stringify(run, null, 2)}\n`)
 writeFileSync(values.descriptions, described.svg)
+writeFileSync(values.guides, `${JSON.stringify(guideRun(), null, 2)}\n`)
 execFileSync(
   process.execPath,
-  [createRequire(import.meta.url).resolve('prettier/bin/prettier.cjs'), '--write', values.out],
+  [
+    createRequire(import.meta.url).resolve('prettier/bin/prettier.cjs'),
+    '--write',
+    values.out,
+    values.guides,
+  ],
   { stdio: 'ignore' },
 )
 
@@ -262,6 +279,109 @@ console.log(
     `${run.controls.length} controls, ` +
     `${(run.lengthMeters / 1000).toFixed(1)} km, ${run.siteCount} sites on the page`,
 )
+
+// What the guides page replays on the same page: the routes of one leg and of every leg, a dragged
+// control, a planned leg and a control the assistant moved, all from the engine.
+function guideRun() {
+  const route = (points: readonly LocalPoint[]) =>
+    simplify(points, ROUTE_SIMPLIFY_METERS).map(toPage)
+  const routesOf = (from: LocalPoint, to: LocalPoint) => {
+    const leg = evaluateLeg(terrain, from, to, { paceSecondsPerKm: PACE_SECONDS_PER_KM })
+    if (!leg) return null
+    return {
+      straightMeters: Math.round(leg.straightMeters),
+      bearingDegrees: Math.round(leg.bearingDegrees),
+      routes: [
+        leg.fastest,
+        ...[...leg.alternatives].sort((a, b) => a.timeSeconds - b.timeSeconds),
+      ].map(each => ({
+        points: route(each.points),
+        lengthMeters: Math.round(each.lengthMeters),
+        timeSeconds: Math.round(each.timeSeconds),
+      })),
+    }
+  }
+  const courseStops = [
+    course!.start.position,
+    ...course!.controls.map(c => c.position),
+    course!.finish,
+  ]
+  const legs = courseStops.slice(1).map((to, i) => routesOf(courseStops[i]!, to))
+  const shownLeg = legs.reduce(
+    (best, leg, i) =>
+      (leg?.routes.length ?? 0) > (legs[best]?.routes.length ?? 0) ||
+      ((leg?.routes.length ?? 0) === (legs[best]?.routes.length ?? 0) &&
+        (leg?.straightMeters ?? 0) > (legs[best]?.straightMeters ?? 0))
+        ? i
+        : best,
+    0,
+  )
+
+  const inCourse = new Set([course!.start.id, ...course!.controls.map(c => c.id)])
+  const isShown = (position: LocalPoint, insetShare = 0) => {
+    const [x, y] = toPage(position)
+    const [width, height] = [run.page[0]!, run.page[1]!]
+    return (
+      x > width * insetShare &&
+      y > height * insetShare &&
+      x < width * (1 - insetShare) &&
+      y < height * (1 - insetShare)
+    )
+  }
+  const editSpec = { ...spec, printScale: area!.scale, printArea: area! }
+  const dragged = Math.max(1, Math.floor(course!.controls.length / 3))
+  const draggedFrom = course!.controls[dragged - 1]!.position
+  const dragTarget = onPage
+    .filter(site => !inCourse.has(site.id) && isShown(site.position))
+    .map(site => ({
+      site,
+      meters: Math.hypot(site.position[0] - draggedFrom[0], site.position[1] - draggedFrom[1]),
+    }))
+    .filter(({ meters }) => meters >= DRAG_METERS[0] && meters <= DRAG_METERS[1])
+    .sort((a, b) => a.meters - b.meters)[0]?.site
+  const afterDrag =
+    dragTarget && moveControl(terrain, sites, editSpec, course!, dragged, dragTarget.position)
+
+  const asked = Math.max(1, Math.floor((course!.controls.length * 2) / 3))
+  const askedFrom = course!.controls[asked - 1]!
+  const moves = (['N', 'E', 'S', 'W'] as const).flatMap(direction => {
+    const moved = fixControl(terrain, sites, editSpec, course!, asked, 'best', direction)
+    const site = moved.controls[asked - 1]!
+    return site.id !== askedFrom.id && isShown(site.position)
+      ? [{ direction: compassDirection(askedFrom.position, site.position), to: site.position }]
+      : []
+  })
+
+  const plannable = onPage.filter(
+    site => !inCourse.has(site.id) && isShown(site.position, PLANNED_LEG_PAGE_INSET_SHARE),
+  )
+  let planned:
+    ({ from: LocalPoint; to: LocalPoint } & NonNullable<ReturnType<typeof routesOf>>) | null = null
+  for (let i = 0; i < plannable.length && !planned; i += PLANNED_LEG_SITE_STEP) {
+    for (let j = i + 1; j < plannable.length && !planned; j += PLANNED_LEG_SITE_STEP) {
+      const from = plannable[i]!.position
+      const to = plannable[j]!.position
+      const meters = Math.hypot(to[0] - from[0], to[1] - from[1])
+      if (meters < PLANNED_LEG_METERS[0] || meters > PLANNED_LEG_METERS[1]) continue
+      const routes = routesOf(from, to)
+      if (routes && routes.routes.length > 1) planned = { from, to, ...routes }
+    }
+  }
+
+  return {
+    leg: { index: shownLeg, ...legs[shownLeg]! },
+    courseRoutes: legs.map(leg => leg?.routes ?? []),
+    findings: course!.findings.length,
+    drag:
+      afterDrag && dragTarget
+        ? { control: dragged, to: toPage(dragTarget.position), findings: afterDrag.findings.length }
+        : null,
+    assistant: moves[0]
+      ? { control: asked, direction: moves[0].direction, to: toPage(moves[0].to) }
+      : null,
+    plannedLeg: planned && { ...planned, from: toPage(planned.from), to: toPage(planned.to) },
+  }
+}
 
 function pngOf(
   pageSvg: string,

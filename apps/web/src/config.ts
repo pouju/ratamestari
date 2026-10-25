@@ -5,6 +5,9 @@ export const AUTHOR_URL = 'https://github.com/pouju'
 export const FEEDBACK_URL = `${SOURCE_CODE_URL}/issues`
 export const OCAD2GEOJSON_URL = 'https://github.com/perliedman/ocad2geojson'
 export const APP_PATH = './app/'
+export const GUIDES_PATH = './guides/'
+// From the app and the guides page, one folder below the landing page.
+export const SUBPAGE_PATHS = { landing: '../', app: '../app/', guides: '../guides/' } as const
 export const SAMPLE_QUERY = 'sample'
 
 // The sample map in public/sample, set up as in the landing page's recorded run
