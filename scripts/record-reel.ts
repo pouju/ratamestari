@@ -23,7 +23,7 @@ import {
   type OverprintLayout,
 } from '@ratamestari/engine'
 import { describeControl, descriptionSheet, renderDescriptionSheet } from '@ratamestari/iof'
-import { loadOcadMap } from '@ratamestari/map-ocad'
+import { loadOcadMap } from '@ratamestari/map-import-ocad'
 import { mapWindow, printPageSvg } from '@ratamestari/print'
 import {
   COURSE_OVERPRINT,
