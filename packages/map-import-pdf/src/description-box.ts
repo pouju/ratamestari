@@ -9,6 +9,14 @@ export interface PaperRectangle {
   readonly maxY: number
 }
 
+// The table's rules, top to bottom and left to right, in paper units.
+export interface DescriptionTable extends PaperRectangle {
+  readonly rowRules: readonly number[]
+  readonly columnRules: readonly number[]
+  // The first path of the table; what is drawn before it is map under the table.
+  readonly firstPathIndex: number
+}
+
 const PAPER_UNITS_PER_MM = 100
 // Interpretation: the control description table (IOF Control Descriptions 2024, p. 3: black or
 // purple boxes 5–7 mm a side, eight columns) shows as rows of horizontal lines with the same ends,
@@ -22,15 +30,16 @@ const MIN_COLUMNS = 3
 interface Segment {
   readonly from: PaperPoint
   readonly to: PaperPoint
+  readonly pathIndex: number
 }
 
-export function findDescriptionBox(page: PdfPageContent): PaperRectangle | null {
-  const segments = page.paths.flatMap(path => {
+export function findDescriptionBox(page: PdfPageContent): DescriptionTable | null {
+  const segments = page.paths.flatMap((path, pathIndex) => {
     const ink = inkOf(path.stroke)
     if (ink !== 'black' && ink !== 'purple') return []
     return path.subpaths.flatMap(({ points, closed }) => {
       const ring = closed ? [...points, points[0]!] : points
-      return ring.slice(1).map((to, i) => ({ from: ring[i]!, to }))
+      return ring.slice(1).map((to, i) => ({ from: ring[i]!, to, pathIndex }))
     })
   })
   const horizontal = segments.filter(segment => isAxisAligned(segment, 'x'))
@@ -43,9 +52,9 @@ export function findDescriptionBox(page: PdfPageContent): PaperRectangle | null 
     rows.set(key, [...(rows.get(key) ?? []), segment])
   }
 
-  let best: PaperRectangle | null = null
+  let best: DescriptionTable | null = null
   for (const group of rows.values()) {
-    const ys = [...new Set(group.map(segment => Math.round(segment.from[1])))]
+    const ys = distinct(group.map(segment => segment.from[1]))
     if (ys.length < MIN_ROWS) continue
     const xs = group.flatMap(segment => [segment.from[0], segment.to[0]])
     const box = {
@@ -55,7 +64,7 @@ export function findDescriptionBox(page: PdfPageContent): PaperRectangle | null 
       maxY: Math.max(...ys),
     }
     const margin = SAME_END_MM * PAPER_UNITS_PER_MM
-    const columns = new Set(
+    const columns = distinct(
       vertical
         .filter(({ from, to }) =>
           [from, to].every(
@@ -66,10 +75,20 @@ export function findDescriptionBox(page: PdfPageContent): PaperRectangle | null 
               y <= box.maxY + margin,
           ),
         )
-        .map(({ from }) => Math.round(from[0] / margin)),
+        .map(({ from }) => from[0]),
     )
-    if (columns.size < MIN_COLUMNS) continue
-    if (!best || area(box) > area(best)) best = box
+    if (columns.length < MIN_COLUMNS) continue
+    const rowRules = [...ys].sort((a, b) => b - a)
+    const table = {
+      ...box,
+      rowRules,
+      columnRules: squareCellColumns(
+        distinct([box.minX, ...columns, box.maxX]).sort((a, b) => a - b),
+        rowRules,
+      ),
+      firstPathIndex: Math.min(...group.map(segment => segment.pathIndex)),
+    }
+    if (!best || area(table) > area(best)) best = table
   }
   return best
 }
@@ -96,6 +115,31 @@ function isAxisAligned({ from, to }: Segment, axis: 'x' | 'y'): boolean {
   const length = Math.hypot(dx, dy)
   if (length < MIN_RULE_MM * PAPER_UNITS_PER_MM) return false
   return Math.abs(axis === 'x' ? dy : dx) / length <= AXIS_SINE
+}
+
+// Description cells are square (IOF Control Descriptions 2024, p. 3), so a rule much closer to the
+// previous one than a row is high is part of a thick border, not a column.
+const MIN_COLUMN_SHARE_OF_ROW = 0.6
+
+function squareCellColumns(columns: readonly number[], rowRules: readonly number[]): number[] {
+  const rowHeights = rowRules.slice(1).map((rule, i) => rowRules[i]! - rule)
+  const cell = [...rowHeights].sort((a, b) => a - b)[Math.floor(rowHeights.length / 2)] ?? 0
+  const kept: number[] = []
+  for (const column of columns) {
+    const last = kept[kept.length - 1]
+    if (last === undefined || column - last >= cell * MIN_COLUMN_SHARE_OF_ROW) kept.push(column)
+  }
+  return kept
+}
+
+// Rule positions closer than a rule's own thickness are one rule.
+function distinct(values: readonly number[]): number[] {
+  const merged: number[] = []
+  for (const value of [...values].sort((a, b) => a - b)) {
+    const last = merged[merged.length - 1]
+    if (last === undefined || value - last > SAME_END_MM * PAPER_UNITS_PER_MM) merged.push(value)
+  }
+  return merged
 }
 
 const area = (box: PaperRectangle) => (box.maxX - box.minX) * (box.maxY - box.minY)

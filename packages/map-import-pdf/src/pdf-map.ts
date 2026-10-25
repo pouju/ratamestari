@@ -12,6 +12,7 @@ import type { DetectedCourse } from '@ratamestari/course-detect'
 import { MAP_APPEARANCES } from '@ratamestari/rules'
 import { classifyPage, type PaperFeature, type PaperGeometry } from './classify'
 import { findDescriptionBox, pathsInside, type PaperRectangle } from './description-box'
+import { readControlCodes } from './control-codes'
 import { readGeoReferences, type GeoReference } from './geo-pdf'
 import { detectPdfCourse } from './pdf-course'
 import { readPdfPages, type PdfPageContent } from './pdf-paths'
@@ -21,6 +22,8 @@ import { findTextRuns, type TextRun } from './text-runs'
 export interface PdfMapPage {
   readonly page: PdfPageContent
   readonly course: DetectedCourse | null
+  // The course's control codes in order, read from its description table; null where unread.
+  readonly controlCodes: readonly (string | null)[]
   readonly descriptionBox: PaperRectangle | null
   // How much larger than ISOM's 1:15 000 sizes the symbols are printed.
   readonly symbolScale: number
@@ -72,6 +75,10 @@ export async function readPdfMap(bytes: Uint8Array): Promise<PdfMap> {
       ...(course?.coursePathIndices ?? []),
       ...(descriptionBox ? pathsInside(page, descriptionBox) : []),
     ])
+    const controlCodes =
+      course?.ordered && descriptionBox
+        ? readControlCodes(page, descriptionBox, course.controls.length)
+        : (course?.controls ?? []).map(() => null)
     const textRuns = findTextRuns(page, excluded)
     const notMap = new Set([
       ...excluded,
@@ -83,6 +90,7 @@ export async function readPdfMap(bytes: Uint8Array): Promise<PdfMap> {
       {
         page,
         course,
+        controlCodes,
         descriptionBox,
         symbolScale,
         suggestedPrintScale: geoScale

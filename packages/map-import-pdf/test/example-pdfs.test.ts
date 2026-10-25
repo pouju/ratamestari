@@ -27,7 +27,8 @@ const examples = [
     ocd: 'map-a.ocd',
     xml: 'map-a.Courses.xml',
     printScale: 7500,
-    pages: [{ course: 'C', controls: 10 }],
+    // The description table runs off the page after control 5, so only some codes are there.
+    pages: [{ course: 'C', controls: 10, allCodes: false }],
   },
   {
     pdf: 'map-b-forked.pdf',
@@ -35,7 +36,11 @@ const examples = [
     ocd: 'map-b.ocd',
     xml: 'map-b-forked-courses.xml',
     printScale: 10000,
-    pages: [null, { course: 'A (a)', controls: 12 }, { course: 'A (b)', controls: 12 }],
+    pages: [
+      null,
+      { course: 'A (a)', controls: 12, allCodes: true },
+      { course: 'A (b)', controls: 12, allCodes: true },
+    ],
   },
 ]
 const MAX_COURSE_ERROR_METRES = 3
@@ -67,6 +72,21 @@ describe.each(examples)('$pdf ($producer)', example => {
       const errorMetres =
         (courseFit(pages[index]!, data, expected.course).rms * data.mapScale!) / 1000
       expect(errorMetres).toBeLessThan(MAX_COURSE_ERROR_METRES)
+    })
+  })
+
+  it.skipIf(!available)('has its control codes read, and none read wrong', async () => {
+    const { pages, data } = await read()
+    example.pages.forEach((expected, index) => {
+      if (expected === null) return
+      const xmlCourse = data.courses.find(candidate => candidate.name === expected.course)!
+      const truth = xmlCourse.controlIds.filter(id => data.controls.get(id)!.type === 'Control')
+      const codes = pages[index]!.controlCodes
+      codes.forEach((code, i) => {
+        if (code !== null) expect(code).toBe(truth[i])
+      })
+      if (expected.allCodes) expect(codes).toEqual(truth)
+      else expect(codes.some(code => code !== null)).toBe(true)
     })
   })
 
