@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.0](https://github.com/pouju/ratamestari/compare/v0.3.0...v0.4.0) (2026-10-25)
+
+
+### Features
+
+* **engine:** keep locked controls and legs when setting a course again ([b007ee4](https://github.com/pouju/ratamestari/commit/b007ee48106d14bec01c867084206dbee316331a))
+* **web:** add a guide for keeping controls and trying again ([afc66d2](https://github.com/pouju/ratamestari/commit/afc66d2444dbbf2dba54f6b14949926fda1d618f))
+* **web:** add a guides page with animated how-to demos ([becd4b5](https://github.com/pouju/ratamestari/commit/becd4b5dabc99059407fc05308e5e36fddeb4eb4))
+* **web:** count visits and main actions with Umami Cloud ([88c7e19](https://github.com/pouju/ratamestari/commit/88c7e19f344898dd9008d2375ebfd9c235038731))
+* **web:** keep controls and legs when trying another course ([9e9e48c](https://github.com/pouju/ratamestari/commit/9e9e48c639fe2368dbf0858da45cb28b73171bb2))
+* **web:** keep the routes list beside an open leg ([bc40654](https://github.com/pouju/ratamestari/commit/bc4065464b93381335e7b9ff45bf8d68447f0e35))
+
+
+### Bug fixes
+
+* **engine:** give courses set around kept controls a real first leg and run-in ([880c358](https://github.com/pouju/ratamestari/commit/880c3584063bc137116a9134718528fa36d377b5))
+
 ## [0.3.0](https://github.com/pouju/ratamestari/compare/v0.2.0...v0.3.0) (2026-10-25)
 
 
