@@ -15,7 +15,7 @@ import { buildTerrain, type Terrain } from '../src/terrain'
 import { secondsFrom } from '../src/time-tree'
 
 const SAMPLE_MAP = fileURLToPath(
-  new URL('../../../apps/web/public/sample/leirikangas-sample.ocd', import.meta.url),
+  new URL('../../../apps/web/public/sample/sample.ocd', import.meta.url),
 )
 const PACE_SECONDS_PER_KM = 400
 const SETUP_TIMEOUT_MS = 60_000

@@ -43,7 +43,7 @@ import {
 
 const { values } = parseArgs({
   options: {
-    map: { type: 'string', default: 'apps/web/public/sample/leirikangas-sample.ocd' },
+    map: { type: 'string', default: 'apps/web/public/sample/sample.ocd' },
     out: { type: 'string', default: 'apps/web/src/landing/sample-run.json' },
     background: { type: 'string', default: 'apps/web/src/landing/sample-page.png' },
     descriptions: { type: 'string', default: 'apps/web/src/landing/sample-descriptions.svg' },

@@ -13,8 +13,8 @@ export const SAMPLE_QUERY = 'sample'
 // The sample map in public/sample, set up as in the landing page's recorded run
 // (scripts/record-demo-run.ts): its centre is the middle of the mapped area.
 export const SAMPLE_MAP = {
-  path: '../sample/leirikangas-sample.ocd',
-  fileName: 'leirikangas-sample.ocd',
+  path: '../sample/sample.ocd',
+  fileName: 'sample.ocd',
   centre: [-5331.1, 161.75],
   request: {
     eventLevel: 'national',

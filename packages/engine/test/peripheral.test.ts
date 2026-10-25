@@ -31,13 +31,13 @@ const annotation = (
 const logoLines = [
   annotation(null, 800, 800, 900, 900),
   annotation(null, 820, 810, 880, 890),
-  annotation('Vehkalahden Veikot', 790, 770, 910, 790),
+  annotation('Example Club', 790, 770, 910, 790),
 ]
 const logoLeaves = { ...annotation(null, 830, 830, 870, 870), hasTerrainMeaning: true }
 const copyright = annotation('Kopiointi kielletty.\nKartalla järjestettävästä', 700, 100, 980, 160)
-const title = annotation('Leirikangas', 700, 500, 950, 560)
+const title = annotation('Example Forest', 700, 500, 950, 560)
 const contours = annotation('Käyräväli 5 m', 700, 420, 850, 450)
-const placeName = annotation('Lähdesuo', 200, 200, 300, 230)
+const placeName = annotation('Example Marsh', 200, 200, 300, 230)
 const roadInMap = { ...annotation(null, 100, 100, 400, 110), hasTerrainMeaning: true }
 
 describe('findPeripheralInformation', () => {

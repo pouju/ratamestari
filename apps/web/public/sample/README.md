@@ -1,6 +1,6 @@
 # Sample map
 
-`leirikangas-sample.ocd` is a small part (about 1 km × 0.8 km, the open rock area) of the orienteering map Leirikangas, Hamina.
+`sample.ocd` is a small part (about 1 km × 0.8 km, the open rock area) of the orienteering map Leirikangas, Hamina.
 
 © Vehkalahden Veikot. Mapping: Simo-Pekka Fincke and Tero Föhr 2002–2003; update: Lari Takanen and Janne Weckman 2013.
 

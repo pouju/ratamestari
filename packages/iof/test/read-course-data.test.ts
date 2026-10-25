@@ -8,11 +8,11 @@ import { site } from './fixtures'
 
 const OCAD_STYLE = `<?xml version="1.0" encoding="UTF-8" ?>
 <CourseData xmlns="http://www.orienteering.org/datastandard/3.0" iofVersion="3.0">
-  <Event><Name>Rannikkorastit</Name></Event>
+  <Event><Name>Example Event</Name></Event>
   <RaceCourseData>
     <Map><Scale>15000</Scale></Map>
     <Control type="Start"><Id>L1</Id><MapPosition x="-376.1" y="52.9" unit="mm" /></Control>
-    <Control type="Control"><Id>33</Id><Position lng="27.2" lat="60.6" /><MapPosition x="-352.0" y="60.1" unit="mm" /></Control>
+    <Control type="Control"><Id>33</Id><Position lng="25.5" lat="61.5" /><MapPosition x="-352.0" y="60.1" unit="mm" /></Control>
     <Control type="Finish"><Id>M1</Id><MapPosition unit="mm" y="40.0" x="-370.0" /></Control>
     <Course>
       <Name>A</Name>
@@ -27,13 +27,13 @@ const OCAD_STYLE = `<?xml version="1.0" encoding="UTF-8" ?>
 describe('readCourseData', () => {
   it('reads controls and courses from an OCAD export', () => {
     const data = readCourseData(OCAD_STYLE)
-    expect(data.eventName).toBe('Rannikkorastit')
+    expect(data.eventName).toBe('Example Event')
     expect(data.mapScale).toBe(15000)
     expect(data.controls.get('33')).toEqual({
       id: '33',
       type: 'Control',
       mapPositionMillimetres: [-352, 60.1],
-      longitudeLatitude: [27.2, 60.6],
+      longitudeLatitude: [25.5, 61.5],
       projected: null,
     })
     expect(data.controls.get('M1')!.mapPositionMillimetres).toEqual([-370, 40])

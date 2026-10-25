@@ -9,15 +9,15 @@ import { detectPdfCourse, readPdfPages } from '../src'
 const mapsFolder = fileURLToPath(new URL('../../../maps/', import.meta.url))
 const examples = [
   {
-    pdf: 'leirikangas-c.pdf',
+    pdf: 'map-a-course-c.pdf',
     producer: 'OCAD 2020',
-    xml: 'leirikangas.Courses.xml',
+    xml: 'map-a.Courses.xml',
     pages: [{ course: 'C', controls: 10 }],
   },
   {
-    pdf: 'onkamaa2.pdf',
+    pdf: 'map-b-forked.pdf',
     producer: 'Condes',
-    xml: 'onkamaa2-courses.xml',
+    xml: 'map-b-forked-courses.xml',
     pages: [null, { course: 'A (a)', controls: 12 }, { course: 'A (b)', controls: 12 }],
   },
 ]
