@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { Course, LegEvaluation } from '@ratamestari/engine'
 import { ROUTE_CHOICE } from '@ratamestari/rules'
 import { useFormat, useMessages } from './i18n'
@@ -16,10 +17,22 @@ interface Props {
   leg: number
   routes: LegRoutesState
   onSelectLeg: (leg: number | null) => void
+  keeping: { readonly leg: boolean; readonly from: boolean; readonly to: boolean }
+  onToggleLegKept: () => void
+  onToggleStopKept: (stop: number) => void
 }
 
-export function LegRoutesPanel({ course, leg, routes, onSelectLeg }: Props) {
+export function LegRoutesPanel({
+  course,
+  leg,
+  routes,
+  onSelectLeg,
+  keeping,
+  onToggleLegKept,
+  onToggleStopKept,
+}: Props) {
   const m = useMessages().leg
+  const k = useMessages().keep
   const format = useFormat()
   const isLastLeg = leg === legCount(course) - 1
 
@@ -63,8 +76,57 @@ export function LegRoutesPanel({ course, leg, routes, onSelectLeg }: Props) {
       {routes.status === 'unreachable' && <p className="error">{m.unreachable}</p>}
       {routes.status === 'evaluated' && <RouteTable leg={routes.leg} />}
 
+      <div className="leg-keep">
+        <h3>{k.title}</h3>
+        <div className="leg-keep-options">
+          <KeepToggle isKept={keeping.leg} onToggle={onToggleLegKept}>
+            {k.leg}
+          </KeepToggle>
+          <KeepToggle isKept={keeping.from} onToggle={() => onToggleStopKept(leg)}>
+            {leg === 0 ? k.start : k.control(leg)}
+          </KeepToggle>
+          {!isLastLeg && (
+            <KeepToggle isKept={keeping.to} onToggle={() => onToggleStopKept(leg + 1)}>
+              {k.control(leg + 1)}
+            </KeepToggle>
+          )}
+        </div>
+        <p className="leg-view-soft leg-view-small">{k.hint}</p>
+      </div>
+
       <p className="leg-view-soft leg-view-small">{m.fromSymbols}</p>
     </section>
+  )
+}
+
+function KeepToggle({
+  isKept,
+  onToggle,
+  children,
+}: {
+  isKept: boolean
+  onToggle: () => void
+  children: ReactNode
+}) {
+  return (
+    <button type="button" className="leg-keep-toggle" aria-pressed={isKept} onClick={onToggle}>
+      <LockIcon isClosed={isKept} />
+      {children}
+    </button>
+  )
+}
+
+export function LockIcon({ isClosed }: { isClosed: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d={isClosed ? 'M7 11V8a5 5 0 0 1 10 0v3' : 'M7 11V8a5 5 0 0 1 9.6-2'}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.4"
+      />
+      <rect x="4" y="11" width="16" height="10" rx="2" fill="currentColor" />
+    </svg>
   )
 }
 

@@ -16,7 +16,7 @@ import type Geometry from 'ol/geom/Geometry'
 import type { FeatureLike } from 'ol/Feature'
 import { unByKey } from 'ol/Observable'
 import { asArray } from 'ol/color'
-import { Circle as CircleStyle, Fill, Stroke, Style, Text } from 'ol/style'
+import { Circle as CircleStyle, Fill, Icon, Stroke, Style, Text } from 'ol/style'
 import {
   localExtent,
   localPoint,
@@ -86,6 +86,15 @@ const centreStyle = [
     }),
   }),
 ]
+// A padlock in a white disc, like the centre marker: on the screen only, never printed.
+const KEPT_MARK_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24">' +
+  '<circle cx="12" cy="12" r="11" fill="white" stroke="black" stroke-width="1.5"/>' +
+  '<path d="M8.5 11V8.5a3.5 3.5 0 0 1 7 0V11" fill="none" stroke="black" stroke-width="2"/>' +
+  '<rect x="6.5" y="11" width="11" height="7.5" rx="1.5" fill="black"/></svg>'
+const keptMarkStyle = new Style({
+  image: new Icon({ src: `data:image/svg+xml;utf8,${encodeURIComponent(KEPT_MARK_SVG)}` }),
+})
 const SUGGESTION_DASH_PIXELS = [6, 5]
 const suggestionStyle = new Style({
   stroke: new Stroke({
@@ -232,6 +241,8 @@ interface Props {
   onPointerOver: (hover: { readonly hit: CourseHit | null; readonly at: LocalPoint } | null) => void
   selectedLeg: number | null
   onLegSelected: (leg: number) => void
+  // Where to show that a control or leg is kept when the course is set again.
+  keptMarks: readonly LocalPoint[]
   costMap: CostMapImage | null
   sites: readonly ControlSiteCandidate[] | null
   course: Course | null
@@ -270,6 +281,7 @@ export function MapView({
   onPointerOver,
   selectedLeg,
   onLegSelected,
+  keptMarks,
   costMap,
   sites,
   course,
@@ -335,6 +347,7 @@ export function MapView({
   const onStopMovedRef = useRef(onStopMoved)
   onStopMovedRef.current = onStopMoved
   const [centreSource] = useState(() => new VectorSource())
+  const [keptSource] = useState(() => new VectorSource())
   const [suggestionSource] = useState(() => new VectorSource())
   const [legToolLayer] = useState(() => new VectorLayer({ source: new VectorSource() }))
   const [plannedLegFeatures] = useState(() => ({
@@ -392,6 +405,7 @@ export function MapView({
         courseLayer,
         descriptionLayer,
         legToolLayer,
+        new VectorLayer({ source: keptSource, style: keptMarkStyle }),
         new VectorLayer({ source: centreSource, style: centreStyle }),
         new VectorLayer({ source: suggestionSource, style: suggestionStyle }),
       ],
@@ -632,6 +646,11 @@ export function MapView({
       new Feature(new LineString([[...suggestedMove.from], [...suggestedMove.to]])),
     ])
   }, [suggestedMove, info, suggestionSource])
+
+  useEffect(() => {
+    keptSource.clear()
+    keptSource.addFeatures(keptMarks.map(at => new Feature(new Point([...at]))))
+  }, [keptMarks, keptSource])
 
   useEffect(() => {
     centreSource.clear()

@@ -65,6 +65,21 @@ import {
 import { useFormat, useMessages } from './i18n'
 import { MapView } from './MapView'
 import { EditControlsTool, LayersMenu, PlanLegTool, PrintFrameBar, PrintLabel } from './MapTools'
+import {
+  forgetStops,
+  isLegKept,
+  isStopKept,
+  keepStopsAndLegs,
+  keptCount,
+  keptIndices,
+  keptMarksOf,
+  locksFor,
+  NOTHING_KEPT,
+  toggleLeg,
+  toggleStop,
+  withMovedStop,
+  type Kept,
+} from './kept'
 import { SetByHandPanel } from './SetByHandPanel'
 import { handEditFor, isControlStop, neighboursOf, withUndoStep } from './set-by-hand'
 import type { CourseHit } from './course-overprint'
@@ -142,6 +157,13 @@ export function App() {
   const latestPreview = useRef(0)
   const previewRest = useRef<number | undefined>(undefined)
   const [selectedLeg, setSelectedLeg] = useState<number | null>(null)
+  const [kept, setKeptState] = useState<Kept>(NOTHING_KEPT)
+  // The assistant keeps controls and sets the course in one turn, before React renders again.
+  const keptRef = useRef(kept)
+  const setKept = (next: Kept | ((current: Kept) => Kept)) => {
+    keptRef.current = typeof next === 'function' ? next(keptRef.current) : next
+    setKeptState(keptRef.current)
+  }
   const [legRoutes, setLegRoutes] = useState<LegRoutesState>({ status: 'finding' })
   const latestLegRoutesRequest = useRef(0)
   const messages = useMessages()
@@ -348,6 +370,14 @@ export function App() {
     void engine.controlSites().then(setSites)
   }, [engine, engineState, showSites, sites])
 
+  const keptMarks = useMemo(
+    () => (course && !isGenerating ? keptMarksOf(kept, course) : []),
+    [kept, course, isGenerating],
+  )
+
+  // Kept controls belong to one finish and one map; a new centre or map starts afresh.
+  useEffect(() => setKept(NOTHING_KEPT), [competitionCentre])
+
   async function generateCourse(
     nextRequest: CourseRequest,
     nextSeed: number,
@@ -356,6 +386,7 @@ export function App() {
     wish = startWish,
   ): Promise<Course | null> {
     if (!centre || pace === null) return null
+    const locks = course && locksFor(keptRef.current, course)
     const frame = frameFor(placedFrame, paper, printScale, nextRequest)
     if (frame && !hasRoomForCentre(frame, centre)) {
       setEditMessage(messages.print.centreOutside)
@@ -383,6 +414,7 @@ export function App() {
           setSearch(current => current && { ...current, phase }),
         ),
         wish,
+        locks && { locks, printArea: course!.printArea },
       )
       setCourse(result)
       if (result) setDrawCourseKey(key => key + 1)
@@ -430,6 +462,7 @@ export function App() {
       course,
       selectedLeg,
       undoSteps: undoHistory.length,
+      kept: course ? keptIndices(keptRef.current, course) : { stops: [], legs: [] },
     }),
     generateCourse: generateFromChat,
     showRequest: setRequest,
@@ -445,6 +478,12 @@ export function App() {
       setCourse(next)
     },
     undo,
+    keep: (stops, legs) => {
+      if (course) setKept(current => keepStopsAndLegs(current, course, stops, legs))
+    },
+    forgetKept: stops => {
+      if (course) setKept(current => (stops ? forgetStops(current, course, stops) : NOTHING_KEPT))
+    },
     mapSymbols: () =>
       state.status === 'ready'
         ? state.map.symbols().map(symbol => ({
@@ -479,6 +518,8 @@ export function App() {
       suggestChanges: current => latestWorkspace.current!.suggestChanges(current),
       applyCourse: next => latestWorkspace.current!.applyCourse(next),
       undo: () => latestWorkspace.current!.undo(),
+      keep: (stops, legs) => latestWorkspace.current!.keep(stops, legs),
+      forgetKept: stops => latestWorkspace.current!.forgetKept(stops),
       mapSymbols: () => latestWorkspace.current!.mapSymbols(),
       correctSymbol: (symbol, isomCode) => latestWorkspace.current!.correctSymbol(symbol, isomCode),
     }),
@@ -677,13 +718,15 @@ export function App() {
     )
   }
 
-  function moveStop(stopIndex: number, to: LocalPoint) {
-    const isFinish = course !== null && stopIndex === course.controls.length + 1
-    void editByHand(
+  async function moveStop(stopIndex: number, to: LocalPoint) {
+    const before = course
+    const isFinish = before !== null && stopIndex === before.controls.length + 1
+    const moved = await editByHand(
       current =>
         isFinish ? engine.moveFinish(current!, to) : engine.moveControl(current!, stopIndex, to),
       isFinish ? messages.setByHand.finishRefused : messages.course.moveRefused,
     )
+    if (moved && before) setKept(current => withMovedStop(current, before, moved, stopIndex))
   }
 
   const keyActions = useRef({ deleteSelectedControl, undo })
@@ -991,6 +1034,7 @@ export function App() {
             onPointerOver={hover => isSettingByHand && previewAt(hover)}
             selectedLeg={selectedLeg}
             onLegSelected={selectLeg}
+            keptMarks={keptMarks}
             costMap={showCostMap ? costMap : null}
             sites={showSites ? sites : null}
             course={course}
@@ -1076,7 +1120,7 @@ export function App() {
                 />
               )
             }
-            onStopMoved={moveStop}
+            onStopMoved={(stop, to) => void moveStop(stop, to)}
           />
         ) : (
           <MapStart opening={state} isDraggingOver={isDraggingOver} onChooseFile={chooseMapFile} />
@@ -1092,6 +1136,13 @@ export function App() {
             leg={selectedLeg}
             routes={legRoutes}
             onSelectLeg={selectLeg}
+            keeping={{
+              leg: isLegKept(kept, course, selectedLeg),
+              from: isStopKept(kept, course, selectedLeg),
+              to: isStopKept(kept, course, selectedLeg + 1),
+            }}
+            onToggleLegKept={() => setKept(current => toggleLeg(current, course, selectedLeg))}
+            onToggleStopKept={stop => setKept(current => toggleStop(current, course, stop))}
           />
         )}
         {selectedLeg !== null && courseRoutesList}
@@ -1177,6 +1228,8 @@ export function App() {
             onSetByHand={startSettingByHand}
             onStop={() => void engine.stopSearch()}
             onTryAnother={() => void generateCourse(request, seed + 1, paceSecondsPerKm)}
+            kept={course && keptCount(kept, course)}
+            onForgetKept={() => setKept(NOTHING_KEPT)}
             course={course}
             isEditing={isEditing || isGenerating}
             isPreparingPdf={isPreparingPdf}

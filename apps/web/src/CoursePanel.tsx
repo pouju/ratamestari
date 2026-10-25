@@ -11,6 +11,8 @@ import {
 import { useEffect, useState } from 'react'
 import { offeredAgeClasses, withOfferedClass } from './class-choice'
 import { useFormat, useMessages } from './i18n'
+import type { KeptCount } from './kept'
+import { LockIcon } from './LegRoutesPanel'
 import {
   CheckComparison,
   CheckHeader,
@@ -35,6 +37,8 @@ interface Props {
   onSetByHand: () => void
   onStop: () => void
   onTryAnother: () => void
+  kept: KeptCount | null
+  onForgetKept: () => void
   course: Course | null
   isEditing: boolean
   isPreparingPdf: boolean
@@ -381,11 +385,13 @@ function CourseActions({
   onSetByHand,
   onStop,
   onTryAnother,
+  kept,
+  onForgetKept,
   onDownloadPdf,
   onDownloadXml,
   check,
 }: Props & { isMeasured: boolean }) {
-  const { course: m, setByHand } = useMessages()
+  const { course: m, setByHand, keep } = useMessages()
 
   if (search) {
     return (
@@ -456,6 +462,15 @@ function CourseActions({
           </button>
         )}
       </div>
+      {!check && kept && kept.controls > 0 && (
+        <p className="course-actions-note course-kept">
+          <LockIcon isClosed />
+          {keep.summary(kept.controls, kept.legs)}{' '}
+          <button type="button" className="link" onClick={onForgetKept}>
+            {keep.forget}
+          </button>
+        </p>
+      )}
       <p className="course-actions-note">{m.exportNote}</p>
     </div>
   )

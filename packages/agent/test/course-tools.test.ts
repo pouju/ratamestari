@@ -20,6 +20,7 @@ const READY: WorkspaceStatus = {
   course: null,
   selectedLeg: null,
   undoSteps: 0,
+  kept: { stops: [], legs: [] },
 }
 
 function workspaceWith(status: Partial<WorkspaceStatus> = {}) {
@@ -30,12 +31,13 @@ function workspaceWith(status: Partial<WorkspaceStatus> = {}) {
   const startWishes: StartWish[] = []
   const applied: Course[] = []
   const undos: string[] = []
+  let kept: WorkspaceStatus['kept'] = status.kept ?? READY.kept
   const withoutFindings = (course: Course): Course => ({ ...course, findings: [] })
   const symbols: MapSymbolInfo[] = [
     { symbol: '502.0', name: 'Moottoritie', objects: 12, isomCode: '502', corrected: false },
   ]
   const workspace: CourseWorkspace = {
-    status: () => ({ ...READY, ...status }),
+    status: () => ({ ...READY, ...status, kept }),
     generateCourse: async (request, options) => {
       calls.push({ request, options })
       return COURSE
@@ -92,6 +94,18 @@ function workspaceWith(status: Partial<WorkspaceStatus> = {}) {
         ),
         findings: [],
       }
+    },
+    keep: (stops, legs) => {
+      kept = {
+        stops: [...new Set([...kept.stops, ...stops, ...legs, ...legs.map(leg => leg + 1)])],
+        legs: [...new Set([...kept.legs, ...legs])],
+      }
+    },
+    forgetKept: stops => {
+      kept =
+        stops === null
+          ? { stops: [], legs: [] }
+          : { ...kept, stops: kept.stops.filter(stop => !stops.includes(stop)) }
     },
     mapSymbols: () => symbols,
     correctSymbol: async (symbol, isomCode) => {
@@ -286,6 +300,15 @@ describe('course editing tools', () => {
     expect(result.stepsLeft).toBe(1)
     expect(result.change.controlCount).toEqual({ before: 2, after: 1 })
     expect(result.course.controlCount).toBe(1)
+  })
+
+  it('keeps controls and legs for the next course, and lets them go', async () => {
+    const { tools } = workspaceWith({ course: COURSE })
+    const kept = JSON.parse(await tools.keep_controls!.run({ controls: [2], legsFrom: [0] }))
+    expect(kept.kept).toEqual({ start: true, controls: [2, 1], legs: ['start to control 1'] })
+    expect(await tools.keep_controls!.run({ controls: [5] })).toMatch(/only 2 controls/)
+    const forgotten = JSON.parse(await tools.forget_kept!.run({}))
+    expect(forgotten.kept).toEqual({ start: false, controls: [], legs: [] })
   })
 
   it('says when there is nothing to undo', async () => {

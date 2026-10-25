@@ -304,6 +304,18 @@ export const en = {
         : `${count} other routes, the best ${difference} slower`,
     previewNoChoice: 'No other route',
   },
+  keep: {
+    title: 'Keep when trying again',
+    leg: 'Keep this leg',
+    start: 'Keep the start',
+    control: (control: number) => `Keep control ${control}`,
+    hint: 'Try another course sets the rest again around what you keep.',
+    summary: (controls: number, legs: number) =>
+      `Keeps ${controls === 1 ? '1 control' : `${controls} controls`}` +
+      (legs === 0 ? '' : ` and ${legs === 1 ? '1 leg' : `${legs} legs`}`) +
+      ' when trying again.',
+    forget: 'Forget them',
+  },
   courseRoutes: {
     title: 'Routes',
     findAll: 'Find routes on all legs',
@@ -428,6 +440,7 @@ export const en = {
             'Planning a leg yourself',
             'Setting a course yourself, control by control',
             'Dragging controls, with the rules checked again',
+            'Keeping the controls and legs you like while trying another course',
             'Undo, also for changes made from the chat',
             'Stopping the search and keeping the best course',
             'IOF control descriptions on the map',
@@ -442,7 +455,6 @@ export const en = {
         {
           title: 'Coming next',
           items: [
-            'Keeping controls you like while trying again',
             'Faster course setting on large maps',
             'Choosing where the paper goes from the course plan',
             'Centre suggestions from the map',

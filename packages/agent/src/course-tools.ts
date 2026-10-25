@@ -31,6 +31,8 @@ export interface WorkspaceStatus {
   // The leg the user selected on the map: from stop selectedLeg (0 = start) to the next stop.
   readonly selectedLeg: number | null
   readonly undoSteps: number
+  // Kept when the course is set again (D15): stops (0 = start) and legs (from stop k to k + 1).
+  readonly kept: { readonly stops: readonly number[]; readonly legs: readonly number[] }
 }
 
 export interface GenerateOptions {
@@ -65,6 +67,10 @@ export interface CourseWorkspace {
   applyCourse(course: Course): void
   // null when there is nothing to undo or the app is busy with another edit.
   undo(): { readonly course: Course | null } | null
+  // Keeping a leg keeps its ends too.
+  keep(stops: readonly number[], legs: readonly number[]): void
+  // null lets everything go.
+  forgetKept(stops: readonly number[] | null): void
   mapSymbols(): readonly MapSymbolInfo[]
   correctSymbol(symbol: string, isomCode: string | null | undefined): Promise<void>
 }
@@ -115,6 +121,15 @@ const stopName = (stop: number, controlCount: number) =>
 const legName = (leg: number, controlCount: number) =>
   `${stopName(leg, controlCount)} to ${stopName(leg + 1, controlCount)}`
 
+const keptFacts = (kept: WorkspaceStatus['kept'], course: Course) => {
+  const count = course.controls.length
+  return {
+    start: kept.stops.includes(0),
+    controls: kept.stops.filter(stop => stop > 0),
+    legs: kept.legs.map(leg => legName(leg, count)),
+  }
+}
+
 // What changed in the course, in the words and numbers the assistant may see (D3).
 const courseChange = (before: Course, after: Course) => {
   const [was, now] = [summarizeCourse(before), summarizeCourse(after)]
@@ -159,13 +174,54 @@ export function createCourseTools(workspace: CourseWorkspace): AgentTool[] {
         'Tells whether a map is open, its scale, whether the competition centre is set, the current course request, the winner pace, the start wish, the leg the user has selected on the map, and a summary of the current course. Call it before answering questions about the current state, and when the user says "here", "this leg" or "this control".',
       inputSchema: z.object({}),
       run: async () => {
-        const { course, selectedLeg, ...status } = workspace.status()
+        const { course, selectedLeg, kept, ...status } = workspace.status()
         return json({
           ...status,
           selectedLeg:
             course && selectedLeg !== null ? legName(selectedLeg, course.controls.length) : null,
+          kept: course && keptFacts(kept, course),
           course: course && summarizeCourse(course),
         })
+      },
+    }),
+    defineTool({
+      name: 'keep_controls',
+      description:
+        'Keeps controls, the start or legs of the current course when it is set again: generate_course and "Try another course" then keep them in place and in order, and set the rest of the course around them. Keeping a leg keeps both its ends with no control between them. Returns everything now kept.',
+      inputSchema: z.object({
+        controls: z.array(z.int().min(1)).optional().describe('Control numbers to keep'),
+        start: z.boolean().optional().describe('true to keep the start'),
+        legsFrom: z
+          .array(z.int().min(0))
+          .optional()
+          .describe(
+            'Legs to keep, each given by the stop it starts from: 0 for the start to control 1, 3 for control 3 to 4, the last control number for the leg into the finish',
+          ),
+      }),
+      run: async ({ controls = [], start = false, legsFrom = [] }) => {
+        const course = workspace.status().course
+        if (!course) return NO_COURSE
+        const count = course.controls.length
+        const missing = [...controls, ...legsFrom].filter(stop => stop > count)
+        if (missing.length > 0) return `The course has only ${count} controls.`
+        workspace.keep([...(start ? [0] : []), ...controls], legsFrom)
+        return json({ kept: keptFacts(workspace.status().kept, course) })
+      },
+    }),
+    defineTool({
+      name: 'forget_kept',
+      description:
+        'Lets kept controls or the kept start go, with the kept legs at them, so the next course may move them. Without controls or start, lets everything go.',
+      inputSchema: z.object({
+        controls: z.array(z.int().min(1)).optional().describe('Control numbers to let go'),
+        start: z.boolean().optional().describe('true to let the start go'),
+      }),
+      run: async ({ controls, start = false }) => {
+        const course = workspace.status().course
+        if (!course) return NO_COURSE
+        const stops = [...(start ? [0] : []), ...(controls ?? [])]
+        workspace.forgetKept(stops.length === 0 ? null : stops)
+        return json({ kept: keptFacts(workspace.status().kept, course) })
       },
     }),
     defineTool({
@@ -278,7 +334,7 @@ export function createCourseTools(workspace: CourseWorkspace): AgentTool[] {
     defineTool({
       name: 'generate_course',
       description:
-        'Sets a course on the open map with the deterministic course engine and draws it for the user. Returns the rule values used and a summary: estimated winning time, length, controls with their features and difficulty, legs and rule-check problems. Takes from a few seconds to a minute.',
+        'Sets a course on the open map with the deterministic course engine and draws it for the user. Controls and legs kept with keep_controls stay in the new course. Returns the rule values used and a summary: estimated winning time, length, controls with their features and difficulty, legs and rule-check problems. Takes from a few seconds to a minute.',
       inputSchema: z.object({
         ...requestFields,
         winnerPaceSecondsPerKm: z

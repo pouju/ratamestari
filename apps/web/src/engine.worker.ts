@@ -33,7 +33,9 @@ import {
   papersFor,
   peripheralLayout,
   setCourseOnPaperSteps,
+  type CourseLocks,
   type CourseSpec,
+  type PrintArea,
   type PaperChoice,
   type PrintFrame,
   type ReplacementPreference,
@@ -203,6 +205,8 @@ const engine = {
     printFrame: PrintFrame | null,
     onProgress: (progress: SearchProgress) => void,
     startDistanceFromFinishMeters: readonly [number, number] | null = null,
+    // Kept controls, set again on the paper of the course they were kept from.
+    kept: { readonly locks: CourseLocks; readonly printArea: PrintArea | null } | null = null,
   ): Promise<Course | null> {
     if (!terrain) throw new Error('No map loaded in the engine')
     const automatic = specFor(
@@ -214,7 +218,18 @@ const engine = {
       startDistanceFromFinishMeters,
     )
     if (!automatic) return Promise.resolve(null)
-    const spec = printFrame ? { ...automatic, printFrame, printScale: printFrame.scale } : automatic
+    const framed = printFrame
+      ? { ...automatic, printFrame, printScale: printFrame.scale }
+      : automatic
+    const spec = kept
+      ? {
+          ...framed,
+          locks: kept.locks,
+          ...(kept.printArea && !printFrame
+            ? { printArea: kept.printArea, printScale: kept.printArea.scale }
+            : {}),
+        }
+      : framed
     lastSetting = { spec, paper }
     return runSliced(setCourseOnPaperSteps(terrain, sites, spec, paper), onProgress)
   },
