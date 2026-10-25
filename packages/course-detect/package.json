@@ -1,0 +1,15 @@
+{
+  "name": "@ratamestari/course-detect",
+  "version": "0.0.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@ratamestari/core": "workspace:*",
+    "@ratamestari/rules": "workspace:*"
+  }
+}

@@ -299,6 +299,15 @@ importers:
 
   packages/core: {}
 
+  packages/course-detect:
+    dependencies:
+      '@ratamestari/core':
+        specifier: workspace:*
+        version: link:../core
+      '@ratamestari/rules':
+        specifier: workspace:*
+        version: link:../rules
+
   packages/engine:
     dependencies:
       '@ratamestari/core':
