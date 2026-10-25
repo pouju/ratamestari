@@ -11,7 +11,7 @@ export type LoadedMap = Pick<
 
 // ISOM 2017-2 §2.9.1 map scales; a PDF's own scale is guessed from its symbol sizes.
 export const PDF_PRINT_SCALES = [4000, 5000, 7500, 10000, 15000] as const
-// Control codes aren't read from the page yet; numbering from 31 keeps them valid codes.
+// Codes the page didn't show clearly get free numbers from 31 up, which keeps them valid codes.
 const FIRST_CONTROL_CODE = 31
 
 export const isPdfFile = (file: File) => file.name.toLowerCase().endsWith('.pdf')
@@ -60,11 +60,19 @@ export function printedCourseXml(
   const course = page.course
   if (!course?.ordered || !course.start || !course.finish) return null
   const toLocal = ([x, y]: readonly [number, number]) => paperToLocal(paperPoint(x, y), printScale)
+  const read = new Set(page.controlCodes.filter(code => code !== null))
+  let free = FIRST_CONTROL_CODE
+  const codes = course.controls.map((_, i) => {
+    const code = page.controlCodes[i]
+    if (code) return code
+    while (read.has(String(free))) free++
+    return String(free++)
+  })
   return courseStopsXml({
     ...names,
     start: toLocal(course.start),
     controls: course.controls.map((position, i) => ({
-      code: String(FIRST_CONTROL_CODE + i),
+      code: codes[i]!,
       position: toLocal(position),
     })),
     finish: toLocal(course.finish),
