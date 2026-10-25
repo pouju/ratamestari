@@ -23,7 +23,7 @@ export async function readPdfMapFile(bytes: Uint8Array): Promise<PdfMapPage | nu
     import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
   ])
   setPdfWorkerUrl(workerUrl)
-  const pages = await readPdfMap(bytes)
+  const { pages } = await readPdfMap(bytes)
   return (
     pages.find(page => page.course?.ordered) ??
     pages.reduce<PdfMapPage | null>(

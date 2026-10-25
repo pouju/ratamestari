@@ -50,7 +50,7 @@ describe.each(examples)('$pdf ($producer)', example => {
     existsSync(mapsFolder + file),
   )
   const read = async () => ({
-    pages: await readPdfMap(new Uint8Array(readFileSync(mapsFolder + example.pdf))),
+    pages: (await readPdfMap(new Uint8Array(readFileSync(mapsFolder + example.pdf)))).pages,
     data: readCourseData(readFileSync(mapsFolder + example.xml, 'utf8')),
   })
 

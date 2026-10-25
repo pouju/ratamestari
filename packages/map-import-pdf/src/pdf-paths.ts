@@ -51,6 +51,8 @@ export interface PdfPageContent {
   readonly height: number
   readonly paths: readonly PdfPath[]
   readonly texts: readonly PdfText[]
+  // How much of the page embedded images cover, 0–1: a scan or a flattened print is one image.
+  readonly imageShare: number
 }
 
 type Matrix = readonly [a: number, b: number, c: number, d: number, e: number, f: number]
@@ -124,6 +126,7 @@ async function readPage(page: PDFPageProxy): Promise<PdfPageContent> {
   const [minX = 0, minY = 0, maxX = 0, maxY = 0] = page.view
   const pageToPaper = multiply([1, 0, 0, 1, -minX, -minY], POINT_TO_PAPER)
   const operatorList = await page.getOperatorList()
+  const imageAreas: number[] = []
   const textContent = await page.getTextContent()
   const texts = textContent.items.flatMap((item): PdfText[] => {
     if (!('str' in item) || item.str.trim() === '') return []
@@ -140,12 +143,21 @@ async function readPage(page: PDFPageProxy): Promise<PdfPageContent> {
   return {
     width: (maxX - minX) * HUNDREDTHS_MM_PER_PDF_POINT,
     height: (maxY - minY) * HUNDREDTHS_MM_PER_PDF_POINT,
-    paths: readPaths(operatorList, pageToPaper),
+    paths: readPaths(operatorList, pageToPaper, imageAreas),
     texts,
+    imageShare: Math.min(
+      1,
+      imageAreas.reduce((sum, area) => sum + area, 0) /
+        ((maxX - minX) * (maxY - minY) * HUNDREDTHS_MM_PER_PDF_POINT ** 2),
+    ),
   }
 }
 
-function readPaths(operatorList: OperatorList, baseMatrix: Matrix): PdfPath[] {
+function readPaths(
+  operatorList: OperatorList,
+  baseMatrix: Matrix,
+  imageAreas: number[] = [],
+): PdfPath[] {
   const paths: PdfPath[] = []
   const stack: GraphicsState[] = []
   let state: GraphicsState = {
@@ -208,6 +220,14 @@ function readPaths(operatorList: OperatorList, baseMatrix: Matrix): PdfPath[] {
       case OPS.setStrokeColorN:
         state.stroke = patternPaint(args)
         return
+      case OPS.paintImageXObject:
+      case OPS.paintInlineImageXObject:
+      case OPS.paintImageMaskXObject:
+      case OPS.paintImageXObjectRepeat: {
+        const [a, b, c, d] = state.matrix
+        imageAreas.push(Math.abs(a * d - b * c))
+        return
+      }
       case OPS.clip:
       case OPS.eoClip:
         pendingClip = { evenOdd: fn === OPS.eoClip }

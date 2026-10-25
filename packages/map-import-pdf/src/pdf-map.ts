@@ -46,10 +46,19 @@ const PAPER_UNITS_PER_METRE = 100 * 1000
 // A georeferenced page's scale is exact; it is rounded to a usual scale when that close to one.
 const SAME_SCALE_SHARE = 0.005
 
-export async function readPdfMap(bytes: Uint8Array): Promise<PdfMapPage[]> {
+export interface PdfMap {
+  readonly pages: readonly PdfMapPage[]
+  // The file has no map drawing to read, only pictures (a scan, or a print flattened to an image).
+  readonly isPicture: boolean
+}
+
+// Interpretation: a page that is mostly one picture and gave no map symbols is a scan.
+const PICTURE_PAGE_SHARE = 0.5
+
+export async function readPdfMap(bytes: Uint8Array): Promise<PdfMap> {
   const pages = await readPdfPages(bytes)
   const geoReferences = await readGeoReferences(bytes).catch(() => [])
-  return pages.flatMap((page, index) => {
+  const mapPages = pages.flatMap((page, index): PdfMapPage[] => {
     const geoReference = geoReferences[index] ?? null
     const geoScale = geoReference && geoReference.metresPerPaperUnit * PAPER_UNITS_PER_METRE
     const course = detectPdfCourse(page)
@@ -99,6 +108,11 @@ export async function readPdfMap(bytes: Uint8Array): Promise<PdfMapPage[]> {
       },
     ]
   })
+  const usable = mapPages.filter(page => page.paperFeatures.length > 0)
+  return {
+    pages: usable,
+    isPicture: usable.length === 0 && pages.some(page => page.imageShare >= PICTURE_PAGE_SHARE),
+  }
 }
 
 function localGeometry(

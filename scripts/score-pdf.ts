@@ -29,7 +29,7 @@ if (!values.pdf || !values.ocd || !values.xml) {
 
 const MILLIMETRES_PER_PAPER_UNIT = 0.01
 const started = performance.now()
-const pages = await readPdfMap(new Uint8Array(readFileSync(values.pdf)))
+const { pages } = await readPdfMap(new Uint8Array(readFileSync(values.pdf)))
 const readSeconds = (performance.now() - started) / 1000
 const data = readCourseData(readFileSync(values.xml, 'utf8'))
 const map = await loadOcadMap(new Uint8Array(readFileSync(values.ocd)))
