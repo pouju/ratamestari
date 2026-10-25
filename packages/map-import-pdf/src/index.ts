@@ -6,3 +6,4 @@ export {
   type PdfSubpath,
   type PdfText,
 } from './pdf-paths'
+export { detectPdfCourse } from './pdf-course'

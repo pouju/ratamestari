@@ -360,6 +360,9 @@ importers:
       '@ratamestari/core':
         specifier: workspace:*
         version: link:../core
+      '@ratamestari/course-detect':
+        specifier: workspace:*
+        version: link:../course-detect
       '@ratamestari/rules':
         specifier: workspace:*
         version: link:../rules
@@ -367,6 +370,9 @@ importers:
         specifier: 6.4.299
         version: 6.4.299
     devDependencies:
+      '@ratamestari/iof':
+        specifier: workspace:*
+        version: link:../iof
       pdf-lib:
         specifier: ^1.17.1
         version: 1.17.1

@@ -64,7 +64,7 @@ const POINT_TO_PAPER: Matrix = [
   0,
 ]
 const IDENTITY: Matrix = [1, 0, 0, 1, 0, 0]
-const CURVE_FLATNESS_PAPER = 2
+const CURVE_SEGMENT_PAPER = 20
 
 const DRAW_MOVE_TO = 0
 const DRAW_LINE_TO = 1
@@ -248,7 +248,7 @@ function flattenPath(data: ArrayLike<number>, matrix: Matrix): PdfSubpath[] {
         ),
       0,
     )
-    const steps = Math.max(2, Math.ceil(span / CURVE_FLATNESS_PAPER))
+    const steps = Math.max(2, Math.ceil(span / CURVE_SEGMENT_PAPER))
     for (let step = 1; step <= steps; step++)
       points.push(bezierPoint([start, ...controls], step / steps))
     curved = true
