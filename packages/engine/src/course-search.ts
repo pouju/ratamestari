@@ -506,6 +506,8 @@ export interface PlanningContext {
   ) => Float32Array
   readonly legSeconds: (from: number, to: number) => number
   readonly straightSeconds: (from: LocalPoint, to: LocalPoint) => number
+  // straightSeconds between two pool sites, cached.
+  readonly straightSecondsBetween: (from: number, to: number) => number
   readonly routeChoiceValue: (from: LocalPoint, to: LocalPoint, fastestSeconds: number) => number
   readonly isAllowedCourseLine: (from: LocalPoint, to: LocalPoint) => boolean
   readonly evaluation: ReturnType<typeof createEvaluation>
@@ -576,6 +578,7 @@ function planningContextFor(
   // Costs are symmetric, so a tree from either end gives a leg's time. Without one, a route
   // between the two ends is much cheaper than a new tree: improvement tries many new sites.
   const routeCache = new Map<string, number>()
+  const straightCache = new Map<number, number>()
   const legSeconds = (from: number, to: number): number => {
     const known = knownSeconds(from, to) ?? knownSeconds(to, from)
     if (known !== null) return known
@@ -609,6 +612,19 @@ function planningContextFor(
     timesFrom,
     legSeconds,
     straightSeconds: (from, to) => straightLineSeconds(grid, from, to, paceSecondsPerKm),
+    straightSecondsBetween: (from, to) => {
+      const key = from * pool.length + to
+      const cached = straightCache.get(key)
+      if (cached !== undefined) return cached
+      const seconds = straightLineSeconds(
+        grid,
+        pool[from]!.position,
+        pool[to]!.position,
+        paceSecondsPerKm,
+      )
+      straightCache.set(key, seconds)
+      return seconds
+    },
     routeChoiceValue,
     isAllowedCourseLine,
     evaluation,
@@ -1469,14 +1485,15 @@ function straightLineSeconds(
   const length = distanceBetween(from, to)
   const samples = Math.max(1, Math.ceil(length / grid.cellSizeMeters))
   const stepSeconds = ((length / samples) * paceSecondsPerKm) / 1000
+  const { minX, minY, cellSizeMeters, columns, rows } = grid
   let seconds = 0
+  // cellIndexOf, inlined: this runs for every candidate leg the section fill weighs.
   for (let s = 0; s < samples; s++) {
     const t = (s + 0.5) / samples
-    const index = cellIndexOf(grid, [
-      from[0] + (to[0] - from[0]) * t,
-      from[1] + (to[1] - from[1]) * t,
-    ] as const as LocalPoint)
-    const speed = index === null ? BLOCKED : grid.speed[index]!
+    const column = Math.floor((from[0] + (to[0] - from[0]) * t - minX) / cellSizeMeters)
+    const row = Math.floor((from[1] + (to[1] - from[1]) * t - minY) / cellSizeMeters)
+    if (column < 0 || row < 0 || column >= columns || row >= rows) return Number.POSITIVE_INFINITY
+    const speed = grid.speed[row * columns + column]!
     if (speed === BLOCKED) return Number.POSITIVE_INFINITY
     seconds += stepSeconds / speed
   }

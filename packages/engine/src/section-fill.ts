@@ -103,7 +103,6 @@ export function fillSection(
     request.exit === 'finish'
       ? toFinish
       : context.timesFrom(request.exit, latest, [request.entry, ...request.allowed])
-  const legTime = (from: LocalPoint, to: LocalPoint) => context.straightSeconds(from, to)
   const meanLegSeconds = meanLegOf(mix) * (context.paceSecondsPerKm / 1000) * 1.2
   const expectedLegs = Math.max(1, budget / meanLegSeconds)
   const inRange = (i: number) => {
@@ -250,12 +249,13 @@ export function fillSection(
       tryClose(state)
       const stops = stopsOf(state.path)
       const from = stops[stops.length - 1]!
+      const lastStop = state.path.length === 0 ? request.entry : state.path[state.path.length - 1]!
       const used = new Set(state.path)
       const reachable = allowed.flatMap(i => {
         if (used.has(i)) return []
         const metres = distanceBetween(from, positionOf(i))
         if (metres < shortestLeg || metres > longestLeg) return []
-        const seconds = legTime(from, positionOf(i))
+        const seconds = context.straightSecondsBetween(lastStop, i)
         if (!Number.isFinite(seconds)) return []
         if (state.elapsed + seconds + toExit[i]! > latest) return []
         const legs = [...state.legs, metres]

@@ -44,10 +44,17 @@ export function findRoute(
   if (start === null || goal === null) return null
 
   const secondsPerMeterAtFullSpeed = paceSecondsPerKm / 1000
-  const cellCount = grid.columns * grid.rows
-  const bestSeconds = new Float64Array(cellCount).fill(Number.POSITIVE_INFINITY)
-  const cameFrom = new Int32Array(cellCount).fill(NO_CELL)
-  const closed = new Uint8Array(cellCount)
+  const { bestSeconds, cameFrom, touched, closed, search } = scratchFor(grid)
+  // A cell's values belong to this search only once it is touched in it.
+  const isTouched = (cell: number) => touched[cell] === search
+  const touch = (cell: number) => {
+    if (isTouched(cell)) return
+    touched[cell] = search
+    bestSeconds[cell] = Number.POSITIVE_INFINITY
+    cameFrom[cell] = NO_CELL
+  }
+  const best = (cell: number) => (isTouched(cell) ? bestSeconds[cell]! : Number.POSITIVE_INFINITY)
+  const isClosed = (cell: number) => closed[cell] === search
   const goalCenter = cellCenterOf(grid, goal)
   const heuristicSeconds = (index: number) => {
     const [x, y] = cellCenterOf(grid, index)
@@ -56,14 +63,15 @@ export function findRoute(
   }
 
   const open = new MinHeap()
+  touch(start)
   bestSeconds[start] = 0
   open.push(start, heuristicSeconds(start))
 
   while (open.size > 0) {
     const current = open.pop()!
     if (current === goal) break
-    if (closed[current]) continue
-    closed[current] = 1
+    if (isClosed(current)) continue
+    closed[current] = search
 
     const column = current % grid.columns
     const row = Math.floor(current / grid.columns)
@@ -73,7 +81,7 @@ export function findRoute(
       if (c < 0 || r < 0 || c >= grid.columns || r >= grid.rows) continue
       const next = r * grid.columns + c
       const nextSpeed = grid.speed[next]!
-      if (nextSpeed === BLOCKED || closed[next]) continue
+      if (nextSpeed === BLOCKED || isClosed(next)) continue
       const isDiagonal = dc !== 0 && dr !== 0
       if (
         isDiagonal &&
@@ -89,7 +97,8 @@ export function findRoute(
         stepMeters * averagePace +
         FLAT_METERS_PER_METER_OF_HEIGHT_CHANGE * heightChangeMeters(grid, current, next)
       const seconds = bestSeconds[current]! + flatMeters * secondsPerMeterAtFullSpeed
-      if (seconds < bestSeconds[next]!) {
+      if (seconds < best(next)) {
+        touch(next)
         bestSeconds[next] = seconds
         cameFrom[next] = current
         open.push(next, seconds + heuristicSeconds(next))
@@ -97,13 +106,42 @@ export function findRoute(
     }
   }
 
-  if (bestSeconds[goal] === Number.POSITIVE_INFINITY) return null
+  if (best(goal) === Number.POSITIVE_INFINITY) return null
 
   const cells: number[] = []
   for (let cell = goal; cell !== NO_CELL; cell = cameFrom[cell]!) cells.push(cell)
   cells.reverse()
   const points = [from, ...cells.slice(1, -1).map(cell => cellCenterOf(grid, cell)), to]
   return { points, lengthMeters: polylineLength(points), timeSeconds: bestSeconds[goal]! }
+}
+
+interface RouteScratch {
+  readonly bestSeconds: Float64Array
+  readonly cameFrom: Int32Array
+  // The search that last touched or closed each cell, so the arrays need no clearing.
+  readonly touched: Uint32Array
+  readonly closed: Uint32Array
+  search: number
+}
+
+const scratches = new WeakMap<CostGrid, RouteScratch>()
+
+// Searches are many and grids large, so one set of arrays per grid serves every search on it.
+function scratchFor(grid: CostGrid): RouteScratch {
+  const cellCount = grid.columns * grid.rows
+  let scratch = scratches.get(grid)
+  if (!scratch) {
+    scratch = {
+      bestSeconds: new Float64Array(cellCount),
+      cameFrom: new Int32Array(cellCount),
+      touched: new Uint32Array(cellCount),
+      closed: new Uint32Array(cellCount),
+      search: 0,
+    }
+    scratches.set(grid, scratch)
+  }
+  scratch.search++
+  return scratch
 }
 
 export function routeTimeSeconds(
