@@ -9,11 +9,11 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.133.0",
+    "@anthropic-ai/sdk": "^0.135.0",
     "@ratamestari/core": "workspace:*",
     "@ratamestari/engine": "workspace:*",
     "@ratamestari/iof": "workspace:*",
     "@ratamestari/rules": "workspace:*",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   }
 }
