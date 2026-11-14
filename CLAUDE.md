@@ -29,6 +29,7 @@ Full decision log with reasoning and rejected alternatives: [`docs/decisions.md`
 - **Ask before introducing a new convention** (pattern, tool, naming scheme, folder layout).
 - **Small, tested commits.** Each commit passes `pnpm check`.
 - **Commit messages:** Conventional Commits, scope = package name (`feat(map-import-ocad): …`, `docs: …`, `chore: …`). The body says **why**, not only what. Releases and the changelog are generated from them (D16): user-visible changes are `feat` or `fix`, breaking ones get `!`.
+- **Branch names:** `<type>/<what-it-does>` with the Conventional Commit type and a short kebab-case description of the work (`feat/description-box-drag`, `fix/ocad-text-encoding`, `docs/rules-control-spacing`). Branch from the latest `main`; never use generated or random names.
 - **No unnecessary comments.** Use descriptive names instead. Comment only a non-obvious _why_ that a name can't carry.
 - **No file extensions in imports** (`./geometry`, not `./geometry.ts`).
 - **UI text** (D14): no user-facing string inline. Messages live in typed catalogues in `apps/web/src/i18n/` (`en.ts` is the source; other languages must satisfy its type), read with `useMessages()`. Numbers, units and plurals go through `Intl`. Engine and rules output stays language-free.
