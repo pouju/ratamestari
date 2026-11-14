@@ -16,6 +16,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build",
+    "e2e": "pnpm build && pnpm --filter @ratamestari/web e2e",
     "render-course": "tsx scripts/render-course.ts",
     "benchmark-courses": "tsx scripts/benchmark-courses.ts",
     "crop-ocad": "tsx scripts/crop-ocad.ts",
