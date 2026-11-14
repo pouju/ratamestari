@@ -710,3 +710,34 @@ Features that need a long time of tuning in real use ship in the published app b
 
 - The source of experimental features is public anyway (AGPL, and it's in the bundle); the switch only keeps them out of the way.
 - When a feature is ready, its `useExperimentalFeatures()` checks go and it becomes a normal `feat`.
+
+## D25: End-to-end tests in a real browser with Playwright
+
+**Date:** 2026-11-14
+**Status:** Decided
+
+### Decision
+
+The built web app is tested in headless Chromium with Playwright (`@playwright/test`, Apache-2.0).
+
+- Tests are `apps/web/e2e/*.e2e.ts`, run with `pnpm e2e` (builds, then serves `dist` with `vite preview`). The `.e2e.ts` suffix keeps them out of Vitest.
+- Each test runs on a desktop and a phone viewport and saves a screenshot.
+- Shared fixtures fail a test on any browser console error and on any request to a host other than the app's own (the Umami script is the only allowed one), so a regression that sends map data out (D3) is caught.
+- CI runs them after `pnpm check` and uploads the report when they fail.
+- The `@playwright/test` version is pinned exactly: Claude Code cloud sessions have a pre-installed Chromium that matches one Playwright version.
+
+### Why
+
+- Unit tests check components in isolation; nothing checked that the real app loads a map, sets a course and draws it.
+- Development happens largely in Claude Code cloud sessions, where the agent can't see the app. Screenshots and a pass/fail run give it the same feedback a person gets by opening the page.
+
+### Alternatives considered
+
+- **A dev script with the pre-installed Playwright only:** lighter, but runs only when someone remembers to, and not in CI.
+- **Vitest browser mode:** good for components, but not for the whole built multi-page app with its worker.
+- **Visual snapshot comparison:** the map rendering and fonts differ between machines; screenshots are kept for looking at, not compared.
+
+### Consequences
+
+- CI takes longer by the browser install and about ten seconds of tests.
+- When Dependabot bumps `@playwright/test`, cloud sessions may need `playwright install chromium` until the pre-installed browser catches up.
