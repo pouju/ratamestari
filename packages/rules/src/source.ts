@@ -33,3 +33,6 @@ export const ratamestarikirja = (section: string): Source => ({
   document: 'Ratamestarikirja',
   section,
 })
+
+export const citationText = (sources: readonly Source[]) =>
+  sources.map(({ document, section }) => `${document} ${section}`).join(', ')

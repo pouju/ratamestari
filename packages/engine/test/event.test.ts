@@ -13,7 +13,8 @@ import {
   type EventPlan,
 } from '../src/event'
 
-const site = (id: number, x = id * 100, y = 0): ControlSiteCandidate => ({
+// Far apart, so codes need not avoid similar neighbours unless a test places sites near.
+const site = (id: number, x = id * 1000, y = 0): ControlSiteCandidate => ({
   id,
   position: localPoint(x, y),
   isomCode: '204',
@@ -58,6 +59,11 @@ describe('setCourseOf', () => {
     expect(controlCodesOf(event, ids[0]!)).toEqual([31, 32, 33])
   })
 
+  it('skips codes similar to a neighbouring control, RMK 4.5.S', () => {
+    const { event, ids } = eventWith([site(1, 0), site(2, 150), site(3, 2000)])
+    expect(controlCodesOf(event, ids[0]!)).toEqual([31, 33, 32])
+  })
+
   it('shares a site with another course as one control with one code', () => {
     const { event, ids } = eventWith([site(1), site(2), site(3)], [site(4), site(2), site(5)])
     expect(controlCodesOf(event, ids[1]!)).toEqual([34, 32, 35])
@@ -66,7 +72,7 @@ describe('setCourseOf', () => {
 
   it('tells hand-placed controls apart by position', () => {
     const here = { ...site(FEATURELESS_SITE_ID, 100, 100) }
-    const there = { ...site(FEATURELESS_SITE_ID, 300, 100) }
+    const there = { ...site(FEATURELESS_SITE_ID, 900, 100) }
     const { event, ids } = eventWith([here, there], [{ ...there }])
     expect(controlCodesOf(event, ids[1]!)).toEqual([32])
   })

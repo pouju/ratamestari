@@ -1,4 +1,9 @@
-import { CONTROL_CODES, isAllowedControlCode } from '@ratamestari/rules'
+import {
+  areSimilarCodes,
+  CONTROL_CODES,
+  isAllowedControlCode,
+  SIMILAR_CODES_NEAR_METERS,
+} from '@ratamestari/rules'
 import type { ControlSiteCandidate } from './control-sites'
 import type { Course } from './course-search'
 import { isSameSite } from './locks'
@@ -52,12 +57,23 @@ export function removeCourse(event: EventPlan, courseId: string): EventPlan {
   })
 }
 
-export function lowestFreeControlCode(used: ReadonlySet<number>): number | null {
+// Codes similar to a neighbour's (RMK 4.5.S) are skipped while any other code is free.
+export function lowestFreeControlCode(
+  used: ReadonlySet<number>,
+  neighbourCodes: readonly number[] = [],
+): number | null {
+  let free: number | null = null
   for (let code = CONTROL_CODES.min; code <= CONTROL_CODES.max; code++) {
-    if (isAllowedControlCode(code) && !used.has(code)) return code
+    if (!isAllowedControlCode(code) || used.has(code)) continue
+    free ??= code
+    if (!neighbourCodes.some(neighbour => areSimilarCodes(code, neighbour))) return code
   }
-  return null
+  return free
 }
+
+const isNeighbour = (a: ControlSiteCandidate, b: ControlSiteCandidate) =>
+  Math.hypot(a.position[0] - b.position[0], a.position[1] - b.position[1]) <=
+  SIMILAR_CODES_NEAR_METERS
 
 // Sites already in the event keep their control and code. A control moved within this course alone
 // keeps its id and code at its new site. Other new sites get the lowest free codes.
@@ -99,7 +115,10 @@ export function setCourseOf(event: EventPlan, courseId: string, course: Course |
       ids[k] = sameNewSite.id
       return
     }
-    const code = lowestFreeControlCode(usedCodes)
+    const neighbourCodes = [...keptControls, ...newControls]
+      .filter(control => isNeighbour(control.site, site))
+      .map(control => control.code)
+    const code = lowestFreeControlCode(usedCodes, neighbourCodes)
     if (code === null) throw new Error('No control codes left for the event')
     usedCodes.add(code)
     const control = { id: `control-${nextId++}`, code, site }
