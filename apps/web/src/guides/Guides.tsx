@@ -94,11 +94,14 @@ type GuideMessages = Messages['guides'][GuideName] & { readonly tip?: string }
 
 function GuideSection({ name, scene }: { name: GuideName; scene: Scene }) {
   const guide: GuideMessages = useMessages().guides[name]
-  const clock = useSceneClock(scene.loopTicks, scene.stillTick)
-  const step = scene.stepStarts.findLastIndex(start => clock.tick >= start)
+  const { tick, isStill, isPaused, togglePaused, ref } = useSceneClock(
+    scene.loopTicks,
+    scene.stillTick,
+  )
+  const step = scene.stepStarts.findLastIndex(start => tick >= start)
 
   return (
-    <section id={name} ref={clock.ref} className="guide" aria-labelledby={`${name}-title`}>
+    <section id={name} ref={ref} className="guide" aria-labelledby={`${name}-title`}>
       <div className="guide-text">
         <h2 id={`${name}-title`}>{guide.title}</h2>
         <p className="guide-intro">{guide.intro}</p>
@@ -113,23 +116,19 @@ function GuideSection({ name, scene }: { name: GuideName; scene: Scene }) {
       </div>
       <figure className="guide-figure">
         <div className="guide-stage">
-          <MapStage
-            run={SAMPLE_RUN}
-            view={scene.viewAt?.(clock.tick) ?? scene.view}
-            label={guide.label}
-          >
-            {scene.map(clock.tick)}
+          <MapStage run={SAMPLE_RUN} view={scene.viewAt?.(tick) ?? scene.view} label={guide.label}>
+            {scene.map(tick)}
           </MapStage>
           <div className="guide-panel" aria-hidden="true">
-            {scene.panel(clock.tick)}
+            {scene.panel(tick)}
           </div>
         </div>
         <SceneControls
           steps={scene.stepStarts.length}
           step={step}
-          isStill={clock.isStill}
-          isPaused={clock.isPaused}
-          onTogglePaused={clock.togglePaused}
+          isStill={isStill}
+          isPaused={isPaused}
+          onTogglePaused={togglePaused}
         />
       </figure>
     </section>

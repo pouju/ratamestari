@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import OlMap from 'ol/Map'
 import View from 'ol/View'
 import Feature from 'ol/Feature'
@@ -278,6 +278,23 @@ interface Props {
 const ZOOM_STEP = 1
 const ZOOM_ANIMATION_MS = 200
 
+// A finger panning the map must not move a control by accident, so on touch only the selected
+// stop or the ends of the selected leg can be dragged. Read when a drag starts.
+function draggableStops(
+  pointerType: RefObject<string>,
+  selectedStop: RefObject<number | null>,
+  selectedLeg: RefObject<number | null>,
+) {
+  return (feature: FeatureLike) => {
+    const stop = feature.get(STOP_INDEX)
+    if (typeof stop !== 'number') return false
+    if (pointerType.current !== 'touch') return true
+    if (stop === selectedStop.current) return true
+    const leg = selectedLeg.current
+    return leg !== null && (stop === leg || stop === leg + 1)
+  }
+}
+
 export function MapView({
   info,
   image,
@@ -328,31 +345,14 @@ export function MapView({
     () => new VectorLayer({ source: courseSource, style: courseOverprintStyle(null) }),
   )
   const selectedLegRef = useRef(selectedLeg)
-  selectedLegRef.current = selectedLeg
   const selectedStopRef = useRef(selectedStop)
-  selectedStopRef.current = selectedStop
   const overprintStyle = (drawnLegs: number | null = null) =>
     courseOverprintStyle(selectedLegRef.current, drawnLegs, selectedStopRef.current)
   const lastPointerType = useRef<string>('mouse')
-  const [courseTranslate] = useState(
-    () =>
-      new Translate({
-        layers: [courseLayer],
-        // A finger panning the map must not move a control by accident, so on touch only the
-        // selected stop or the ends of the selected leg can be dragged.
-        filter: feature => {
-          const stop = feature.get(STOP_INDEX)
-          if (typeof stop !== 'number') return false
-          if (lastPointerType.current !== 'touch') return true
-          if (stop === selectedStopRef.current) return true
-          const leg = selectedLegRef.current
-          return leg !== null && (stop === leg || stop === leg + 1)
-        },
-        hitTolerance: DRAG_HIT_TOLERANCE_PIXELS,
-      }),
-  )
+  // Made with the map in its effect, since its filter reads refs when a drag starts.
+  const courseTranslate = useRef<Translate | null>(null)
+  const canEditCourseRef = useRef(canEditCourse)
   const onStopMovedRef = useRef(onStopMoved)
-  onStopMovedRef.current = onStopMoved
   const [centreSource] = useState(() => new VectorSource())
   const [keptSource] = useState(() => new VectorSource())
   const [otherControlSource] = useState(() => new VectorSource())
@@ -371,21 +371,33 @@ export function MapView({
       }),
   )
   const plannedLegRef = useRef(plannedLeg)
-  plannedLegRef.current = plannedLeg
   const onPlannedLegChangedRef = useRef(onPlannedLegChanged)
-  onPlannedLegChangedRef.current = onPlannedLegChanged
   const onCentrePickedRef = useRef(onCentrePicked)
-  onCentrePickedRef.current = onCentrePicked
   const isPickingCentreRef = useRef(isPickingCentre)
-  isPickingCentreRef.current = isPickingCentre
   const onLegSelectedRef = useRef(onLegSelected)
-  onLegSelectedRef.current = onLegSelected
   const isSettingByHandRef = useRef(isSettingByHand)
-  isSettingByHandRef.current = isSettingByHand
   const onCourseTappedRef = useRef(onCourseTapped)
-  onCourseTappedRef.current = onCourseTapped
   const onPointerOverRef = useRef(onPointerOver)
-  onPointerOverRef.current = onPointerOver
+  const courseRef = useRef(course)
+  const descriptionBoxRef = useRef(descriptionBox)
+  const onFrameMovedRef = useRef(onFrameMoved)
+  // OpenLayers' handlers are made once; they read the latest props through these refs.
+  useLayoutEffect(() => {
+    selectedLegRef.current = selectedLeg
+    selectedStopRef.current = selectedStop
+    onStopMovedRef.current = onStopMoved
+    plannedLegRef.current = plannedLeg
+    onPlannedLegChangedRef.current = onPlannedLegChanged
+    onCentrePickedRef.current = onCentrePicked
+    isPickingCentreRef.current = isPickingCentre
+    onLegSelectedRef.current = onLegSelected
+    isSettingByHandRef.current = isSettingByHand
+    onCourseTappedRef.current = onCourseTapped
+    onPointerOverRef.current = onPointerOver
+    courseRef.current = course
+    descriptionBoxRef.current = descriptionBox
+    onFrameMovedRef.current = onFrameMoved
+  })
   const routeLetters = messages.leg.routeLetters
 
   useEffect(() => {
@@ -526,11 +538,19 @@ export function MapView({
       if (typeof stopIndex !== 'number' || !geometry) return
       onStopMovedRef.current(stopIndex, centreOf(geometry))
     }
-    courseTranslate.on('translateend', reportStopMoved)
-    map.addInteraction(courseTranslate)
+    const translate = new Translate({
+      layers: [courseLayer],
+      filter: draggableStops(lastPointerType, selectedStopRef, selectedLegRef),
+      hitTolerance: DRAG_HIT_TOLERANCE_PIXELS,
+    })
+    translate.setActive(canEditCourseRef.current)
+    courseTranslate.current = translate
+    translate.on('translateend', reportStopMoved)
+    map.addInteraction(translate)
 
     return () => {
-      courseTranslate.un('translateend', reportStopMoved)
+      translate.un('translateend', reportStopMoved)
+      courseTranslate.current = null
       legToolTranslate.un(['translating', 'translateend'], reportPlannedLeg)
       element.removeEventListener('pointerdown', rememberPointerType, { capture: true })
       element.removeEventListener('pointermove', reportHover)
@@ -557,12 +577,12 @@ export function MapView({
     legToolTranslate,
     plannedLegFeatures,
     courseLayer,
-    courseTranslate,
   ])
 
   useEffect(() => {
-    courseTranslate.setActive(canEditCourse)
-  }, [canEditCourse, courseTranslate])
+    canEditCourseRef.current = canEditCourse
+    courseTranslate.current?.setActive(canEditCourse)
+  }, [canEditCourse])
 
   const revealingCourse = useRef<Course | null>(null)
   const endReveal = useRef<() => void>(() => {})
@@ -571,10 +591,6 @@ export function MapView({
     courseLayer.setStyle(courseOverprintStyle(selectedLeg, null, selectedStop))
   }, [selectedLeg, selectedStop, courseLayer])
 
-  const courseRef = useRef(course)
-  courseRef.current = course
-  const descriptionBoxRef = useRef(descriptionBox)
-  descriptionBoxRef.current = descriptionBox
   useEffect(() => {
     const revealed = courseRef.current
     if (drawCourseKey === 0 || !revealed) return
@@ -711,8 +727,6 @@ export function MapView({
     if (printFrame) printFrameSource.addFeature(new Feature(outsideOf(printFrame, info.extent)))
   }, [printFrame, info, printFrameSource])
 
-  const onFrameMovedRef = useRef(onFrameMoved)
-  onFrameMovedRef.current = onFrameMoved
   useEffect(() => {
     const map = mapRef.current
     const element = target.current
