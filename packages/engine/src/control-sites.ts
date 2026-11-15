@@ -153,10 +153,10 @@ export function findControlSites(
   const accepted: ControlSiteCandidate[] = []
   const acceptedRaw: RawSite[] = []
   const occupied = new Map<string, LocalPoint[]>()
-  const similarityPool = new SimilarityPool()
+  const similarityPool: SimilarityPool = new Map()
 
   for (const raw of rawSites(features, terrain, visibleArea)) {
-    similarityPool.add(raw)
+    addToSimilarityPool(similarityPool, raw)
     const index = cellIndexOf(grid, raw.position)
     if (index === null || !terrain.mappedArea[index] || avoided[index]) continue
     if (nearForbidden[index]) continue
@@ -197,7 +197,7 @@ export function findControlSites(
   }
   return accepted.map((site, i) => ({
     ...site,
-    similarFeatureOffsets: similarityPool.offsetsAround(acceptedRaw[i]!),
+    similarFeatureOffsets: similarOffsetsAround(similarityPool, acceptedRaw[i]!),
   }))
 }
 
@@ -211,46 +211,41 @@ function similarityKey(raw: RawSite): string | null {
   return `feature:${isomDescription(code)?.feature ?? code}`
 }
 
-class SimilarityPool {
-  private readonly byKey = new Map<string, Map<string, LocalPoint[]>>()
+// Positions of describable features by kind, in squares of SIMILARITY_RADIUS_METERS.
+type SimilarityPool = Map<string, Map<string, LocalPoint[]>>
 
-  add(raw: RawSite) {
-    const key = similarityKey(raw)
-    if (key === null) return
-    let buckets = this.byKey.get(key)
-    if (!buckets) this.byKey.set(key, (buckets = new Map()))
-    const bucketKey = this.bucketKeyOf(raw.position).join(',')
-    const bucket = buckets.get(bucketKey)
-    if (bucket) bucket.push(raw.position)
-    else buckets.set(bucketKey, [raw.position])
-  }
+const similarityCellOf = ([x, y]: LocalPoint) =>
+  [Math.floor(x / SIMILARITY_RADIUS_METERS), Math.floor(y / SIMILARITY_RADIUS_METERS)] as const
 
-  offsetsAround(raw: RawSite): Offset[] {
-    const key = similarityKey(raw)
-    const buckets = key === null ? undefined : this.byKey.get(key)
-    if (!buckets) return []
-    const [bx, by] = this.bucketKeyOf(raw.position)
-    const offsets: Offset[] = []
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        for (const other of buckets.get(`${bx + dx},${by + dy}`) ?? []) {
-          const offset = [other[0] - raw.position[0], other[1] - raw.position[1]] as const
-          const distance = Math.hypot(...offset)
-          if (distance > SAME_FEATURE_METERS && distance <= SIMILARITY_RADIUS_METERS) {
-            offsets.push(offset)
-          }
+function addToSimilarityPool(pool: SimilarityPool, raw: RawSite) {
+  const key = similarityKey(raw)
+  if (key === null) return
+  let cells = pool.get(key)
+  if (!cells) pool.set(key, (cells = new Map()))
+  const cellKey = similarityCellOf(raw.position).join(',')
+  const cell = cells.get(cellKey)
+  if (cell) cell.push(raw.position)
+  else cells.set(cellKey, [raw.position])
+}
+
+function similarOffsetsAround(pool: SimilarityPool, raw: RawSite): Offset[] {
+  const key = similarityKey(raw)
+  const cells = key === null ? undefined : pool.get(key)
+  if (!cells) return []
+  const [cx, cy] = similarityCellOf(raw.position)
+  const offsets: Offset[] = []
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      for (const other of cells.get(`${cx + dx},${cy + dy}`) ?? []) {
+        const offset = [other[0] - raw.position[0], other[1] - raw.position[1]] as const
+        const distance = Math.hypot(...offset)
+        if (distance > SAME_FEATURE_METERS && distance <= SIMILARITY_RADIUS_METERS) {
+          offsets.push(offset)
         }
       }
     }
-    return offsets
   }
-
-  private bucketKeyOf([x, y]: LocalPoint) {
-    return [
-      Math.floor(x / SIMILARITY_RADIUS_METERS),
-      Math.floor(y / SIMILARITY_RADIUS_METERS),
-    ] as const
-  }
+  return offsets
 }
 
 function* rawSites(

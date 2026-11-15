@@ -48,7 +48,7 @@ export function readLines(
   pieces: readonly LinePiece[],
   toMm: (paperUnits: number) => number,
 ): PaperFeature[] {
-  const tags = new TagIndex(
+  const tags = tagIndexOf(
     pieces.filter(piece => toMm(pathLength(piece.points)) <= MAX_TAG_MM),
     MAX_TAG_MM / toMm(1),
   )
@@ -120,14 +120,12 @@ function readChain(
         ? { dashMm: pdfDash[0]!, gapMm: pdfDash[1]! }
         : null
   const ownPieces = new Set(chain.pieceIndices.map(index => group[index]!))
-  const nearTags = tags
-    .near(chain.points)
-    .filter(
-      tag =>
-        tag.piece.ink === ink &&
-        !ownPieces.has(tag.piece) &&
-        toMm(distanceToPolyline(tag.centre, chain.points)) <= MAX_TAG_MM,
-    ).length
+  const nearTags = tagsNear(tags, chain.points).filter(
+    tag =>
+      tag.piece.ink === ink &&
+      !ownPieces.has(tag.piece) &&
+      toMm(distanceToPolyline(tag.centre, chain.points)) <= MAX_TAG_MM,
+  ).length
   return { ink, widthMm, points: chain.points, lengthMm, dash, tagsPerMm: nearTags / lengthMm }
 }
 
@@ -233,36 +231,39 @@ function gapBetween(a: readonly PaperPoint[], b: readonly PaperPoint[]): number 
   )
 }
 
-class TagIndex {
-  private readonly buckets = new Map<string, { piece: LinePiece; centre: PaperPoint }[]>()
+interface NearTag {
+  readonly piece: LinePiece
+  readonly centre: PaperPoint
+}
 
-  constructor(
-    tags: readonly LinePiece[],
-    private readonly cell: number,
-  ) {
-    for (const piece of tags) {
-      const centre = centreOf(piece.points)
-      const key = this.keyOf(centre[0], centre[1])
-      this.buckets.set(key, [...(this.buckets.get(key) ?? []), { piece, centre }])
-    }
-  }
+// Short pieces by square of `cell`, to find the tags near a line quickly.
+interface TagIndex {
+  readonly cell: number
+  readonly squares: ReadonlyMap<string, readonly NearTag[]>
+}
 
-  near(points: readonly PaperPoint[]) {
-    const box = boxOf(points)
-    const found: { piece: LinePiece; centre: PaperPoint }[] = []
-    const [fromX, toX] = [box.minX - this.cell, box.minX + box.width + this.cell].map(v =>
-      Math.floor(v / this.cell),
-    )
-    const [fromY, toY] = [box.minY - this.cell, box.minY + box.height + this.cell].map(v =>
-      Math.floor(v / this.cell),
-    )
-    for (let x = fromX!; x <= toX!; x++) {
-      for (let y = fromY!; y <= toY!; y++) found.push(...(this.buckets.get(`${x},${y}`) ?? []))
-    }
-    return found
-  }
+const squareKey = (x: number, y: number, cell: number) =>
+  `${Math.floor(x / cell)},${Math.floor(y / cell)}`
 
-  private keyOf(x: number, y: number) {
-    return `${Math.floor(x / this.cell)},${Math.floor(y / this.cell)}`
+function tagIndexOf(tags: readonly LinePiece[], cell: number): TagIndex {
+  const squares = new Map<string, NearTag[]>()
+  for (const piece of tags) {
+    const centre = centreOf(piece.points)
+    const key = squareKey(centre[0], centre[1], cell)
+    squares.set(key, [...(squares.get(key) ?? []), { piece, centre }])
   }
+  return { cell, squares }
+}
+
+function tagsNear({ cell, squares }: TagIndex, points: readonly PaperPoint[]): NearTag[] {
+  const box = boxOf(points)
+  const found: NearTag[] = []
+  const [fromX, toX] = [box.minX - cell, box.minX + box.width + cell].map(v => Math.floor(v / cell))
+  const [fromY, toY] = [box.minY - cell, box.minY + box.height + cell].map(v =>
+    Math.floor(v / cell),
+  )
+  for (let x = fromX!; x <= toX!; x++) {
+    for (let y = fromY!; y <= toY!; y++) found.push(...(squares.get(`${x},${y}`) ?? []))
+  }
+  return found
 }
