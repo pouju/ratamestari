@@ -17,10 +17,22 @@ export interface CourseDataOptions {
   readonly createdAt: Date
 }
 
+export interface EventCourseData {
+  readonly className: string
+  readonly course: Course
+  // Its rows carry the event's control codes (D27), so shared controls keep one code.
+  readonly sheet: DescriptionSheet
+}
+
+export interface EventDataOptions {
+  readonly eventName: string
+  readonly courses: readonly EventCourseData[]
+  readonly map: MapInfo
+  readonly createdAt: Date
+}
+
 const IOF_NAMESPACE = 'http://www.orienteering.org/datastandard/3.0'
 const CREATOR = 'Ratamestari'
-const START_ID = 'S1'
-const FINISH_ID = 'F1'
 const MILLIMETRES_PER_METRE = 1000
 const COORDINATE_DECIMALS = 7
 const MAP_DECIMALS = 2
@@ -30,14 +42,19 @@ const escapeXml = (text: string) =>
 
 const distance = (a: LocalPoint, b: LocalPoint) => Math.hypot(b[0] - a[0], b[1] - a[1])
 
-export function courseDataXml({
+export function courseDataXml({ className, course, sheet, ...rest }: CourseDataOptions): string {
+  return eventCourseDataXml({ ...rest, courses: [{ className, course, sheet }] })
+}
+
+// All courses of an event in one file: each control once, by its code, so OCAD, Condes and
+// Purple Pen open the event with its shared controls (D27). Courses starting or finishing at the
+// same point share that start or finish.
+export function eventCourseDataXml({
   eventName,
-  className,
-  course,
-  sheet,
+  courses,
   map,
   createdAt,
-}: CourseDataOptions): string {
+}: EventDataOptions): string {
   const toMapMillimetres = (metres: number) =>
     ((metres * MILLIMETRES_PER_METRE) / map.scale).toFixed(MAP_DECIMALS)
   // The schema text says y grows downwards, but OCAD writes and reads paper coordinates with
@@ -55,26 +72,56 @@ export function courseDataXml({
   const control = (id: string, point: LocalPoint, type?: 'Start' | 'Finish') =>
     `<Control${type ? ` type="${type}"` : ''}><Id>${id}</Id>${geoPosition(point)}${mapPosition(point)}</Control>`
 
+  const idsAt = (prefix: string, points: readonly LocalPoint[]) => {
+    const unique: LocalPoint[] = []
+    const ids = points.map(point => {
+      let index = unique.findIndex(other => other[0] === point[0] && other[1] === point[1])
+      if (index < 0) index = unique.push(point) - 1
+      return `${prefix}${index + 1}`
+    })
+    return { ids, unique }
+  }
+  const starts = idsAt(
+    'S',
+    courses.map(({ course }) => course.start.position),
+  )
+  const finishes = idsAt(
+    'F',
+    courses.map(({ course }) => course.finish),
+  )
+  const controlsByCode = new Map<string, LocalPoint>()
+  for (const { course, sheet } of courses) {
+    course.controls.forEach((site, i) => {
+      const code = String(sheet.controls[i]!.code)
+      if (!controlsByCode.has(code)) controlsByCode.set(code, site.position)
+    })
+  }
+
+  const courseElement = ({ course, sheet }: EventCourseData, k: number) => {
+    const stops = [
+      course.start.position,
+      ...course.controls.map(site => site.position),
+      course.finish,
+    ]
+    const legLength = (i: number) => Math.round(distance(stops[i - 1]!, stops[i]!))
+    return [
+      '<Course>',
+      `<Name>${escapeXml(sheet.courseName)}</Name>`,
+      course.lengthMeters === null ? '' : `<Length>${Math.round(course.lengthMeters)}</Length>`,
+      sheet.climbMeters === null ? '' : `<Climb>${sheet.climbMeters}</Climb>`,
+      `<CourseControl type="Start"><Control>${starts.ids[k]}</Control></CourseControl>`,
+      ...sheet.controls.map(
+        (row, i) =>
+          `<CourseControl type="Control"><Control>${row.code}</Control><MapText>${i + 1}</MapText>` +
+          `<LegLength>${legLength(i + 1)}</LegLength></CourseControl>`,
+      ),
+      `<CourseControl type="Finish"${sheet.finish.route === 'tapedAllTheWay' ? ' specialInstruction="TapedRoute"' : ''}>` +
+        `<Control>${finishes.ids[k]}</Control><LegLength>${legLength(stops.length - 1)}</LegLength></CourseControl>`,
+      '</Course>',
+    ]
+  }
+
   const [minX, minY, maxX, maxY] = map.extent
-  const stops = [
-    course.start.position,
-    ...course.controls.map(site => site.position),
-    course.finish,
-  ]
-  const codes = sheet.controls.map(row => String(row.code))
-  const legLength = (i: number) => Math.round(distance(stops[i - 1]!, stops[i]!))
-
-  const courseControls = [
-    `<CourseControl type="Start"><Control>${START_ID}</Control></CourseControl>`,
-    ...codes.map(
-      (code, i) =>
-        `<CourseControl type="Control"><Control>${code}</Control><MapText>${i + 1}</MapText>` +
-        `<LegLength>${legLength(i + 1)}</LegLength></CourseControl>`,
-    ),
-    `<CourseControl type="Finish"${sheet.finish.route === 'tapedAllTheWay' ? ' specialInstruction="TapedRoute"' : ''}>` +
-      `<Control>${FINISH_ID}</Control><LegLength>${legLength(stops.length - 1)}</LegLength></CourseControl>`,
-  ]
-
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     `<CourseData xmlns="${IOF_NAMESPACE}" iofVersion="3.0" createTime="${createdAt.toISOString()}" creator="${CREATOR}">`,
@@ -82,17 +129,15 @@ export function courseDataXml({
     '<RaceCourseData>',
     `<Map><Scale>${map.scale}</Scale>${mapPosition(localPoint(minX, maxY), 'MapPositionTopLeft')}` +
       `${mapPosition(localPoint(maxX, minY), 'MapPositionBottomRight')}</Map>`,
-    control(START_ID, course.start.position, 'Start'),
-    ...course.controls.map((site, i) => control(codes[i]!, site.position)),
-    control(FINISH_ID, course.finish, 'Finish'),
-    '<Course>',
-    `<Name>${escapeXml(sheet.courseName)}</Name>`,
-    course.lengthMeters === null ? '' : `<Length>${Math.round(course.lengthMeters)}</Length>`,
-    sheet.climbMeters === null ? '' : `<Climb>${sheet.climbMeters}</Climb>`,
-    ...courseControls,
-    '</Course>',
-    `<ClassCourseAssignment><ClassName>${escapeXml(className)}</ClassName>` +
-      `<CourseName>${escapeXml(sheet.courseName)}</CourseName></ClassCourseAssignment>`,
+    ...starts.unique.map((point, i) => control(`S${i + 1}`, point, 'Start')),
+    ...[...controlsByCode].map(([code, point]) => control(code, point)),
+    ...finishes.unique.map((point, i) => control(`F${i + 1}`, point, 'Finish')),
+    ...courses.flatMap(courseElement),
+    ...courses.map(
+      ({ className, sheet }) =>
+        `<ClassCourseAssignment><ClassName>${escapeXml(className)}</ClassName>` +
+        `<CourseName>${escapeXml(sheet.courseName)}</CourseName></ClassCourseAssignment>`,
+    ),
     '</RaceCourseData>',
     '</CourseData>',
     '',
@@ -135,14 +180,14 @@ export function courseStopsXml({
     `<Event><Name>${escapeXml(eventName)}</Name></Event>`,
     '<RaceCourseData>',
     `<Map><Scale>${map.scale}</Scale></Map>`,
-    control(START_ID, start, 'Start'),
+    control('S1', start, 'Start'),
     ...controls.map(({ code, position }) => control(code, position, 'Control')),
-    control(FINISH_ID, finish, 'Finish'),
+    control('F1', finish, 'Finish'),
     '<Course>',
     `<Name>${escapeXml(courseName)}</Name>`,
-    courseControl(START_ID, 'Start'),
+    courseControl('S1', 'Start'),
     ...controls.map(({ code }) => courseControl(code, 'Control')),
-    courseControl(FINISH_ID, 'Finish'),
+    courseControl('F1', 'Finish'),
     '</Course>',
     '</RaceCourseData>',
     '</CourseData>',
