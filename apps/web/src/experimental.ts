@@ -1,4 +1,4 @@
-import { useRef, useSyncExternalStore } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 
 // Experimental features (D24) are on while developing and off in the published app until turned
 // on by clicking the version in Settings a few times in quick succession. The choice is stored in
@@ -55,7 +55,6 @@ export function unlockClickCounter(now: () => number = () => performance.now()) 
 }
 
 export function useUnlockClicks(): () => boolean | null {
-  const counter = useRef<(() => boolean | null) | null>(null)
-  counter.current ??= unlockClickCounter()
-  return counter.current
+  const [counter] = useState(() => unlockClickCounter())
+  return counter
 }
