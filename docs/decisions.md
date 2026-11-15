@@ -741,3 +741,45 @@ The built web app is tested in headless Chromium with Playwright (`@playwright/t
 
 - CI takes longer by the browser install and about ten seconds of tests.
 - When Dependabot bumps `@playwright/test`, cloud sessions may need `playwright install chromium` until the pre-installed browser catches up.
+
+## D26: Product direction: help course setters first, starting with weekly open events
+
+**Date:** 2026-11-15
+**Status:** Decided
+
+### Decision
+
+The goal is to make course setting as easy and accessible as possible for everyone. Ratamestari mainly helps course setters plan good courses and make sure they follow the rules. Setting a course automatically is the standout feature and keeps improving, but it is not the only way in.
+
+- **Who first:** setters of weekly open events (iltarastit), then competition setters. They mostly use OCAD, so OCAD files stay the main map input, and IOF XML export and import are how Ratamestari fits their workflow.
+- **Shared parts:** manual tools and automatic setting use the same leg time model and rule checks, so improving one improves the other.
+- **Coming next, in this order:**
+  1. Several courses on one map, sharing controls, with consistent control codes and descriptions.
+  2. Rule checks that say why a finding matters and how to fix it.
+  3. Time estimates from the terrain, climb, class and difficulty instead of one fixed pace, calibrated on real events.
+  4. Maps from an image or a phone photo, stage 1: the image as a background with a set scale, to draw, measure and print a course (D22).
+- **Later:** reading map symbols from an image (D22 stages 2–3), GPS tracks on the map, centre suggestions (D6), OpenOrienteering Mapper files, open courses, finals and qualifications, choosing the paper position from the course plan (D19), and what was already listed (sprint, relay forking, setting all of an event's courses together automatically, the assistant without one's own key).
+- **Alongside:** the automatic search keeps improving, measured with `pnpm benchmark-courses` on the club maps.
+- **The assistant** (D2, D17) stays as it is until it has a clear job that the form and the tools don't already do well.
+- **Calibration data** (split times, courses and maps) comes only from the club's own events or with the owner's permission. It is never scraped from third-party services such as online results or GPS-tracking sites. It stays local in `maps/` (D3); only fitted numbers go into `packages/rules`, citing where they came from.
+
+### Why
+
+- Weekly open events happen every week and are often set by volunteers with little time or experience. A tool that checks and explains helps them on every course they set, while fully automatic courses are a step many setters won't take at once.
+- A typical weekly event has three to five courses on one map that share controls; one course at a time doesn't fit that work.
+- Today's leg times come mostly from one pace times the route. Course length, leg balance, route choice and every check that compares times depend on that estimate.
+- Many maps exist only on paper or as images. Even without reading the symbols, a scaled background is enough to draw, measure and print a course.
+- Results services publish split times, but not the maps and course files they go with, and their data belongs to the services and organisers.
+
+### Alternatives considered
+
+- **Keep the previous "Coming next" list** (paper position from the plan, centre suggestions, several classes, open courses and finals, OpenOrienteering Mapper): centre suggestions matter little where the centre is fixed every week, and setters here use OCAD rather than OpenOrienteering Mapper.
+- **Make the assistant the main interface:** it has not shown a clear advantage over the form and the map tools yet.
+- **Scrape results and GPS-tracking sites for calibration data:** fast, but uses others' data without permission.
+- **Full map recognition from photos first:** close to a research problem (perspective, lighting, faded colours); a scaled background gives value much sooner.
+
+### Consequences
+
+- The landing page's status lists (`apps/web/src/i18n/en.ts` and `fi.ts`) follow this decision.
+- The time model needs real split times with their courses and maps; until the club's own events are collected, it can only be tuned roughly from winning times.
+- GPS tracks serve runners as well as setters, so building them will need its own decision on how far Ratamestari goes beyond course setting.
