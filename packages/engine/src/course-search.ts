@@ -526,7 +526,8 @@ function planningContextFor(
   )
   const quality = Float32Array.from(pool, qualityOf)
   const treeLimit = targetSeconds * TREE_LIMIT_SHARE_OF_TARGET
-  const timesCache = new Map<number, Float32Array>()
+  // Every tree is exact only up to its limit; beyond it a leg's time comes from a route.
+  const timesCache = new Map<number, { readonly limit: number; readonly times: Float32Array }>()
   // A bounded tree is exact up to its limit, so it serves any smaller limit too.
   const boundedCache = new Map<number, { readonly limit: number; readonly times: Float32Array }>()
   const treeFrom = (poolIndex: number, limit: number, targets: readonly number[] = []) => {
@@ -547,11 +548,11 @@ function planningContextFor(
     targets?: readonly number[],
   ): Float32Array => {
     const cached = timesCache.get(poolIndex)
-    if (cached) return cached
+    if (cached) return cached.times
     if (limitSeconds >= treeLimit && !targets) {
-      const { times } = treeFrom(poolIndex, treeLimit)
-      timesCache.set(poolIndex, times)
-      return times
+      const tree = treeFrom(poolIndex, treeLimit)
+      timesCache.set(poolIndex, tree)
+      return tree.times
     }
     const limit = Math.min(limitSeconds, treeLimit)
     const bounded = boundedCache.get(poolIndex)
@@ -564,11 +565,9 @@ function planningContextFor(
     return tree.times
   }
   const knownSeconds = (from: number, to: number): number | null => {
-    const full = timesCache.get(from)
-    if (full) return full[to]!
-    const bounded = boundedCache.get(from)
-    const seconds = bounded?.times[to]
-    return bounded && seconds! <= bounded.limit ? seconds! : null
+    const tree = timesCache.get(from) ?? boundedCache.get(from)
+    const seconds = tree?.times[to]
+    return tree && seconds! <= tree.limit ? seconds! : null
   }
   // Costs are symmetric, so a tree from either end gives a leg's time. Without one, a route
   // between the two ends is much cheaper than a new tree: improvement tries many new sites.

@@ -83,3 +83,31 @@ describe('planSkeleton', { timeout: SETUP_TIMEOUT_MS }, () => {
     expect(plan.skeleton!.sections[0]).toMatchObject({ area: null, exit: 'finish' })
   })
 })
+
+describe('leg times', { timeout: SETUP_TIMEOUT_MS }, () => {
+  // A short course: the planner's full time trees then reach only a few hundred metres.
+  it('measure a leg longer than the planning trees reach by its route', () => {
+    const field = boulderField(100, 100, 2900, 2900, 200)
+    const terrain = buildTerrain(field, localExtent(0, 0, 3000, 3000))
+    const shortTarget = {
+      ...middleTarget,
+      winningTime: { minMinutes: 4, maxMinutes: 6, targetMinutes: 5 },
+    }
+    const { context } = planCourse(
+      terrain,
+      findControlSites(field, terrain),
+      spec({ target: shortTarget }),
+    )!
+    const [from] = context.pool.keys()
+    const distance = (i: number) =>
+      Math.hypot(
+        context.pool[i]!.position[0] - context.pool[from!]!.position[0],
+        context.pool[i]!.position[1] - context.pool[from!]!.position[1],
+      )
+    const far = [...context.pool.keys()].reduce((best, i) =>
+      distance(i) > distance(best) ? i : best,
+    )
+    context.timesFrom(from!)
+    expect(context.legSeconds(from!, far)).toBeLessThan(Number.POSITIVE_INFINITY)
+  })
+})
