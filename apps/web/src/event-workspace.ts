@@ -7,7 +7,7 @@ import {
   type Orientation,
   type PaperChoice,
 } from '@ratamestari/engine'
-import type { CourseRequest, PrintScaleChoice } from '@ratamestari/rules'
+import type { AnyCourseRequest, PrintScaleChoice } from '@ratamestari/rules'
 import type { Kept } from './kept'
 
 export interface PlacedFrame {
@@ -17,7 +17,7 @@ export interface PlacedFrame {
 
 // What the workspace keeps of a course while another course of the event is shown (D27).
 export interface CourseSnapshot {
-  readonly request: CourseRequest
+  readonly request: AnyCourseRequest
   readonly seed: number
   readonly course: Course | null
   readonly kept: Kept

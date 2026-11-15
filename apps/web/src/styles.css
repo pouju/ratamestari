@@ -1228,6 +1228,20 @@ button.link {
   text-decoration-thickness: 3px;
   text-underline-offset: 8px;
 }
+.request-length {
+  min-width: 1.5em;
+  text-align: center;
+}
+.request-length::-webkit-inner-spin-button,
+.request-length::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+.course-kind {
+  margin-bottom: var(--space-3);
+  font-size: var(--font-size-body);
+  font-weight: normal;
+}
 .course-tabs .add-course {
   color: var(--colour-overprint);
 }

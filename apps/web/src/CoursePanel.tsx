@@ -5,8 +5,12 @@ import {
   eventLevelSchema,
   formatSchema,
   sexSchema,
+  skillColourSchema,
   skillLetterSchema,
+  isOpenCourse,
+  type AnyCourseRequest,
   type CourseRequest,
+  type OpenCourseRequest,
   ACUTE_ANGLE,
 } from '@ratamestari/rules'
 import { useEffect, useState } from 'react'
@@ -32,8 +36,9 @@ const FINDING_LIMITS = {
 }
 
 interface Props {
-  request: CourseRequest
-  onRequestChange: (request: CourseRequest) => void
+  request: AnyCourseRequest
+  onRequestChange: (request: AnyCourseRequest) => void
+  onCourseKindChange: (kind: 'class' | 'open') => void
   isAssistantOn: boolean
   hasCentre: boolean
   isPickingCentre: boolean
@@ -79,17 +84,20 @@ export function CoursePanel(props: Props) {
           (check.deduced ? (
             <>
               <DeducedClassView deduced={check.deduced} classFromName={check.classFromName} />
-              <details className="check-override">
-                <summary>{m.check.checkAsOther}</summary>
-                <RequestSentence
-                  request={props.request}
-                  onRequestChange={props.onRequestChange}
-                  label={m.check.checkedAs}
-                />
-              </details>
+              {!isOpenCourse(props.request) && (
+                <details className="check-override">
+                  <summary>{m.check.checkAsOther}</summary>
+                  <RequestSentence
+                    request={props.request}
+                    onRequestChange={props.onRequestChange}
+                    label={m.check.checkedAs}
+                  />
+                </details>
+              )}
             </>
           ) : (
-            check.status === 'checked' && (
+            check.status === 'checked' &&
+            !isOpenCourse(props.request) && (
               <>
                 <RequestSentence
                   request={props.request}
@@ -112,6 +120,7 @@ export function CoursePanel(props: Props) {
             <CheckComparison check={check} course={course} />
             {isMeasured && (
               <Findings
+                isOpenCourse={false}
                 course={course}
                 isEditing={props.isEditing}
                 onFix={props.onFixControl}
@@ -159,10 +168,16 @@ export function CoursePanel(props: Props) {
 
       {hasCentre && !isPickingCentre && (
         <>
-          <RequestSentence request={props.request} onRequestChange={props.onRequestChange} />
-          {course && <CourseFigures course={course} />}
+          <CourseKindChoice request={props.request} onChange={props.onCourseKindChange} />
+          {isOpenCourse(props.request) ? (
+            <OpenCourseSentence request={props.request} onRequestChange={props.onRequestChange} />
+          ) : (
+            <RequestSentence request={props.request} onRequestChange={props.onRequestChange} />
+          )}
+          {course && <CourseFigures course={course} request={props.request} />}
           {course && isMeasured && (
             <Findings
+              isOpenCourse={isOpenCourse(props.request)}
               course={course}
               isEditing={props.isEditing}
               onFix={props.onFixControl}
@@ -183,12 +198,126 @@ export const hasCoarsePointer = () =>
 
 const classValue = (sex: CourseRequest['sex'], age: CourseRequest['ageClass']) => `${sex}${age}`
 
+function CourseKindChoice({
+  request,
+  onChange,
+}: {
+  request: AnyCourseRequest
+  onChange: (kind: 'class' | 'open') => void
+}) {
+  const m = useMessages().course
+  const kinds = ['class', 'open'] as const
+  return (
+    <p className="request-sentence course-kind">
+      <label>
+        {m.courseKind}{' '}
+        <select
+          className="request-token"
+          value={isOpenCourse(request) ? 'open' : 'class'}
+          onChange={e => onChange(e.target.value === 'open' ? 'open' : 'class')}
+        >
+          {kinds.map(kind => (
+            <option key={kind} value={kind}>
+              {m.courseKinds[kind]}
+            </option>
+          ))}
+        </select>
+      </label>
+    </p>
+  )
+}
+
+const LENGTH_STEP_KM = 0.5
+
+function OpenCourseSentence({
+  request,
+  onRequestChange,
+}: {
+  request: OpenCourseRequest
+  onRequestChange: (request: OpenCourseRequest) => void
+}) {
+  const m = useMessages().course
+  const open = m.openCourse
+  const { min, max } = request.lengthKm
+  // The range stays the right way round: moving one end past the other moves both.
+  const changeLength = (end: 'min' | 'max', km: number) => {
+    if (!Number.isFinite(km) || km <= 0) return
+    const lengthKm =
+      end === 'min' ? { min: km, max: Math.max(max, km) } : { min: Math.min(min, km), max: km }
+    onRequestChange({ ...request, lengthKm })
+  }
+  return (
+    <section className="request" aria-labelledby="request-title">
+      <span id="request-title" className="panel-line-label">
+        {m.courseLine}
+      </span>
+      <p className="request-sentence">
+        <select
+          className="request-token"
+          aria-label={open.skillColour}
+          value={request.skillColour}
+          onChange={e =>
+            onRequestChange({ ...request, skillColour: skillColourSchema.parse(e.target.value) })
+          }
+        >
+          {skillColourSchema.options.map(colour => (
+            <option key={colour} value={colour}>
+              {open.colourOption(open.colours[colour])}
+            </option>
+          ))}
+        </select>{' '}
+        <select
+          className="request-token"
+          aria-label={m.distance}
+          value={request.format}
+          onChange={e =>
+            onRequestChange({ ...request, format: formatSchema.parse(e.target.value) })
+          }
+        >
+          {formatSchema.options.map(format => (
+            <option key={format} value={format}>
+              {m.formats[format]}
+            </option>
+          ))}
+        </select>
+        {', '}
+        <input
+          className="request-token request-length"
+          type="number"
+          min={LENGTH_STEP_KM}
+          step={LENGTH_STEP_KM}
+          aria-label={open.shortest}
+          value={min}
+          onChange={e => changeLength('min', e.target.valueAsNumber)}
+        />
+        {open.lengthSeparator}
+        <input
+          className="request-token request-length"
+          type="number"
+          min={LENGTH_STEP_KM}
+          step={LENGTH_STEP_KM}
+          aria-label={open.longest}
+          value={max}
+          onChange={e => changeLength('max', e.target.valueAsNumber)}
+        />{' '}
+        {open.kilometres}
+      </p>
+      <p className="request-note">{open.note}</p>
+    </section>
+  )
+}
+
 function RequestSentence({
   request,
   onRequestChange,
   label,
   note,
-}: Pick<Props, 'request' | 'onRequestChange'> & { label?: string; note?: string }) {
+}: {
+  request: CourseRequest
+  onRequestChange: (request: CourseRequest) => void
+  label?: string
+  note?: string
+}) {
   const m = useMessages().course
   const [replacedClass, setReplacedClass] = useState<string | null>(null)
   const change = (fields: Partial<CourseRequest>) => {
@@ -282,7 +411,7 @@ function RequestSentence({
   )
 }
 
-function CourseFigures({ course }: { course: Course }) {
+function CourseFigures({ course, request }: { course: Course; request: AnyCourseRequest }) {
   const m = useMessages().course
   const format = useFormat()
   return (
@@ -298,10 +427,15 @@ function CourseFigures({ course }: { course: Course }) {
         <dd>{course.climbMeters === null ? m.measuring : format.metres(course.climbMeters)}</dd>
       </div>
       <div>
-        <dt>{m.winningTime}</dt>
+        <dt>{isOpenCourse(request) ? m.openCourse.timeAtPace : m.winningTime}</dt>
         <dd>{m.minutes(Math.round(course.estimatedSeconds / 60))}</dd>
         <dd className="course-figures-note">
-          {m.target(m.minutes(Math.round(course.targetSeconds / 60)))}
+          {isOpenCourse(request)
+            ? m.openCourse.targetLength(
+                format.kilometres(request.lengthKm.min * 1000),
+                format.kilometres(request.lengthKm.max * 1000),
+              )
+            : m.target(m.minutes(Math.round(course.targetSeconds / 60)))}
         </dd>
       </div>
       <div>
@@ -313,12 +447,14 @@ function CourseFigures({ course }: { course: Course }) {
 }
 
 function Findings({
+  isOpenCourse,
   course,
   isEditing,
   onFix,
   fixLabel,
   fixLabelFor,
 }: {
+  isOpenCourse: boolean
   course: Course
   isEditing: boolean
   onFix: (controlNumber: number) => void
@@ -330,12 +466,16 @@ function Findings({
   // The severity, rule and Fix target come from the agent package; the words from the catalogue.
   const findings = course.findings.map(finding => {
     const described = describeFinding(finding, course.controls.length)
-    const text = texts.texts[finding.kind](finding.stops, finishStop, FINDING_LIMITS)
+    // An open course's length is the club's choice (D28), so no winning-time rule applies.
+    const isOpenLength = isOpenCourse && finding.kind === 'winningTimeOutsideRange'
+    const text = isOpenLength
+      ? texts.lengthOutsideRange
+      : texts.texts[finding.kind](finding.stops, finishStop, FINDING_LIMITS)
     return {
       ...described,
       text: text.charAt(0).toUpperCase() + text.slice(1),
       basis:
-        described.basis === OUR_CHECK
+        isOpenLength || described.basis === OUR_CHECK
           ? texts.ourCheck
           : described.basis === OUR_CHECK_NO_ROUTES
             ? texts.ourCheckNoRoutes

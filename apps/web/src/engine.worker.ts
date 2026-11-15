@@ -57,11 +57,10 @@ import {
 import { loadOcadMap, type IsomCodeOverrides, type OcadMap } from '@ratamestari/map-import-ocad'
 import {
   classFromCourseName,
-  courseRequestSchema,
-  courseTargetFor,
   printScaleFor,
+  targetForRequest,
+  type AnyCourseRequest,
   type CourseClass,
-  type CourseRequest,
   type PrintScaleChoice,
 } from '@ratamestari/rules'
 import type { CostGridSnapshot } from './cost-map-image'
@@ -115,20 +114,19 @@ export interface CheckedCourse {
 }
 
 function specFor(
-  request: CourseRequest,
+  request: AnyCourseRequest,
   competitionCentre: LocalPoint,
   seed: number,
   paceSecondsPerKm: number,
   printScaleChoice: PrintScaleChoice,
   startDistanceFromFinishMeters: readonly [number, number] | null = null,
 ): CourseSpec | null {
-  const validRequest = courseRequestSchema.parse(request)
-  const target = courseTargetFor(validRequest)
+  const target = targetForRequest(request, paceSecondsPerKm)
   if (!target) return null
   return {
     target,
-    format: validRequest.format,
-    printScale: printScaleFor(printScaleChoice, validRequest.format),
+    format: request.format,
+    printScale: printScaleFor(printScaleChoice, request.format),
     competitionCentre,
     seed,
     paceSecondsPerKm,
@@ -249,7 +247,7 @@ const engine = {
   },
 
   generateCourse(
-    request: CourseRequest,
+    request: AnyCourseRequest,
     competitionCentre: LocalPoint,
     seed: number,
     paceSecondsPerKm: number,
@@ -319,7 +317,7 @@ const engine = {
   // The setter's course is checked, measured and described; fixes stay suggestions (D15).
   checkImportedCourse(
     courseIndex: number,
-    request: CourseRequest,
+    request: AnyCourseRequest,
     paceSecondsPerKm: number,
     paper: PaperChoice,
     printScaleChoice: PrintScaleChoice,
@@ -419,7 +417,7 @@ const engine = {
 
   // A course set by hand starts with the start the user placed and the finish at the centre.
   startCourseByHand(
-    request: CourseRequest,
+    request: AnyCourseRequest,
     competitionCentre: LocalPoint,
     paceSecondsPerKm: number,
     paper: PaperChoice,
@@ -456,7 +454,7 @@ const engine = {
   // A course being set by hand is checked again as the class the user switches to.
   recheckAs(
     course: Course,
-    request: CourseRequest,
+    request: AnyCourseRequest,
     paceSecondsPerKm: number,
     printScaleChoice: PrintScaleChoice,
   ): Course | null {
