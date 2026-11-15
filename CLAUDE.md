@@ -27,6 +27,7 @@ Full decision log with reasoning and rejected alternatives: [`docs/decisions.md`
 ## Conventions
 
 - **Ask before introducing a new convention** (pattern, tool, naming scheme, folder layout).
+- **Code practices** (agreed 2026-11-15): follow [`CONTRIBUTING.md`](CONTRIBUTING.md) › Code practices. In short: React state per the React docs (local `useState` by default, `useReducer` for complex update logic, context for widely shared data, effects only to sync with the worker, OpenLayers or storage, nothing stored that can be derived); pure functions and `readonly` data, no classes; `function` for components and named functions, arrows for short expressions and callbacks; no `any`; errors shown or deliberately ignored with a reason; every user-visible flow has an end-to-end test, every bug fix a failing test first; packages import each other only through `index.ts`. Only the maintainer merges pull requests.
 - **Small, tested commits.** Each commit passes `pnpm check`.
 - **Commit messages:** Conventional Commits, scope = package name (`feat(map-import-ocad): …`, `docs: …`, `chore: …`). The body says **why**, not only what. Releases and the changelog are generated from them (D16): user-visible changes are `feat` or `fix`, breaking ones get `!`.
 - **Branch names:** `<type>/<what-it-does>` with the Conventional Commit type and a short kebab-case description of the work (`feat/description-box-drag`, `fix/ocad-text-encoding`, `docs/rules-control-spacing`). Branch from the latest `main`; never use generated or random names.
