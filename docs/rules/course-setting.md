@@ -5,7 +5,7 @@ Digest of the course-setting principles the engine and the assistant follow, for
 Sources (see [`docs/sources`](../sources/README.md)):
 
 - **RMK x.y**: Ratamestarikirja (SSL course setter's handbook), chapter x.y. Binding for Finnish events through Lajisäännöt 10.32.
-- **IOF App. 2 §x**: IOF Competition Rules 2026, Appendix 2, Principles for course planning. Binding for international events, a guideline for others (§1.2).
+- **IOF App. 2 §x**: IOF Competition Rules 2027, Appendix 2, Principles for course planning. Binding for international events, a guideline for others (§1.2).
 - **LS x**: Suunnistuksen lajisäännöt 2026.
 
 Lines marked **Interpretation** are our own reading.
@@ -85,11 +85,11 @@ Lines marked **Interpretation** are our own reading.
 
 ### Minimum distances
 
-| Map scale                   | Rule                                                                                                                | Source            |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------- | ----------------- |
-| 1:15 000, 1:10 000, 1:7 500 | ≥ 30 m apart in a straight line. 30–60 m only if the sites are clearly different both on the ground and on the map. | LS 11.41          |
-| 1:5 000, 1:4 000 or larger  | ≥ 25 m by the shortest runnable route and ≥ 15 m in a straight line. 15–30 m only if clearly different.             | LS 11.411         |
-| IOF events                  | Same as above, plus ≥ 25 m running distance at every scale. The start flag counts as a control.                     | IOF App. 2 §3.5.5 |
+| Map scale                   | Rule                                                                                                                                                                                                                   | Source                  |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| 1:15 000, 1:10 000, 1:7 500 | ≥ 30 m apart in a straight line. 30–60 m only if the sites are clearly different both on the ground and on the map.                                                                                                    | LS 11.41                |
+| 1:5 000, 1:4 000 or larger  | ≥ 25 m by the shortest runnable route and ≥ 15 m in a straight line. 15–30 m only if clearly different.                                                                                                                | LS 11.411               |
+| IOF events                  | 1:15 000 to 1:7 500: ≥ 30 m, and ≥ 60 m when the features are similar; the start flag counts as a control. Sprint 1:4 000 and 1:3 000: ≥ 25 m running and ≥ 15 m straight, with no further limit for similar features. | IOF 19.4, App. 2 §3.5.5 |
 
 ### Acute angles
 
@@ -102,6 +102,18 @@ Lines marked **Interpretation** are our own reading.
 
 - Codes are 31–599, excluding 66, 68, 86, 89, 98, 99, 161 and 191 (LS 11.46).
 - Avoid similar codes on neighbouring controls, such as 55/56 or 81/181 (RMK 4.5.S).
+
+### Several courses in one event
+
+- The minimum distances apply between the controls of different courses too: controls of different courses placed too close can mislead competitors who navigated correctly (IOF App. 2 §3.5.5, §3.11.4; RMK 4.5.S applies LS 11.41 across the whole set of courses).
+- Every control has a code on its stand and the same code on the description sheet (LS 11.45). The rules don't say that a control shared by several courses keeps one code; **Interpretation:** it does, as the control is one stand (D27).
+- A guided (RR) course uses codes RR1, RR2…, which other courses must not use (LS 17.25, RMK 4.5.S).
+- Each control has enough punching units for its load (LS 11.44, IOF 19.7). A control every class visits gets easy to find and wears the terrain; check the number of classes and runners per control and spread the load (RMK 4.5.S).
+- Following should not pay (RMK 1.4.1); route choices split the field (IOF App. 2 §3.8); no start loaded with many short, demanding legs (RMK 1.4.3).
+- Courses for children (14 and under) are not combined with older adult classes; where adults' controls are used, add controls so every leg suits each class's skill level (RMK 3.S.1). Plan the 10 and 12 courses first, with the best sites and clearest routes (RMK 4.5.S).
+- Courses circling the same way suit long distance in even terrain but give too many similar courses at middle and sprint (RMK 4.5.S). In a dense area of controls, running against the main flow is acceptable (RMK 1.3.1).
+- Weekly open events have courses of several lengths and levels, about an hour each, with the widest range of runners on the C course (RMK 2.S.9).
+- **Interpretation:** the engine's event checks flag, across courses: controls closer than the minimum distance (error) or closer than the similar-feature distance with the same feature (warning); similar codes (consecutive, or the same last two digits) on controls within 200 m (note); a leg run by several courses (note, as it helps following); and a leg run in opposite directions by two courses (note, as runners meet head-on).
 
 ## Difficulty
 
@@ -222,7 +234,7 @@ Weekly open events offer courses by length and difficulty rather than by class (
 
 - The course stays inside the mapped area: the area within 100 m of contours, form lines and vegetation or open-land areas, with holes filled. Margins with logos, legends and texts are outside.
 - Area quality: each site is rated by the demanding control features and contour detail within 150 m, halved in slow vegetation and scaled to the map's best areas. Controls only go on sites of area quality at least 0.3 or near the finish, so a course does not fill its time in fields and built-up areas. The score rewards the controls' mean quality (middle 40, long 20 points).
-- No control sites within 40 m of railways or forbidden areas (IOF App. 2 §2.3.6). Ends of leading features (paths, roads, power lines, ditches) are difficulty 1.
+- **Interpretation:** no control sites within 40 m of railways or forbidden areas. IOF App. 2 §2.3.6 only asks that controls are not very close to dangerous precipices; the distance is ours. Ends of leading features (paths, roads, power lines, ditches) are difficulty 1.
 - **Technical areas:** good sites (area quality at least 0.6 for long, 0.4 for middle) are clustered by density (radius 175 m long, 110 m middle, at least 4 sites); scattered weak sites are left out. Areas larger than 1 km² (long) or 2 km² (middle; RMK 2.S.2: 1.5–2 km² is enough) are split. Each area gets a capacity: the minutes of course it holds with controls at least 250 m (long) or 150 m (middle) apart.
 - **Skeleton:** long distance visits 3–5 areas joined by connecting legs of 6–12% of the winning time and 0.8–2.5 km, together 30–50% of the time (RMK 1.2.6.S, RMK 2.S.1). Middle distance has a main area within 40% of the winning time of the finish, holding at least half the time, and an optional second area joined by one semi-long leg of 0.5–1.2 km (RMK 2.S.2). Areas holding less than 8% (long) or 15% (middle) of the winning time are not used. Area orders are ranked by time fit, area quality, connecting legs in their band, turns of 60–150° between them, no crossings and the spread on the paper; the best five get real endpoints, chosen for route choice (long) or the semi-long band (middle).
 - The finish is at the competition centre. The start is a clear site (control site difficulty at most 2, RMK 5.2.ST) 5–20% of the winning time from the finish, towards the first area, or where the user wished. In middle distance it is not inside the main area, so the course does not run back past the start. When the last area is more than 4% of the winning time from the finish, a run-in section closes the course.
