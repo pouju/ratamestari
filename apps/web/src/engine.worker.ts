@@ -73,7 +73,14 @@ let terrain: Terrain | null = null
 let sites: readonly ControlSiteCandidate[] = []
 let overprintDetail: OverprintDetailIndex = NO_OVERPRINT_DETAIL
 let peripheral: PeripheralInformation | null = null
-let lastSetting: { spec: CourseSpec; paper: PaperChoice } | null = null
+// The setting of the selected course; every course of the event keeps its own (D27).
+interface CourseSetting {
+  readonly spec: CourseSpec
+  readonly paper: PaperChoice
+}
+let lastSetting: CourseSetting | null = null
+let selectedCourse: string | null = null
+const settingsOfOtherCourses = new Map<string, CourseSetting>()
 let imported: ImportedCourseData | null = null
 let stopRequested = false
 
@@ -162,6 +169,20 @@ function useFeatures(
 }
 
 const engine = {
+  selectCourse(courseId: string): void {
+    if (courseId === selectedCourse) return
+    if (selectedCourse !== null && lastSetting)
+      settingsOfOtherCourses.set(selectedCourse, lastSetting)
+    lastSetting = settingsOfOtherCourses.get(courseId) ?? null
+    settingsOfOtherCourses.delete(courseId)
+    selectedCourse = courseId
+  },
+
+  forgetCourses(): void {
+    settingsOfOtherCourses.clear()
+    lastSetting = null
+  },
+
   async loadMap(bytes: Uint8Array, corrections: IsomCodeOverrides): Promise<void> {
     map = await loadOcadMap(bytes)
     mapInfo = map.info
