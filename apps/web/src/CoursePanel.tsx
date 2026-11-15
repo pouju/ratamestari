@@ -281,26 +281,28 @@ function OpenCourseSentence({
           ))}
         </select>
         {', '}
-        <input
-          className="request-token request-length"
-          type="number"
-          min={LENGTH_STEP_KM}
-          step={LENGTH_STEP_KM}
-          aria-label={open.shortest}
-          value={min}
-          onChange={e => changeLength('min', e.target.valueAsNumber)}
-        />
-        {open.lengthSeparator}
-        <input
-          className="request-token request-length"
-          type="number"
-          min={LENGTH_STEP_KM}
-          step={LENGTH_STEP_KM}
-          aria-label={open.longest}
-          value={max}
-          onChange={e => changeLength('max', e.target.valueAsNumber)}
-        />{' '}
-        {open.kilometres}
+        <span className="request-lengths">
+          <input
+            className="request-token request-length"
+            type="number"
+            min={LENGTH_STEP_KM}
+            step={LENGTH_STEP_KM}
+            aria-label={open.shortest}
+            value={min}
+            onChange={e => changeLength('min', e.target.valueAsNumber)}
+          />
+          {open.lengthSeparator}
+          <input
+            className="request-token request-length"
+            type="number"
+            min={LENGTH_STEP_KM}
+            step={LENGTH_STEP_KM}
+            aria-label={open.longest}
+            value={max}
+            onChange={e => changeLength('max', e.target.valueAsNumber)}
+          />{' '}
+          {open.kilometres}
+        </span>
       </p>
       <p className="request-note">{open.note}</p>
     </section>

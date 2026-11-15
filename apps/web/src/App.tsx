@@ -47,7 +47,14 @@ import { MapStart, PanelHeader, PanelLine } from './WorkspaceStart'
 import { atLeastHalf, SheetHandle, sheetStyle, type SheetSize } from './SheetHandle'
 import { CoursePanel } from './CoursePanel'
 import { CourseRoutesPanel } from './CourseRoutesPanel'
-import { CourseTabs } from './CourseTabs'
+import { CourseLists, CourseTabs } from './CourseTabs'
+import {
+  applyCourseList,
+  loadOwnCourseList,
+  saveOwnCourseList,
+  WEEKLY_COURSE_LIST,
+  type ListedCourse,
+} from './course-lists'
 import {
   eventWithOneCourse,
   nextCourseName,
@@ -254,6 +261,9 @@ export function App() {
   const [selectedCourseId, setSelectedCourseId] = useState(firstEvent.courseId)
   const selectedCourseIdRef = useRef(selectedCourseId)
   const otherCourses = useRef(new Map<string, CourseSnapshot>())
+  const [ownCourseList, setOwnCourseList] = useState<readonly ListedCourse[] | null>(
+    loadOwnCourseList,
+  )
   // The map whose saved event has been looked for; until then nothing is saved over it.
   const [eventMapKey, setEventMapKey] = useState<string | null>(null)
   const keepsKeptOnNextCentre = useRef(false)
@@ -946,24 +956,63 @@ export function App() {
     showCourseOfEvent(courseId, next)
   }
 
-  // A new course starts from the shown course's class and print settings, with no controls, and
-  // from its own seed so that setting it doesn't repeat a course already in the event.
+  // A new course starts from the shown course's print settings, with no controls, and from its
+  // own seed so that setting it doesn't repeat a course already in the event.
+  const newCourseSnapshot = (courseRequest: AnyCourseRequest, seed: number): CourseSnapshot => ({
+    request: courseRequest,
+    seed,
+    course: null,
+    kept: NOTHING_KEPT,
+    undoHistory: [],
+    paper,
+    printScale,
+    placedFrame: null,
+    startWish,
+  })
+
   function addCourseToEvent() {
     if (isGenerating || isEditing) return
     const added = addCourse(event, nextCourseName(event))
     setEvent(added.event)
     track('course-added', { courses: added.event.courses.length })
-    showCourseOfEvent(added.courseId, {
-      request,
-      seed: added.event.courses.length,
-      course: null,
-      kept: NOTHING_KEPT,
-      undoHistory: [],
-      paper,
-      printScale,
-      placedFrame: null,
-      startWish,
-    })
+    showCourseOfEvent(added.courseId, newCourseSnapshot(request, added.event.courses.length))
+  }
+
+  const requestOfCourse = (courseId: string) =>
+    courseId === selectedCourseId
+      ? request
+      : (otherCourses.current.get(courseId)?.request ?? request)
+
+  function applyListToEvent(listName: 'weekly' | 'own') {
+    const list = listName === 'own' ? ownCourseList : WEEKLY_COURSE_LIST
+    if (!list || isGenerating || isEditing) return
+    const isSet = (courseId: string) =>
+      (courseId === selectedCourseId ? course : otherCourses.current.get(courseId)?.course) != null
+    const applied = applyCourseList(event, list, isSet)
+    for (const step of applied.steps) {
+      if (step.courseId === selectedCourseId) {
+        setRequest(step.request)
+        continue
+      }
+      const seed = applied.event.courses.findIndex(entry => entry.id === step.courseId) + 1
+      const previous = otherCourses.current.get(step.courseId)
+      otherCourses.current.set(
+        step.courseId,
+        previous ? { ...previous, request: step.request } : newCourseSnapshot(step.request, seed),
+      )
+    }
+    setEvent(applied.event)
+    track('course-list-applied', { list: listName, courses: applied.event.courses.length })
+  }
+
+  function saveCoursesAsOwnList(): boolean {
+    const list = event.courses.map(entry => ({
+      name: entry.name,
+      request: requestOfCourse(entry.id),
+    }))
+    if (!saveOwnCourseList(list)) return false
+    setOwnCourseList(list)
+    return true
   }
 
   function tapCourse(hit: CourseHit | null, at: LocalPoint) {
@@ -1378,11 +1427,7 @@ export function App() {
   const courseTabs = event.courses.map(entry => ({
     id: entry.id,
     name: entry.name,
-    courseClass: requestLabel(
-      entry.id === selectedCourseId
-        ? request
-        : (otherCourses.current.get(entry.id)?.request ?? request),
-    ),
+    courseClass: requestLabel(requestOfCourse(entry.id)),
   }))
 
   return (
@@ -1633,6 +1678,14 @@ export function App() {
             onAdd={addCourseToEvent}
             onRename={renameCourseOfEvent}
             onRemove={removeCourseOfEvent}
+          />
+        )}
+        {state.status === 'ready' && !courseFile && (
+          <CourseLists
+            hasOwnList={ownCourseList !== null}
+            isDisabled={isGenerating || isEditing}
+            onApply={applyListToEvent}
+            onSaveOwn={saveCoursesAsOwnList}
           />
         )}
         {state.status === 'ready' && (
