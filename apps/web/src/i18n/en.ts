@@ -222,6 +222,10 @@ export const en = {
   event: {
     coursesLabel: 'Courses of the event',
     addCourse: 'Add course',
+    courseName: 'Course name',
+    removeCourse: 'Remove course',
+    confirmRemove: (name: string) => `Remove ${name}? Tap again to remove`,
+    doneNaming: 'Done',
     courseTab: (name: string, courseClass: string) => `${name}, ${courseClass}`,
   },
   check: {

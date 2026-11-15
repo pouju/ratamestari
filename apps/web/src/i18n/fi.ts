@@ -219,6 +219,10 @@ export const fi: Messages = {
   event: {
     coursesLabel: 'Tapahtuman radat',
     addCourse: 'Lisää rata',
+    courseName: 'Radan nimi',
+    removeCourse: 'Poista rata',
+    confirmRemove: (name: string) => `Poistetaanko ${name}? Napauta uudelleen`,
+    doneNaming: 'Valmis',
     courseTab: (name: string, courseClass: string) => `${name}, ${courseClass}`,
   },
   check: {
