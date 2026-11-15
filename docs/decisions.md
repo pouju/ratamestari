@@ -783,3 +783,38 @@ The goal is to make course setting as easy and accessible as possible for everyo
 - The landing page's status lists (`apps/web/src/i18n/en.ts` and `fi.ts`) follow this decision.
 - The time model needs real split times with their courses and maps; until the club's own events are collected, it can only be tuned roughly from winning times.
 - GPS tracks serve runners as well as setters, so building them will need its own decision on how far Ratamestari goes beyond course setting.
+
+## D27: Events: several courses on one map, sharing controls
+
+**Date:** 2026-11-15
+**Status:** Decided
+
+### Decision
+
+The workspace holds an **event**: one map, one competition centre, one list of controls and the courses that use them (D26, item 1).
+
+- **Controls belong to the event.** Each has a stable id, a fixed code and its site. A course is its stops in order, by control id. The same site in two courses is one control with one code. Codes are no longer derived from a control's place in the course: a new control takes the lowest free code (LS 11.46), and a control moved within one course keeps its code.
+- **One start and one finish** for all courses, as at most weekly events. Separate starts per course may come later.
+- **Event profiles** start the course list: a weekly open event (A–D, A longest and hardest, D shortest and easiest), competition classes (SSL classes as today), or the user's own list. Each course has a name, a target (length or winning time, or an SSL class) and a difficulty. A profile's lengths and levels are defaults the club changes, not rules. An edited profile is kept in the browser for the next event.
+- **Event checks** look across courses: controls of different courses too close (LS 11.41), a code used twice, similar codes on neighbouring controls (RMK 4.5.S), and courses running against each other through shared controls and areas. The last is our **Interpretation:** the mass of runners should flow the same way. Finer rules for shared controls (difficulty, control load) wait until the rule sources can be read in cloud sessions.
+- **Automatic setting of one more course** may use the event's controls in any order, keeps its distance from the other courses' controls and prefers the event's running direction. Setting all courses together stays later (D26).
+- **Saved in the browser** (IndexedDB, keyed by the map like its symbol corrections), so a reload loses nothing. Nothing leaves the computer (D3). IOF XML with all courses and their shared controls is the file to move an event to OCAD and back.
+- **Built in steps**, each working on its own: the event model and codes in the engine; courses side by side in the workspace; sharing controls when setting by hand; event checks; event IOF XML import and export and one PDF with a page per course; automatic setting of one more course.
+
+### Why
+
+- A weekly event has three to five courses on one map that share controls, a start and a finish. Setters move them between Ratamestari and OCAD, which keeps codes per control, so codes must not change when a course is edited.
+- Runners of different courses meet at shared controls; courses running against each other there cause collisions and give away controls.
+- Clubs name and size their weekly courses differently, so the course list must be quick to set up and to reuse.
+
+### Alternatives considered
+
+- **Tabs of independent courses** (site-ux-plan, Several classes): simple, but codes and shared controls would differ per tab, and no check could look across courses.
+- **Codes by position, as before:** a shared control would get a different code in every course.
+- **Fixed SSL classes only:** weekly courses are not classes; they are lengths and difficulty levels the club chooses.
+
+### Consequences
+
+- `Course` stays the engine's per-course result; the event adds control identity and codes around it, so the existing search, checks and tools keep working on one course at a time.
+- The workspace's per-course state (about 25 pieces in `App.tsx`) and the worker's single `lastSetting` become per course.
+- The assistant's tools still act on the selected course until they are given an event view.
