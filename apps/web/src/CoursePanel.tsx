@@ -519,7 +519,7 @@ function Findings({
   )
 }
 
-function SeverityMark({ severity, label }: { severity: Severity; label: string }) {
+export function SeverityMark({ severity, label }: { severity: Severity; label: string }) {
   return (
     <svg width="14" height="14" viewBox="0 0 18 18" role="img" aria-label={label}>
       {severity === 'note' ? (

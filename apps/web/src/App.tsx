@@ -4,6 +4,7 @@ import {
   addCourse,
   centreOfExtent,
   controlCodesOf,
+  eventFindings,
   hasRoomForCentre,
   printFrameAround,
   removeCourse,
@@ -48,6 +49,7 @@ import { atLeastHalf, SheetHandle, sheetStyle, type SheetSize } from './SheetHan
 import { CoursePanel } from './CoursePanel'
 import { CourseRoutesPanel } from './CourseRoutesPanel'
 import { CourseLists, CourseTabs } from './CourseTabs'
+import { EventChecks } from './EventChecks'
 import {
   applyCourseList,
   loadOwnCourseList,
@@ -1420,6 +1422,13 @@ export function App() {
         : null,
     [course, request.format, courseLabel, mapInfo, messages.labels, controlCodes],
   )
+  const eventChecks = useMemo(
+    () =>
+      mapInfo && event.courses.filter(entry => entry.controlIds.length > 0).length > 1
+        ? eventFindings(event, mapInfo.scale)
+        : null,
+    [event, mapInfo],
+  )
   const otherControls = useMemo(
     () => otherCoursesControls(event, selectedCourseId),
     [event, selectedCourseId],
@@ -1687,6 +1696,9 @@ export function App() {
             onApply={applyListToEvent}
             onSaveOwn={saveCoursesAsOwnList}
           />
+        )}
+        {state.status === 'ready' && !courseFile && eventChecks && mapInfo && (
+          <EventChecks findings={eventChecks} event={event} mapScale={mapInfo.scale} />
         )}
         {state.status === 'ready' && (
           <CoursePanel
