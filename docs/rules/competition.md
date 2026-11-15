@@ -1,6 +1,6 @@
 # Competition: classes, formats and winning times
 
-Digest of what the course spec needs: which classes exist, what long and middle distance mean, and the winning time a course is set for. Sources (see [`docs/sources`](../sources/README.md)): **LS** = Suunnistuksen lajisäännöt 2026, **IOF** = IOF Competition Rules 2026, **RMK** = Ratamestarikirja. Lines marked **Interpretation** are our own reading.
+Digest of what the course spec needs: which classes exist, what long and middle distance mean, and the winning time a course is set for. Sources (see [`docs/sources`](../sources/README.md)): **LS** = Suunnistuksen lajisäännöt 2026, **IOF** = IOF Competition Rules 2027, **RMK** = Ratamestarikirja. Lines marked **Interpretation** are our own reading.
 
 ## Classes
 
