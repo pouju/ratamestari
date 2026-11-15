@@ -325,7 +325,7 @@ function writeFile(written: readonly { entry: Buffer; data: Buffer }[]): Buffer 
   const header = Buffer.from(source.subarray(0, HEADER_BYTES))
   append(header)
   const fileName = Buffer.alloc(source.readUInt32LE(40))
-  fileName.write(values.name!, 'latin1')
+  fileName.write(values.name, 'latin1')
   header.writeUInt32LE(append(fileName), 36)
   header.writeUInt32LE(0, 56)
 

@@ -40,7 +40,7 @@ import { useAssistantKey } from './assistant-key'
 import { SettingsSheet } from './SettingsSheet'
 import { MapStart, PanelHeader, PanelLine } from './WorkspaceStart'
 import { atLeastHalf, SheetHandle, sheetStyle, type SheetSize } from './SheetHandle'
-import { CoursePanel, hasCoarsePointer } from './CoursePanel'
+import { CoursePanel } from './CoursePanel'
 import { CourseRoutesPanel } from './CourseRoutesPanel'
 import { CourseTabs } from './CourseTabs'
 import {

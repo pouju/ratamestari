@@ -102,7 +102,7 @@ export function legLengthDistribution(
 ): Metric {
   const edges = target.binEdgesMetres
   const legs = legLengths(stops)
-  const counts = new Array<number>(edges.length - 1).fill(0)
+  const counts = Array.from({ length: edges.length - 1 }, () => 0)
   for (const leg of legs) {
     let bin = edges.findIndex((edge, i) => i > 0 && leg < edge) - 1
     if (bin < 0) bin = counts.length - 1

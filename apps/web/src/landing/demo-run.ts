@@ -54,7 +54,7 @@ export const SAMPLE_RUN: DemoRun = {
   sites: recorded.sites.map(point),
   start: point(recorded.start),
   controls: recorded.controls.map(point),
-  numbers: 'numbers' in recorded ? (recorded.numbers as number[][]).map(point) : null,
+  numbers: 'numbers' in recorded ? recorded.numbers.map(point) : null,
   areas:
     'areas' in recorded
       ? (recorded.areas as { hull: number[][]; minutes: number }[]).map(area => ({

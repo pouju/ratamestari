@@ -66,14 +66,12 @@ describe('findControlSites', () => {
 
   it('places sites at the corners of open land, which are on a leading feature', () => {
     const sites = sitesOf([feature('401', rectangle(200, 200, 400, 300))])
-    expect(sites.map(s => s.position).sort()).toEqual(
-      [
-        [200, 200],
-        [200, 300],
-        [400, 200],
-        [400, 300],
-      ].sort(),
-    )
+    expect(sites.map(s => s.position).sort((a, b) => a[0] - b[0] || a[1] - b[1])).toEqual([
+      [200, 200],
+      [200, 300],
+      [400, 200],
+      [400, 300],
+    ])
     expect(sites.every(s => s.placement === 'areaCorner')).toBe(true)
     expect(sites.every(s => s.technicalDifficulty === 1)).toBe(true)
   })

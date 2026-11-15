@@ -70,7 +70,7 @@ export function ChatPanel({ apiKey, tools }: { apiKey: string; tools: readonly A
           </p>
         ))}
       </div>
-      <form className="chat-composer" onSubmit={send}>
+      <form className="chat-composer" onSubmit={e => void send(e)}>
         <label htmlFor="chat-draft" className="visually-hidden">
           {m.inputLabel}
         </label>

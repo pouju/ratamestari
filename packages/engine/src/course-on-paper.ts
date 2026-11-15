@@ -67,7 +67,7 @@ export function* setCourseOnPaperSteps(
     return course && fitCourseToPaper(terrain, course, papers, spec.printScale, spec.peripheralSize)
   }
   const state = { stopped: false }
-  const attempt = function* (size: PaperSize, showsProgress: boolean): Search {
+  function* attempt(size: PaperSize, showsProgress: boolean): Search {
     const printArea = planPrintArea(terrain, sites, {
       paper: size,
       printScale: spec.printScale,

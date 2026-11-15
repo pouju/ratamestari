@@ -160,11 +160,9 @@ const comparedCourses = searched.reduce((sum, each) => sum + each.compared, 0)
 const layout = layOutOverprint(course, overprintDetailOf(features))
 const stops = [course.start.position, ...course.controls.map(c => c.position), course.finish]
 
-const svgDocument = new DOMImplementation().createDocument(null, 'svg', null) as unknown as Document
+const svgDocument = new DOMImplementation().createDocument(null, 'svg', null)
 const svgOf = (includesObject: (objectIndex: number) => boolean) =>
-  new XMLSerializer().serializeToString(
-    map.renderSvg(svgDocument, includesObject) as unknown as Node,
-  )
+  new XMLSerializer().serializeToString(map.renderSvg(svgDocument, includesObject))
 const mapSvg = svgOf(i => !peripheral.marginObjectIndices.has(i))
 
 const mappedExtent = extentOf(

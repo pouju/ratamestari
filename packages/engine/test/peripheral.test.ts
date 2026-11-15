@@ -49,8 +49,8 @@ describe('findPeripheralInformation', () => {
 
   it('finds the logo with its caption, borrowed map symbols and the copyright notice', () => {
     expect(found.blocks.map(block => block.kind)).toEqual(['logo', 'copyright'])
-    expect([...found.blocks[0]!.objectIndices].sort()).toEqual(
-      [...logoLines, logoLeaves].map(a => a.objectIndex).sort(),
+    expect([...found.blocks[0]!.objectIndices].sort((a, b) => a - b)).toEqual(
+      [...logoLines, logoLeaves].map(a => a.objectIndex).sort((a, b) => a - b),
     )
     expect(found.blocks[1]!.objectIndices).toEqual([copyright.objectIndex])
   })

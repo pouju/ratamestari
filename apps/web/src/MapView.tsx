@@ -550,6 +550,8 @@ export function MapView({
     siteSource,
     courseSource,
     centreSource,
+    keptSource,
+    otherControlSource,
     suggestionSource,
     legToolLayer,
     legToolTranslate,

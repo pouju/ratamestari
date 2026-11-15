@@ -50,7 +50,9 @@ describe('evaluateLeg', () => {
     const leg = evaluateLeg(terrain, localPoint(500, 200), localPoint(500, 800))!
     const middleX = (route: Route) => route.points[Math.floor(route.points.length / 2)]![0]
     expect(middleX(leg.fastest)).toBeCloseTo(500, -1)
-    const sides = leg.alternatives.map(route => Math.sign(middleX(route) - 500)).sort()
+    const sides = leg.alternatives
+      .map(route => Math.sign(middleX(route) - 500))
+      .sort((a, b) => a - b)
     expect(sides).toEqual([-1, 1])
     for (const route of leg.alternatives) expect(Math.abs(middleX(route) - 500)).toBeGreaterThan(95)
   })

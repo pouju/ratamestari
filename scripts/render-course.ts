@@ -213,7 +213,7 @@ function printLegs(c: Course) {
 function printPage(c: Course, withoutCourse = false): string {
   const doc = svgDocument()
   const mapSvg = new XMLSerializer().serializeToString(
-    map.renderSvg(doc, i => !peripheral.marginObjectIndices.has(i)) as unknown as Node,
+    map.renderSvg(doc, i => !peripheral.marginObjectIndices.has(i)),
   )
   const blocks = peripheral.blocks.map(block => ({
     block,

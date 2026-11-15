@@ -4,7 +4,7 @@ import { DOMImplementation } from 'xmldom'
 // property, which xmldom does not serialise, so ids are kept as attributes; otherwise hatched and
 // structured areas (marsh, scattered trees, …) lose their fill.
 export function svgDocument(): Document {
-  const document = new DOMImplementation().createDocument(null, 'svg', null) as unknown as Document
+  const document = new DOMImplementation().createDocument(null, 'svg', null)
   const elementPrototype = Object.getPrototypeOf(document.createElement('g')) as object
   if (!Object.getOwnPropertyDescriptor(elementPrototype, 'id')) {
     Object.defineProperty(elementPrototype, 'id', {

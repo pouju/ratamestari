@@ -29,14 +29,15 @@ Requires Node 24+ and pnpm.
 ```sh
 pnpm install
 pnpm dev        # http://localhost:5173
-pnpm check      # formatting, types, tests and build
+pnpm lint       # oxlint
+pnpm check      # formatting, lint, types, tests and build
 ```
 
 Every commit must pass `pnpm check`. Tests live in each package's `test/` folder.
 
 ## Code practices
 
-Agreed on 2026-11-15. Where a tool can check a practice, `pnpm check` does.
+Agreed on 2026-11-15. Where a tool can check a practice, `pnpm check` does: [oxlint](https://oxc.rs/docs/guide/usage/linter) with type information (`pnpm lint`, rules in `.oxlintrc.json`) checks promises, React hooks, refs and effects, `any`, text in JSX, function style, import extensions and imports between packages.
 
 ### Structure
 

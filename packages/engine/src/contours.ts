@@ -92,9 +92,9 @@ export function countContourCrossings(
           (contour.b[1] - contour.a[1]) * (b[0] - a[0]) >
         0
       const uphillSide = index.uphillSides[contour.line]
-      if (uphillSide === LEFT_IS_UPHILL) movesToLeftSide ? up++ : down++
-      else if (uphillSide === RIGHT_IS_UPHILL) movesToLeftSide ? down++ : up++
-      else unknown++
+      if (uphillSide !== LEFT_IS_UPHILL && uphillSide !== RIGHT_IS_UPHILL) unknown++
+      else if (movesToLeftSide === (uphillSide === LEFT_IS_UPHILL)) up++
+      else down++
     }
   }
   return { up, down, unknown }

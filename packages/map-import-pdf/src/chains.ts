@@ -33,7 +33,7 @@ export function chainDashes(pieces: readonly ChainPiece[], maxGap: number): Chai
     buckets.set(key, [...(buckets.get(key) ?? []), index])
   })
 
-  const bestMatch = ends.map((end, index) => {
+  const bestMatch = ends.map(end => {
     const [bx, by] = [Math.floor(end.point[0] / maxGap), Math.floor(end.point[1] / maxGap)]
     let best: { other: number; score: number } | null = null
     for (let dx = -1; dx <= 1; dx++) {

@@ -25,7 +25,6 @@ import {
   closeness,
   crossingSeverity,
   crowding,
-  crowdingCounts,
   legCount,
   parallelLegs,
   routeDoglegOverlaps,
@@ -227,7 +226,7 @@ export function* searchCourseSteps(
   const prepared = prepareSearch(terrain, sites, spec)
   if (!prepared) return null
   const { grid } = terrain
-  const { finish, targetSeconds, qualityOf, secondsToFinish, reachable } = prepared
+  const { finish, targetSeconds } = prepared
   const pace = prepared.paceSecondsPerKm
   const withLocks = hasLocks(spec.locks) ? withLockedSites(plannerPool(prepared), spec.locks) : null
   const pool = withLocks?.pool ?? plannerPool(prepared)
@@ -237,7 +236,6 @@ export function* searchCourseSteps(
   const { evaluation } = planning
   const context: CourseContext = { terrain, spec, pool, finish, targetSeconds, evaluation }
   let startIndex = NO_SITE
-  let order: readonly number[] = []
   let best: ScoredCourse | null = null
   let anchors: ReadonlySet<number> = new Set()
   if (locked) {
@@ -273,7 +271,6 @@ export function* searchCourseSteps(
       if (!best || scored.score < best.score) {
         best = scored
         startIndex = start
-        order = scored.order
       }
     }
   } else {
@@ -303,7 +300,6 @@ export function* searchCourseSteps(
       if (!best || scored.score < best.score) {
         best = scored
         startIndex = skeleton.start
-        order = draft
         anchors = new Set(skeleton.connectingLegs.flatMap(leg => [leg.from, leg.to]))
       }
     }
@@ -345,7 +341,6 @@ export function* searchCourseSteps(
     if (worsening < 0 || random.next() < Math.exp(-worsening / temperature)) current = scored
     if (current.score < best.score) best = current
   }
-  order = best.order
   if (!stopped) yield { phase: 'checking', done: 0, total: 1 }
   const kept = keptSites(locked)
   const cleared = repairHardRules(startIndex, best, pool, evaluation, kept)
