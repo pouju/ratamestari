@@ -137,3 +137,36 @@ export function courseTargetFor(request: CourseRequest): CourseTarget | null {
     interpretation: true,
   }
 }
+
+// A course of a weekly open event: a length and an SSL colour instead of a class (D28).
+export const openCourseRequestSchema = z.object({
+  kind: z.literal('open'),
+  format: formatSchema,
+  skillColour: skillColourSchema,
+  lengthKm: z
+    .object({ min: z.number().positive(), max: z.number().positive() })
+    .refine(({ min, max }) => min <= max, 'The shortest length is longer than the longest'),
+})
+
+export type OpenCourseRequest = z.infer<typeof openCourseRequestSchema>
+
+// Interpretation: the length becomes a time at the event's pace; the engine measures time along
+// the real routes, so fast terrain gives a longer course and slow terrain a shorter one (D28).
+export function openCourseTargetFor(
+  request: OpenCourseRequest,
+  paceSecondsPerKm: number,
+): CourseTarget {
+  const minutesFor = (km: number) => (km * paceSecondsPerKm) / 60
+  const { min, max } = request.lengthKm
+  return {
+    winningTime: {
+      minMinutes: minutesFor(min),
+      maxMinutes: minutesFor(max),
+      targetMinutes: minutesFor((min + max) / 2),
+    },
+    skillColour: request.skillColour,
+    siteDifficulty: [...SITE_DIFFICULTY_BY_COLOUR[request.skillColour]],
+    sources: [ratamestarikirja('11')],
+    interpretation: true,
+  }
+}

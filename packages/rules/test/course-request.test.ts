@@ -4,7 +4,10 @@ import {
   courseRequestSchema,
   courseTargetFor,
   courseTargetSchema,
+  openCourseRequestSchema,
+  openCourseTargetFor,
   type CourseRequest,
+  type OpenCourseRequest,
 } from '../src/course-request'
 
 const request = (overrides: Partial<CourseRequest> = {}): CourseRequest =>
@@ -83,5 +86,34 @@ describe('classFromCourseName', () => {
     expect(classFromCourseName('Rata 3')).toBeNull()
     expect(classFromCourseName('H22')).toBeNull()
     expect(classFromCourseName('Helppo')).toBeNull()
+  })
+})
+
+describe('openCourseTargetFor', () => {
+  const open = (overrides: Partial<OpenCourseRequest> = {}): OpenCourseRequest =>
+    openCourseRequestSchema.parse({
+      kind: 'open',
+      format: 'long',
+      skillColour: 'blue',
+      lengthKm: { min: 5, max: 7 },
+      ...overrides,
+    })
+
+  it("turns the length into time at the event's pace", () => {
+    const target = openCourseTargetFor(open(), 6 * 60)
+    expect(target.winningTime).toEqual({ minMinutes: 30, maxMinutes: 42, targetMinutes: 36 })
+    expect(() => courseTargetSchema.parse(target)).not.toThrow()
+  })
+
+  it("uses the colour's control-site difficulty, as for a class of that colour", () => {
+    expect(openCourseTargetFor(open({ skillColour: 'white' }), 360).siteDifficulty).toEqual([1, 1])
+    expect(openCourseTargetFor(open({ skillColour: 'orange' }), 360).siteDifficulty).toEqual([2, 3])
+    expect(openCourseTargetFor(open(), 360).siteDifficulty).toEqual(
+      courseTargetFor(request({ eventLevel: 'national', ageClass: 18 }))!.siteDifficulty,
+    )
+  })
+
+  it('rejects a length range that runs backwards', () => {
+    expect(() => open({ lengthKm: { min: 7, max: 5 } })).toThrow()
   })
 })
