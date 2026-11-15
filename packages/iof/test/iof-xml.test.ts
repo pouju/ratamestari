@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { localExtent, localPoint, projectedPoint, type MapInfo } from '@ratamestari/core'
 import type { Course } from '@ratamestari/engine'
 import { descriptionSheet } from '../src/description-sheet'
-import { courseDataXml } from '../src/iof-xml'
+import { courseDataXml, eventCourseDataXml } from '../src/iof-xml'
+import { readCourseData } from '../src/read-course-data'
 import { site } from './fixtures'
 
 const course: Course = {
@@ -108,5 +109,47 @@ describe('courseDataXml', () => {
       ...xml.matchAll(/<CourseControl type="(\w+)"[^>]*><Control>(\w+)<\/Control>/g),
     ].map(match => `${match[1]}:${match[2]}`)
     expect(controls).toEqual(['Start:S1', 'Finish:F1'])
+  })
+})
+
+describe('eventCourseDataXml', () => {
+  // B shares A's second control (code 32) and its start and finish, and adds its own control 33.
+  const b: Course = {
+    ...course,
+    controls: [course.controls[1]!, site({ position: localPoint(800, 500) })],
+  }
+  const xml = eventCourseDataXml({
+    eventName: 'Weekly event',
+    courses: [
+      {
+        className: 'A',
+        course,
+        sheet: descriptionSheet(course, { title: 'Open', courseName: 'A', controlCodes: [31, 32] }),
+      },
+      {
+        className: 'B',
+        course: b,
+        sheet: descriptionSheet(b, { title: 'Open', courseName: 'B', controlCodes: [32, 33] }),
+      },
+    ],
+    map,
+    createdAt: new Date('2026-11-15T18:00:00Z'),
+  })
+
+  it('writes every course with its own controls in order', () => {
+    const read = readCourseData(xml)
+    expect(read.courses.map(entry => [entry.name, entry.controlIds])).toEqual([
+      ['A', ['S1', '31', '32', 'F1']],
+      ['B', ['S1', '32', '33', 'F1']],
+    ])
+  })
+
+  it('lists a shared control, start and finish once', () => {
+    expect([...readCourseData(xml).controls.keys()]).toEqual(['S1', '31', '32', '33', 'F1'])
+  })
+
+  it('assigns each course to its class', () => {
+    expect(xml).toContain('<ClassName>A</ClassName><CourseName>A</CourseName>')
+    expect(xml).toContain('<ClassName>B</ClassName><CourseName>B</CourseName>')
   })
 })

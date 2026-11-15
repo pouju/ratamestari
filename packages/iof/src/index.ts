@@ -24,8 +24,10 @@ export {
 export {
   courseDataXml,
   courseStopsXml,
+  eventCourseDataXml,
   type CourseDataOptions,
   type CourseStopsOptions,
+  type EventCourseData,
 } from './iof-xml'
 export {
   readCourseData,
