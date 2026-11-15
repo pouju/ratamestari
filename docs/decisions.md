@@ -819,3 +819,35 @@ The workspace holds an **event**: one map, one competition centre, one list of c
 - `Course` stays the engine's per-course result; the event adds control identity and codes around it, so the existing search, checks and tools keep working on one course at a time.
 - The workspace's per-course state (about 25 pieces in `App.tsx`) and the worker's single `lastSetting` become per course.
 - The assistant's tools still act on the selected course until they are given an event view.
+
+## D28: Open courses by length and skill colour
+
+**Date:** 2026-11-15
+**Status:** Decided
+
+### Decision
+
+Besides a class (event level, format, sex, age, letter), a course can be an **open course**: a length range, an SSL skill colour and a format (D26 item 2, D27 profiles).
+
+- **Difficulty is an SSL colour** (RMK 11): the engine's existing control-site difficulty for that colour applies, as for the classes. A weekly event's A–D map to blue, orange, orange (BL), yellow and white; this mapping is our interpretation of one club's instructions and only sets profile defaults.
+- **Length becomes a target time** with the event's pace (length × pace). The engine plans and checks in time along the real routes, so fast terrain gives a longer course and slow terrain a shorter one. The panel shows the target and the finding as a length.
+- **One pace per event** for now. Estimating the pace from the map and the course, and setting it per class and level, comes with the time model (D26 item 3); open courses then take their pace from it.
+- **Format:** long for A, middle for the others by default, changeable per course; the engine has shape templates only for these two.
+- The class request is unchanged, so saved events and the assistant, which still sets classes only (D26), keep working.
+
+### Why
+
+- Weekly open courses are named by length and difficulty, not by class; forcing them into a class (H21 for A) would set the wrong length and control difficulty.
+- The colour scale is SSL's own vocabulary and already drives the engine, so no new difficulty scale is needed.
+- Planning in time rather than distance keeps one search and one set of checks, and gives the terrain adjustment the clubs ask for.
+
+### Alternatives considered
+
+- **Our own levels (demanding, medium, easy):** a second scale beside SSL's colours, with its own control-site rules to keep in step.
+- **Plan open courses in metres:** the search, its budgets and the checks are all in seconds; a second unit would double them, and lengths would ignore the terrain.
+- **A pace per course now:** better left to the time model, which can estimate it from the map instead of asking the setter.
+
+### Consequences
+
+- The workspace handles two kinds of request; descriptions and exports name an open course by its event course name (A, B…).
+- Profiles (D27) can now give each course a length, a colour and a format.

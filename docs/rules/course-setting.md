@@ -133,6 +133,13 @@ SSL's colour scale for forest orienteering (RMK 11, also the separate SSL diffic
 - Lower classes have winning times of 50–100% of the main class (LS 11.251), so their courses must also be shorter (RMK 1.3.3).
 - "A" means different things in H80A, H12A, H21A and D35A. The letter only relates to the normal level for that class (RMK 1.3.3).
 
+### Open courses
+
+Weekly open events offer courses by length and difficulty rather than by class (D28).
+
+- **Interpretation:** an open course gets a skill colour from the scale above, and the engine uses that colour's control-site difficulty as for a class. A weekly event series' public course-setting instructions describe A as demanding with controls clearly harder than the medium courses' (blue), B as medium with a leading or catching feature always near the control (orange), C as easy with a clear catching feature always and most of the course on handrails (yellow), and D as easy with the whole course on handrails (white). These are a club's defaults, not rules.
+- **Interpretation:** the length is turned into a target time with the event's pace, and the engine measures time along the real routes, so a course in fast terrain comes out longer and in slow terrain shorter. The same instructions ask for exactly that: longer courses in fast, easy terrain and shorter ones in demanding, slow terrain.
+
 ## Physical demands
 
 - Normally fit competitors should be able to run most of the course set for their level (IOF App. 2 §3.11.6).
