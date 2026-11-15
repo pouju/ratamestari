@@ -26,6 +26,8 @@ export interface SheetOptions {
   readonly title: string
   readonly courseName: string
   readonly finishRoute?: DescriptionFinishRoute
+  // The event's codes in course order (D27); without them, codes count up from 31.
+  readonly controlCodes?: readonly number[]
 }
 
 export function allowedControlCodes(count: number): number[] {
@@ -41,9 +43,9 @@ const roundToFive = (value: number) => Math.round(value / 5) * 5
 
 export function descriptionSheet(
   course: Course,
-  { title, courseName, finishRoute = 'tapedAllTheWay' }: SheetOptions,
+  { title, courseName, finishRoute = 'tapedAllTheWay', controlCodes }: SheetOptions,
 ): DescriptionSheet {
-  const codes = allowedControlCodes(course.controls.length)
+  const codes = controlCodes ?? allowedControlCodes(course.controls.length)
   const last = course.controls.at(-1)?.position ?? course.start.position
   return {
     title,

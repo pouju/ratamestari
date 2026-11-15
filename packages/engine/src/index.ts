@@ -10,6 +10,18 @@ export {
 export { evaluateLeg, type LegEvaluation } from './leg'
 export { simplify } from './polyline'
 export { hasLocks, isSameSite, type CourseLocks } from './locks'
+export {
+  addCourse,
+  controlCodesOf,
+  emptyEvent,
+  lowestFreeControlCode,
+  removeCourse,
+  renameCourse,
+  setCourseOf,
+  type EventControl,
+  type EventCourse,
+  type EventPlan,
+} from './event'
 export { buildTerrain, type Terrain, type TerrainOptions } from './terrain'
 export {
   descriptionFeatureOf,

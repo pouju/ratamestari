@@ -52,6 +52,15 @@ describe('descriptionSheet', () => {
     ])
     expect(sheet.finish).toEqual({ distanceMeters: 125, route: 'tapedAllTheWay' })
   })
+
+  it("uses the event's codes when given", () => {
+    const sheet = descriptionSheet(course, {
+      title: 'Test event',
+      courseName: 'A',
+      controlCodes: [45, 32],
+    })
+    expect(sheet.controls.map(row => row.code)).toEqual([45, 32])
+  })
 })
 
 describe('allowedControlCodes', () => {
