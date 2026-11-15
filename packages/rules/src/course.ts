@@ -86,3 +86,46 @@ export const CONTROL_CIRCLE: ControlCircleRule = {
   sources: [isom('sym. 703')],
   interpretation: false,
 }
+
+// Checks across the courses of one event (D27, rules digest › Several courses in one event).
+export const eventCheckSchema = citedSchema.extend({
+  severity: z.enum(['error', 'warning', 'note']),
+})
+export type EventCheck = z.infer<typeof eventCheckSchema>
+
+export const EVENT_CHECKS = {
+  controlsTooClose: {
+    severity: 'error',
+    sources: [lajisaannot('11.41'), iofRules('19.4'), iofRules('App. 2 §3.5.5')],
+    interpretation: false,
+  },
+  similarControlsClose: {
+    severity: 'warning',
+    sources: [lajisaannot('11.41'), iofRules('19.4')],
+    interpretation: false,
+  },
+  similarCodesNear: {
+    severity: 'note',
+    sources: [ratamestarikirja('4.5.S')],
+    interpretation: true,
+  },
+  legSharedByCourses: {
+    severity: 'note',
+    sources: [ratamestarikirja('1.4.1'), iofRules('App. 2 §3.8')],
+    interpretation: true,
+  },
+  legRunBothWays: {
+    severity: 'note',
+    sources: [ratamestarikirja('4.5.S')],
+    interpretation: true,
+  },
+} as const satisfies Record<string, EventCheck>
+
+export type EventCheckKind = keyof typeof EVENT_CHECKS
+
+// Interpretation: "neighbouring" controls (RMK 4.5.S) are those within this distance.
+export const SIMILAR_CODES_NEAR_METERS = 200
+
+// Codes that are easy to mix up: consecutive numbers, or the same last two digits (RMK 4.5.S).
+export const areSimilarCodes = (a: number, b: number): boolean =>
+  a !== b && (Math.abs(a - b) === 1 || a % 100 === b % 100)

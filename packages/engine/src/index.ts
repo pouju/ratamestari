@@ -22,6 +22,7 @@ export {
   type EventCourse,
   type EventPlan,
 } from './event'
+export { eventFindings, type EventFinding } from './event-checks'
 export { buildTerrain, type Terrain, type TerrainOptions } from './terrain'
 export {
   descriptionFeatureOf,
