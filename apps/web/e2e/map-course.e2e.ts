@@ -1,6 +1,8 @@
 import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 
+const DOUBLE_CLICK_PAUSE_MS = 600
+
 // Screen points where the course overprint is drawn (its purple, rgb(190, 30, 180)).
 async function overprintPoints(page: Page) {
   const canvas = page.locator('.map canvas').first()
@@ -35,10 +37,15 @@ test.describe('the course on the map', () => {
   })
 
   test('a leg is selected by tapping its line', async ({ page }) => {
-    const points = await overprintPoints(page)
-    const middle = points[Math.floor(points.length / 2)]!
-    await page.mouse.click(middle.x, middle.y)
-    await expect(page.getByText(/^Leg /).first()).toBeVisible()
+    const leg = page.getByText(/^Leg /).first()
+    // Circles and numbers are drawn in the same purple; try points until one is on a leg line.
+    for (const point of (await overprintPoints(page)).filter((_, i) => i % 40 === 0)) {
+      await page.mouse.click(point.x, point.y)
+      if (await leg.isVisible()) break
+      // Two quick clicks would zoom the map instead.
+      await page.waitForTimeout(DOUBLE_CLICK_PAUSE_MS)
+    }
+    await expect(leg).toBeVisible()
   })
 
   test('a control dragged on the map changes the course', async ({ page }) => {
