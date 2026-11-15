@@ -198,7 +198,7 @@ export const en = {
       longest: 'Longest length in kilometres',
       lengthSeparator: '–',
       kilometres: 'km',
-      note: 'An open course is set by its length and skill colour. The length becomes time at the event pace, so in fast terrain the course comes out longer and in slow terrain shorter.',
+      note: 'The course aims at this length in ordinary terrain. In slow terrain it comes out a little shorter, and in fast terrain a little longer, because the time the length takes at the event pace stays the same.',
       timeAtPace: 'Time at the event pace',
       targetLength: (shortest: string, longest: string) => `target ${shortest}–${longest}`,
     },

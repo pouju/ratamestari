@@ -196,7 +196,7 @@ export const fi: Messages = {
       longest: 'Pisin pituus kilometreinä',
       lengthSeparator: '–',
       kilometres: 'km',
-      note: 'Avoin rata tehdään pituuden ja taitotason mukaan. Pituus muutetaan ajaksi tapahtuman vauhdilla, joten nopeassa maastossa rata tulee pidemmäksi ja hitaassa lyhyemmäksi.',
+      note: 'Rata tähtää tähän pituuteen tavallisessa maastossa. Hitaassa maastossa siitä tulee hieman lyhyempi ja nopeassa hieman pidempi, koska pituuden viemä aika tapahtuman vauhdilla pysyy samana.',
       timeAtPace: 'Aika tapahtuman vauhdilla',
       targetLength: (shortest, longest) => `tavoite ${shortest}–${longest}`,
     },

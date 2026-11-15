@@ -831,7 +831,7 @@ Besides a class (event level, format, sex, age, letter), a course can be an **op
 
 - **Difficulty is an SSL colour** (RMK 11): the engine's existing control-site difficulty for that colour applies, as for the classes. A weekly event's A–D map to blue, orange, orange (BL), yellow and white; this mapping is our interpretation of one club's instructions and only sets profile defaults.
 - **Length becomes a target time** with the event's pace (length × pace). The engine plans and checks in time along the real routes, so fast terrain gives a longer course and slow terrain a shorter one. The panel shows the target and the finding as a length.
-- **One pace per event** for now. Estimating the pace from the map and the course, and setting it per class and level, comes with the time model (D26 item 3); open courses then take their pace from it.
+- **One pace per event** for now. Estimating the pace from the map and the course, and setting it per class and level, comes with the time model (D26 item 3); open courses then take their pace from it. **Open question for then:** with a pace estimated from the terrain, "length × pace" no longer has an "ordinary terrain" to refer to, so how an open course's length range turns into its target (and how the panel explains it) must be decided again.
 - **Format:** long for A, middle for the others by default, changeable per course; the engine has shape templates only for these two.
 - The class request is unchanged, so saved events and the assistant, which still sets classes only (D26), keep working.
 
