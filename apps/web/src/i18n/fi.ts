@@ -245,6 +245,16 @@ export const fi: Messages = {
     removeCourse: 'Poista rata',
     confirmRemove: (name: string) => `Poistetaanko ${name}? Napauta uudelleen`,
     doneNaming: 'Valmis',
+    startFrom: 'Aloita',
+    courseLists: {
+      choose: 'ratalistasta…',
+      weekly: 'Viikkotapahtuma: A, B, C, D',
+      own: 'Oma lista',
+    },
+    listNote:
+      'Lista lisää ratansa ja täydentää radat, joita ei ole vielä tehty. Tekemäsi radat pysyvät ennallaan.',
+    saveOwnList: 'Tallenna nämä radat omaksi listaksi',
+    ownListSaved: 'Tallennettu tähän selaimeen. Seuraavalla kerralla aloita omasta listasta.',
     courseTab: (name: string, courseClass: string) => `${name}, ${courseClass}`,
   },
   check: {
@@ -550,6 +560,8 @@ export const fi: Messages = {
             'Rastit todellisissa kartan kohteissa, ei koskaan liian tiheässä',
             'Sääntötarkistukset lähteineen ja Korjaa-painikkeineen',
             'OCADissa tai Purple Penissä tehdyn radan tarkistus',
+            'Useita ratoja samalle kartalle yhteisillä rasteilla ja rastikoodeilla, tallessa selaimessasi',
+            'Avoimet radat pituuden ja taitotason mukaan, valmiista viikkotapahtuman A–D-listasta tai omasta listasta',
             'Kaikkien rastivälien reitit nopeimmasta hitaimpaan',
             'Rastivälin suunnittelu itse',
             'Radan tekeminen itse rasti kerrallaan',
@@ -570,7 +582,7 @@ export const fi: Messages = {
         {
           title: 'Tulossa seuraavaksi',
           items: [
-            'Useita ratoja samalle kartalle yhteisillä rasteilla, esimerkiksi iltarasteille',
+            'Tarkistukset tapahtuman kaikkien ratojen kesken sekä IOF XML kaikista radoista OCADiin',
             'Sääntötarkistukset, jotka kertovat miksi asia on tärkeä ja miten sen korjaa',
             'Aika-arviot maaston, nousun, sarjan ja vaikeustason mukaan',
             'Kartta kuvasta tai puhelimella otetusta valokuvasta: mittakaava kohdalleen, sitten radan piirto, mittaus ja tulostus',

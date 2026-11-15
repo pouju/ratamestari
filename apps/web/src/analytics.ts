@@ -11,6 +11,7 @@ interface AnalyticsEvents {
   }
   readonly 'set-by-hand-started': undefined
   readonly 'course-added': { readonly courses: number }
+  readonly 'course-list-applied': { readonly list: 'weekly' | 'own'; readonly courses: number }
   readonly 'course-file-checked': undefined
   readonly 'pdf-downloaded': undefined
   readonly 'xml-downloaded': undefined

@@ -1228,6 +1228,9 @@ button.link {
   text-decoration-thickness: 3px;
   text-underline-offset: 8px;
 }
+.request-lengths {
+  white-space: nowrap;
+}
 .request-length {
   min-width: 1.5em;
   text-align: center;

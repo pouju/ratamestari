@@ -248,6 +248,16 @@ export const en = {
     removeCourse: 'Remove course',
     confirmRemove: (name: string) => `Remove ${name}? Tap again to remove`,
     doneNaming: 'Done',
+    startFrom: 'Start from',
+    courseLists: {
+      choose: 'a course list…',
+      weekly: 'Weekly event: A, B, C, D',
+      own: 'My list',
+    },
+    listNote:
+      "A list adds its courses and fills in courses that aren't set yet. Courses you have set stay as they are.",
+    saveOwnList: 'Save these courses as my list',
+    ownListSaved: 'Saved in this browser. Next time, start from My list.',
     courseTab: (name: string, courseClass: string) => `${name}, ${courseClass}`,
   },
   check: {
@@ -563,6 +573,8 @@ export const en = {
             'Controls placed on real map features, never crowded together',
             'Rule checks that cite their source, with Fix',
             'Checking a course you set in OCAD or Purple Pen',
+            'Several courses on one map, sharing controls and their codes, kept in your browser',
+            'Open courses by length and skill colour, starting from a weekly A–D list or your own',
             'Routes on every leg, fastest to slowest',
             'Planning a leg yourself',
             'Setting a course yourself, control by control',
@@ -583,7 +595,7 @@ export const en = {
         {
           title: 'Coming next',
           items: [
-            'Several courses on one map, sharing controls, for weekly open events',
+            'Checks across all courses of an event, and IOF XML with all of them for OCAD',
             'Rule checks that say why they matter and how to fix them',
             'Time estimates from the terrain, climb, class and difficulty',
             'Maps from an image or a phone photo: set the scale, then draw, measure and print a course',

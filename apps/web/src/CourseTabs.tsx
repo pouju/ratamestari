@@ -115,3 +115,53 @@ export function CourseTabs({
     </>
   )
 }
+
+interface ListProps {
+  hasOwnList: boolean
+  isDisabled: boolean
+  onApply: (list: 'weekly' | 'own') => void
+  // False when the browser refused to keep it.
+  onSaveOwn: () => boolean
+}
+
+// Starting the event's courses from a list, and keeping this event's courses as the club's own.
+export function CourseLists({ hasOwnList, isDisabled, onApply, onSaveOwn }: ListProps) {
+  const m = useMessages().event
+  const [isSaved, setIsSaved] = useState(false)
+  return (
+    <div className="course-lists">
+      <p className="request-sentence course-kind">
+        <label>
+          {m.startFrom}{' '}
+          <select
+            className="request-token"
+            value=""
+            disabled={isDisabled}
+            onChange={e => {
+              const list = e.target.value
+              if (list === 'weekly' || list === 'own') onApply(list)
+            }}
+          >
+            <option value="">{m.courseLists.choose}</option>
+            <option value="weekly">{m.courseLists.weekly}</option>
+            {hasOwnList && <option value="own">{m.courseLists.own}</option>}
+          </select>
+        </label>
+      </p>
+      <p className="request-note">{m.listNote}</p>
+      <button
+        type="button"
+        className="panel-line-action"
+        disabled={isDisabled}
+        onClick={() => setIsSaved(onSaveOwn())}
+      >
+        {m.saveOwnList}
+      </button>
+      {isSaved && (
+        <p className="request-note" role="status">
+          {m.ownListSaved}
+        </p>
+      )}
+    </div>
+  )
+}
