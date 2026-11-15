@@ -74,7 +74,7 @@
       }
     ],
     "react/refs": "warn",
-    "react/immutability": "warn",
+    "react/immutability": "error",
     "react/set-state-in-effect": "warn"
   }
 }

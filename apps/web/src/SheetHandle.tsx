@@ -11,8 +11,12 @@ const SHEET_SHARE_OF_SCREEN: Readonly<Record<SheetSize, number>> = {
 const SIZES: readonly SheetSize[] = ['peek', 'half', 'full']
 const TAP_TOLERANCE_PIXELS = 6
 
-export const sheetStyle = (size: SheetSize): CSSProperties =>
-  ({ '--sheet-height': `${SHEET_SHARE_OF_SCREEN[size] * 100}dvh` }) as CSSProperties
+// While the handle is dragged, the sheet follows the finger without its size transition.
+export const sheetStyle = (size: SheetSize, draggedHeight: number | null = null): CSSProperties =>
+  ({
+    '--sheet-height': `${SHEET_SHARE_OF_SCREEN[size] * 100}dvh`,
+    ...(draggedHeight !== null && { height: `${draggedHeight}px`, transition: 'none' }),
+  }) as CSSProperties
 
 export const atLeastHalf = (size: SheetSize): SheetSize => (size === 'peek' ? 'half' : size)
 
@@ -24,11 +28,13 @@ function nearestSize(share: number): SheetSize {
 interface Props {
   size: SheetSize
   onSizeChange: (size: SheetSize) => void
+  // The sheet's height in pixels while dragged, and null when the drag ends.
+  onDrag: (height: number | null) => void
   sheet: RefObject<HTMLElement | null>
 }
 
 // Shown only on narrow screens, where the side panel becomes a sheet over the map.
-export function SheetHandle({ size, onSizeChange, sheet }: Props) {
+export function SheetHandle({ size, onSizeChange, onDrag, sheet }: Props) {
   const m = useMessages().workspace
   const drag = useRef<{ startY: number; startHeight: number; moved: boolean } | null>(null)
   const wasDragged = useRef(false)
@@ -42,7 +48,6 @@ export function SheetHandle({ size, onSizeChange, sheet }: Props) {
       startHeight: element.getBoundingClientRect().height,
       moved: false,
     }
-    element.style.transition = 'none'
   }
 
   function move(event: PointerEvent<HTMLButtonElement>) {
@@ -51,7 +56,7 @@ export function SheetHandle({ size, onSizeChange, sheet }: Props) {
     if (!element || !current) return
     const offset = current.startY - event.clientY
     if (Math.abs(offset) > TAP_TOLERANCE_PIXELS) current.moved = true
-    if (current.moved) element.style.height = `${Math.max(0, current.startHeight + offset)}px`
+    if (current.moved) onDrag(Math.max(0, current.startHeight + offset))
   }
 
   function end() {
@@ -59,11 +64,10 @@ export function SheetHandle({ size, onSizeChange, sheet }: Props) {
     const current = drag.current
     drag.current = null
     if (!element || !current) return
-    element.style.transition = ''
     wasDragged.current = current.moved
     if (!current.moved) return
     const share = element.getBoundingClientRect().height / window.innerHeight
-    element.style.height = ''
+    onDrag(null)
     onSizeChange(nearestSize(share))
   }
 
