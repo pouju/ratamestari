@@ -170,3 +170,17 @@ export function openCourseTargetFor(
     interpretation: true,
   }
 }
+
+export type AnyCourseRequest = CourseRequest | OpenCourseRequest
+
+export const isOpenCourse = (request: AnyCourseRequest): request is OpenCourseRequest =>
+  'kind' in request && request.kind === 'open'
+
+export function targetForRequest(
+  request: AnyCourseRequest,
+  paceSecondsPerKm: number,
+): CourseTarget | null {
+  return isOpenCourse(request)
+    ? openCourseTargetFor(openCourseRequestSchema.parse(request), paceSecondsPerKm)
+    : courseTargetFor(courseRequestSchema.parse(request))
+}

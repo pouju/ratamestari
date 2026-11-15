@@ -11,6 +11,7 @@ import {
   courseRequestSchema,
   courseTargetFor,
   isomSymbolRule,
+  type AnyCourseRequest,
   type CourseRequest,
   type CourseTarget,
   type Source,
@@ -46,7 +47,7 @@ export interface WorkspaceStatus {
   readonly mapLoaded: boolean
   readonly mapScale: number | null
   readonly hasCompetitionCentre: boolean
-  readonly request: CourseRequest
+  readonly request: AnyCourseRequest
   readonly winnerPaceSecondsPerKm: number | null
   readonly startDistanceFromFinishMeters: readonly [number, number] | null
   readonly course: Course | null

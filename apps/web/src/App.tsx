@@ -17,8 +17,13 @@ import {
   type SearchProgress,
 } from '@ratamestari/engine'
 import {
+  courseTargetFor,
+  isOpenCourse,
   printScaleFor,
+  type AnyCourseRequest,
   type CourseRequest,
+  type OpenCourseRequest,
+  type SkillColour,
   type IsomCode,
   type PrintScaleChoice,
 } from '@ratamestari/rules'
@@ -155,6 +160,24 @@ const FINDING_ROUTES: LegRoutesState = { status: 'finding' }
 // Saving waits until edits pause, so a drag or a run of edits is written once.
 const SAVE_EVENT_DELAY_MS = 800
 
+// Checking a course file deduces a class; an open course starts it from the default class.
+const classRequestOf = (request: AnyCourseRequest): CourseRequest =>
+  isOpenCourse(request) ? { ...DEFAULT_REQUEST, format: request.format } : request
+
+const DEFAULT_OPEN_LENGTH_KM = { min: 4, max: 5 }
+const DEFAULT_OPEN_COLOUR: SkillColour = 'orange'
+
+// A class switched to an open course keeps its format and its class's skill colour.
+const openRequestOf = (request: AnyCourseRequest): OpenCourseRequest =>
+  isOpenCourse(request)
+    ? request
+    : {
+        kind: 'open',
+        format: request.format,
+        skillColour: courseTargetFor(request)?.skillColour ?? DEFAULT_OPEN_COLOUR,
+        lengthKm: DEFAULT_OPEN_LENGTH_KM,
+      }
+
 const isSameRequest = (a: CourseRequest, b: CourseRequest) =>
   a.eventLevel === b.eventLevel &&
   a.format === b.format &&
@@ -168,7 +191,7 @@ function frameFor(
   placed: PlacedFrame | null,
   paper: PaperChoice,
   printScale: PrintScaleChoice,
-  request: CourseRequest,
+  request: Pick<AnyCourseRequest, 'format'>,
 ) {
   if (!placed || paper === 'auto') return null
   const scale = printScaleFor(printScale, request.format)
@@ -221,7 +244,7 @@ export function App() {
   const mapLoads = useRef(0)
   const hasAskedForSample = useRef(false)
   const [isPickingCentre, setIsPickingCentre] = useState(false)
-  const [request, setRequest] = useState<CourseRequest>(DEFAULT_REQUEST)
+  const [request, setRequest] = useState<AnyCourseRequest>(DEFAULT_REQUEST)
   const [seed, setSeed] = useState(1)
   const [course, setCourseState] = useState<Course | null>(null)
   // A leg chosen on an earlier course is no longer selected when this course has no such leg.
@@ -614,7 +637,7 @@ export function App() {
   }, [engine, firstEvent])
 
   async function generateCourse(
-    nextRequest: CourseRequest,
+    nextRequest: AnyCourseRequest,
     nextSeed: number,
     pace: number | null,
     centre = competitionCentre,
@@ -658,9 +681,11 @@ export function App() {
         setDrawCourseKey(key => key + 1)
         track('course-set', {
           map: isSampleMap ? 'sample' : 'own',
-          level: nextRequest.eventLevel,
+          level: isOpenCourse(nextRequest) ? 'open' : nextRequest.eventLevel,
           format: nextRequest.format,
-          courseClass: courseNameOf(nextRequest),
+          courseClass: isOpenCourse(nextRequest)
+            ? `open-${nextRequest.skillColour}`
+            : courseNameOf(nextRequest),
           keptControls: aroundLeg ? 2 : (locks?.controls.length ?? 0),
         })
       } else setEditMessage(messages.course.noCourse)
@@ -882,6 +907,19 @@ export function App() {
     setEditMessage(null)
     setIsPlacingFrame(false)
     stopSettingByHand()
+  }
+
+  function changeRequest(next: AnyCourseRequest) {
+    if (courseFile) {
+      void checkCourse(courseFile.courses, courseFile.selected, classRequestOf(next), 'asGiven')
+      return
+    }
+    setRequest(next)
+    if (isSettingByHand && course)
+      void editCourse(
+        current => engine.recheckAs(current, next, winnerPace, printScale),
+        messages.setByHand.noRulesForClass,
+      )
   }
 
   function renameCourseOfEvent(courseId: string, name: string) {
@@ -1201,7 +1239,7 @@ export function App() {
         deduced: null,
       })
       track('course-file-checked')
-      await checkCourse(courses, 0, request, 'deduce')
+      await checkCourse(courses, 0, classRequestOf(request), 'deduce')
     } catch (e) {
       setEditMessage(messages.check.readFailed(errorMessage(e)))
     }
@@ -1310,6 +1348,13 @@ export function App() {
     competitionCentre !== null &&
     !hasRoomForCentre(printFrame, competitionCentre)
 
+  // The class (H21) or, for an open course, its skill colour, as the course tabs show it.
+  const requestLabel = (shown: AnyCourseRequest) =>
+    isOpenCourse(shown)
+      ? messages.course.openCourse.colours[shown.skillColour]
+      : courseNameOf(shown)
+  const shownCourseName = event.courses.find(entry => entry.id === selectedCourseId)?.name ?? ''
+  const courseLabel = isOpenCourse(request) ? shownCourseName : courseNameOf(request)
   const controlCodes = useMemo(() => {
     const codes = controlCodesOf(event, selectedCourseId)
     return course && codes.length === course.controls.length ? codes : undefined
@@ -1317,9 +1362,14 @@ export function App() {
   const descriptionBox = useMemo(
     () =>
       course && mapInfo
-        ? descriptionBoxFor(course, request, mapInfo, messages.labels, controlCodes)
+        ? descriptionBoxFor(
+            course,
+            { title: messages.labels.formats[request.format], courseName: courseLabel },
+            mapInfo,
+            controlCodes,
+          )
         : null,
-    [course, request, mapInfo, messages.labels, controlCodes],
+    [course, request.format, courseLabel, mapInfo, messages.labels, controlCodes],
   )
   const otherControls = useMemo(
     () => otherCoursesControls(event, selectedCourseId),
@@ -1328,7 +1378,7 @@ export function App() {
   const courseTabs = event.courses.map(entry => ({
     id: entry.id,
     name: entry.name,
-    courseClass: courseNameOf(
+    courseClass: requestLabel(
       entry.id === selectedCourseId
         ? request
         : (otherCourses.current.get(entry.id)?.request ?? request),
@@ -1588,18 +1638,10 @@ export function App() {
         {state.status === 'ready' && (
           <CoursePanel
             request={request}
-            onRequestChange={next => {
-              if (courseFile) {
-                void checkCourse(courseFile.courses, courseFile.selected, next, 'asGiven')
-                return
-              }
-              setRequest(next)
-              if (isSettingByHand && course)
-                void editCourse(
-                  current => engine.recheckAs(current, next, winnerPace, printScale),
-                  messages.setByHand.noRulesForClass,
-                )
-            }}
+            onRequestChange={changeRequest}
+            onCourseKindChange={kind =>
+              changeRequest(kind === 'open' ? openRequestOf(request) : classRequestOf(request))
+            }
             isAssistantOn={assistantKey.apiKey !== ''}
             hasCentre={competitionCentre !== null}
             isPickingCentre={isChoosingCentre}
@@ -1627,11 +1669,17 @@ export function App() {
             check={fileCheck}
             onOpenCourseFile={() => courseFileInput.current?.click()}
             onSelectCheckedCourse={index =>
-              courseFile && void checkCourse(courseFile.courses, index, request, 'deduce')
+              courseFile &&
+              void checkCourse(courseFile.courses, index, classRequestOf(request), 'deduce')
             }
             onDeduceClass={() =>
               courseFile &&
-              void checkCourse(courseFile.courses, courseFile.selected, request, 'deduce')
+              void checkCourse(
+                courseFile.courses,
+                courseFile.selected,
+                classRequestOf(request),
+                'deduce',
+              )
             }
             onCloseCheck={closeCourseFile}
             suggestion={
@@ -1672,7 +1720,7 @@ export function App() {
                     course,
                     overprintLayout,
                     descriptionBox.sheet,
-                    `${courseNameOf(request)}-${request.format}.pdf`,
+                    `${courseLabel}-${request.format}.pdf`,
                     peripheral,
                     scaleLine,
                   )
@@ -1682,7 +1730,18 @@ export function App() {
             }}
             onDownloadXml={() => {
               if (course && descriptionBox && mapInfo) {
-                downloadCourseXml(course, descriptionBox.sheet, request, mapInfo, messages.labels)
+                downloadCourseXml(
+                  course,
+                  descriptionBox.sheet,
+                  {
+                    eventName: isOpenCourse(request)
+                      ? messages.labels.formats[request.format]
+                      : `${messages.labels.eventLevels[request.eventLevel]}, ${messages.labels.formats[request.format]}`,
+                    className: courseLabel,
+                    format: request.format,
+                  },
+                  mapInfo,
+                )
                 track('xml-downloaded')
               }
             }}

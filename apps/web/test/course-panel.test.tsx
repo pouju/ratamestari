@@ -25,6 +25,7 @@ const renderPanel = (
   <CoursePanel
     request={REQUEST}
     onRequestChange={ignore}
+    onCourseKindChange={ignore}
     isAssistantOn={false}
     hasCentre={hasCentre}
     isPickingCentre={false}
