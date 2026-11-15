@@ -24,7 +24,7 @@
     "typescript/no-misused-promises": "error",
     "typescript/no-unnecessary-type-assertion": "error",
     "react-hooks/rules-of-hooks": "error",
-    "react-hooks/exhaustive-deps": "warn",
+    "react-hooks/exhaustive-deps": "error",
     "react/jsx-no-literals": [
       "error",
       {
@@ -75,6 +75,6 @@
     ],
     "react/refs": "error",
     "react/immutability": "error",
-    "react/set-state-in-effect": "warn"
+    "react/set-state-in-effect": "error"
   }
 }
