@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { localPoint, type LocalPoint } from '@ratamestari/core'
 import {
   addCourse,
@@ -150,6 +150,7 @@ const DEFAULT_REQUEST: CourseRequest = {
 }
 
 const DEFAULT_WINNER_PACE = '5:00'
+const FINDING_ROUTES: LegRoutesState = { status: 'finding' }
 
 // Saving waits until edits pause, so a drag or a run of edits is written once.
 const SAVE_EVENT_DELAY_MS = 800
@@ -192,7 +193,7 @@ export function App() {
   const [preview, setPreview] = useState<ControlPreview | null>(null)
   const latestPreview = useRef(0)
   const previewRest = useRef<number | undefined>(undefined)
-  const [selectedLeg, setSelectedLeg] = useState<number | null>(null)
+  const [chosenLeg, setSelectedLeg] = useState<number | null>(null)
   const [kept, setKeptState] = useState<Kept>(NOTHING_KEPT)
   // The assistant keeps controls and sets the course in one turn, before React renders again.
   const keptRef = useRef(kept)
@@ -200,8 +201,10 @@ export function App() {
     keptRef.current = typeof next === 'function' ? next(keptRef.current) : next
     setKeptState(keptRef.current)
   }
-  const [legRoutes, setLegRoutes] = useState<LegRoutesState>({ status: 'finding' })
-  const latestLegRoutesRequest = useRef(0)
+  const [foundLegRoutes, setFoundLegRoutes] = useState<{
+    key: string
+    routes: LegRoutesState
+  } | null>(null)
   const messages = useMessages()
   const format = useFormat()
   const { code: locale } = useLanguageChoice()
@@ -213,14 +216,16 @@ export function App() {
   const [startWish, setStartWish] = useState<readonly [number, number] | null>(null)
   const [isSampleMap, setIsSampleMap] = useState(false)
   const [drawCourseKey, setDrawCourseKey] = useState(0)
-  const [isSampleCoursePending, setIsSampleCoursePending] = useState(false)
   const isExperimental = useExperimentalFeatures()
-  const [printedCourseFile, setPrintedCourseFile] = useState<File | null>(null)
+  // Counts maps opened, so a step left over from loading an earlier map does nothing.
+  const mapLoads = useRef(0)
   const hasAskedForSample = useRef(false)
   const [isPickingCentre, setIsPickingCentre] = useState(false)
   const [request, setRequest] = useState<CourseRequest>(DEFAULT_REQUEST)
   const [seed, setSeed] = useState(1)
   const [course, setCourseState] = useState<Course | null>(null)
+  // A leg chosen on an earlier course is no longer selected when this course has no such leg.
+  const selectedLeg = course && chosenLeg !== null && legEnds(course, chosenLeg) ? chosenLeg : null
   const [firstEvent] = useState(eventWithOneCourse)
   const [event, setEvent] = useState<EventPlan>(firstEvent.event)
   const [selectedCourseId, setSelectedCourseId] = useState(firstEvent.courseId)
@@ -279,6 +284,20 @@ export function App() {
   const winnerPace = paceSecondsPerKm ?? parsePace(DEFAULT_WINNER_PACE)!
   const winnerPaceRef = useRef(winnerPace)
   winnerPaceRef.current = winnerPace
+  const selectedLegEnds = useMemo(
+    () =>
+      engineState === 'ready' && course && selectedLeg !== null
+        ? legEnds(course, selectedLeg)
+        : null,
+    [engineState, course, selectedLeg],
+  )
+  const selectedLegKey = selectedLegEnds && `${selectedLegEnds.join(';')}@${winnerPace}`
+  const legRoutes: LegRoutesState =
+    !selectedLegEnds || selectedLegKey === null
+      ? FINDING_ROUTES
+      : foundLegRoutes?.key === selectedLegKey
+        ? foundLegRoutes.routes
+        : (routeCache.get(...selectedLegEnds, winnerPace) ?? FINDING_ROUTES)
   const legRoutesOfCourse = useCourseRoutes(
     engine,
     routeQueue,
@@ -302,46 +321,59 @@ export function App() {
       const response = await fetch(SAMPLE_MAP.path)
       if (!response.ok) throw new Error(`${response.status} ${response.statusText}`)
       const file = new File([await response.arrayBuffer()], SAMPLE_MAP.fileName)
-      setIsSampleCoursePending(true)
-      await openFile(file, 'sample')
+      const opened = await openFile(file, 'sample')
       setIsSampleMap(true)
+      if (!opened || opened.restored || !(await opened.engineReady)) return
+      if (opened.load !== mapLoads.current) return
+      const centre = localPoint(...SAMPLE_MAP.centre)
+      setCompetitionCentre(centre)
+      await afterLoading.current.setSampleCourse(centre)
     } catch (e) {
-      setIsSampleCoursePending(false)
       setState({ status: 'error', message: messages.workspace.sampleFailed(errorMessage(e)) })
     }
   }
 
+  // Steps that continue once a map has loaded use what the latest render knows.
+  const afterLoading = useRef({
+    setSampleCourse: (centre: LocalPoint) =>
+      generateCourse(SAMPLE_MAP.request, seed, paceSecondsPerKm, centre),
+    openCourseFile,
+    openSampleMap,
+  })
+  useLayoutEffect(() => {
+    afterLoading.current = {
+      setSampleCourse: centre => generateCourse(SAMPLE_MAP.request, seed, paceSecondsPerKm, centre),
+      openCourseFile,
+      openSampleMap,
+    }
+  })
+
+  // The page address asks for the sample map once, when the workspace opens.
   useEffect(() => {
     if (hasAskedForSample.current) return
     hasAskedForSample.current = true
-    if (new URLSearchParams(window.location.search).has(SAMPLE_QUERY)) void openSampleMap()
-  })
+    if (new URLSearchParams(window.location.search).has(SAMPLE_QUERY))
+      void afterLoading.current.openSampleMap()
+  }, [])
 
-  useEffect(() => {
-    if (!isSampleCoursePending || engineState !== 'ready' || state.status !== 'ready') return
-    setIsSampleCoursePending(false)
-    const centre = localPoint(...SAMPLE_MAP.centre)
-    setCompetitionCentre(centre)
-    void generateCourse(SAMPLE_MAP.request, seed, paceSecondsPerKm, centre)
-  })
-
-  async function openFile(file: File, map: 'sample' | 'own' = 'own') {
+  async function openFile(
+    file: File,
+    map: 'sample' | 'own' = 'own',
+  ): Promise<{ load: number; engineReady: Promise<boolean>; restored: boolean } | null> {
     track('map-opened', { map })
     setIsSampleMap(false)
     clearWorkspace(file.name)
     const bytes = new Uint8Array(await file.arrayBuffer())
     if (isExperimental && isPdfFile(file)) {
       await openPdfMap(file.name, bytes)
-      return
+      return null
     }
     const key = await mapKeyOf(bytes)
     const storedCorrections = loadCorrections(key)
     setMapKey(key)
     setCorrections(storedCorrections)
-    engine
-      .loadMap(bytes, storedCorrections)
-      .then(() => setEngineState('ready'))
-      .catch(() => setEngineState('error'))
+    const load = mapLoads.current
+    const engineReady = whenEngineLoaded(engine.loadMap(bytes, storedCorrections))
     const saved = await loadSavedEvent(key)
     if (saved) openSavedEvent(saved)
     setEventMapKey(key)
@@ -357,9 +389,24 @@ export function App() {
         image,
         ms: performance.now() - t0,
       })
+      return { load, engineReady, restored: saved !== null }
     } catch (e) {
       setState({ status: 'error', message: errorMessage(e) })
+      return null
     }
+  }
+
+  function whenEngineLoaded(loading: Promise<void>): Promise<boolean> {
+    return loading.then(
+      () => {
+        setEngineState('ready')
+        return true
+      },
+      () => {
+        setEngineState('error')
+        return false
+      },
+    )
   }
 
   function openSavedEvent(saved: SavedEvent) {
@@ -373,7 +420,6 @@ export function App() {
     keepsKeptOnNextCentre.current = saved.competitionCentre !== null
     setCompetitionCentre(saved.competitionCentre)
     setPaceText(saved.paceText)
-    setIsSampleCoursePending(false)
   }
 
   function clearWorkspace(fileName: string) {
@@ -386,7 +432,7 @@ export function App() {
     void engine.forgetCourses()
     void engine.selectCourse(fresh.courseId)
     setCourseFile(null)
-    setPrintedCourseFile(null)
+    mapLoads.current++
     setSuggestion(null)
     setState({ status: 'loading', fileName })
     setEngineState('loading')
@@ -427,10 +473,8 @@ export function App() {
   ) {
     const map = await pdfLoadedMap(page, printScale)
     setEngineState('loading')
-    engine
-      .loadFeatures(page.features(printScale), map.info)
-      .then(() => setEngineState('ready'))
-      .catch(() => setEngineState('error'))
+    const load = mapLoads.current
+    const engineReady = whenEngineLoaded(engine.loadFeatures(page.features(printScale), map.info))
     const image = await rasterizeSvg(map.renderSvg(document), map.info.extent)
     setState({
       status: 'ready',
@@ -444,7 +488,8 @@ export function App() {
       eventName: fileName,
       courseName: messages.workspace.printedCourse,
     })
-    if (xml) setPrintedCourseFile(new File([xml], fileName.replace(/\.pdf$/i, '.xml')))
+    if (!xml || !(await engineReady) || load !== mapLoads.current) return
+    await afterLoading.current.openCourseFile(new File([xml], fileName.replace(/\.pdf$/i, '.xml')))
   }
 
   async function changePdfPrintScale(printScale: number) {
@@ -452,12 +497,6 @@ export function App() {
     clearWorkspace(state.fileName)
     await showPdfPage(state.fileName, state.pdf.page, printScale)
   }
-
-  useEffect(() => {
-    if (!printedCourseFile || engineState !== 'ready' || state.status !== 'ready') return
-    setPrintedCourseFile(null)
-    void openCourseFile(printedCourseFile)
-  })
 
   useEffect(() => {
     const ends = plannedLeg && plannedEnds(plannedLeg)
@@ -477,27 +516,17 @@ export function App() {
   }, [engineState, routeCache])
 
   useEffect(() => {
-    if (isSettingByHand) return
-    window.clearTimeout(previewRest.current)
-    latestPreview.current++
-    setPreview(null)
-  }, [isSettingByHand])
-
-  useEffect(() => {
-    if (engineState !== 'ready' || !course || selectedLeg === null) return
-    const ends = legEnds(course, selectedLeg)
-    if (!ends) {
-      setSelectedLeg(null)
-      return
-    }
-    const request = ++latestLegRoutesRequest.current
-    setLegRoutes(routeCache.get(...ends, winnerPace) ?? { status: 'finding' })
+    if (!selectedLegEnds || selectedLegKey === null) return
+    let isCurrent = true
     void routeCache
-      .find(engine, routeQueue, 'selected', 'selected leg', ends, winnerPace)
-      .then(state => {
-        if (state && request === latestLegRoutesRequest.current) setLegRoutes(state)
+      .find(engine, routeQueue, 'selected', 'selected leg', selectedLegEnds, winnerPace)
+      .then(found => {
+        if (found && isCurrent) setFoundLegRoutes({ key: selectedLegKey, routes: found })
       })
-  }, [engine, engineState, routeQueue, routeCache, course, selectedLeg, winnerPace])
+    return () => {
+      isCurrent = false
+    }
+  }, [engine, routeQueue, routeCache, selectedLegEnds, selectedLegKey, winnerPace])
 
   useEffect(() => {
     if (!course || isGenerating || engineState !== 'ready') return
@@ -534,7 +563,18 @@ export function App() {
 
   useEffect(() => {
     if (!mapKey || eventMapKey !== mapKey || isGenerating) return
-    const shown = shownCourseSnapshot()
+    const shown: CourseSnapshot = {
+      request,
+      seed,
+      course,
+      kept,
+      // Undo steps stay with the session; the saved event is the courses as they stand.
+      undoHistory: [],
+      paper,
+      printScale,
+      placedFrame,
+      startWish,
+    }
     const others = Object.fromEntries(otherCourses.current)
     const timer = window.setTimeout(() => {
       void engine.courseSettings().then(settings =>
@@ -542,8 +582,7 @@ export function App() {
           version: SAVED_EVENT_VERSION,
           event,
           selectedCourseId,
-          // Undo steps stay with the session; the saved event is the courses as they stand.
-          courses: { ...others, [selectedCourseId]: { ...shown, undoHistory: [] } },
+          courses: { ...others, [selectedCourseId]: shown },
           settings,
           competitionCentre,
           paceText,
@@ -801,6 +840,9 @@ export function App() {
   function stopSettingByHand() {
     setIsSettingByHand(false)
     setSelectedStop(null)
+    window.clearTimeout(previewRest.current)
+    latestPreview.current++
+    setPreview(null)
   }
 
   const shownCourseSnapshot = (): CourseSnapshot => ({
