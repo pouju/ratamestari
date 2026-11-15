@@ -216,6 +216,11 @@ export const fi: Messages = {
     fixRefused: 'Rastia ei voitu korjata.',
     pdfFailed: reason => `PDF:ää ei voitu tehdä: ${reason}`,
   },
+  event: {
+    coursesLabel: 'Tapahtuman radat',
+    addCourse: 'Lisää rata',
+    courseTab: (name: string, courseClass: string) => `${name}, ${courseClass}`,
+  },
   check: {
     entry: 'Tai tarkista OCADissa tai Purple Penissä tekemäsi rata:',
     openFile: 'avaa sen IOF XML -tiedosto',

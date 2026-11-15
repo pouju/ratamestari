@@ -95,6 +95,10 @@ const KEPT_MARK_SVG =
 const keptMarkStyle = new Style({
   image: new Icon({ src: `data:image/svg+xml;utf8,${encodeURIComponent(KEPT_MARK_SVG)}` }),
 })
+const otherCourseControlStyle = new Style({
+  stroke: new Stroke({ color: COURSE_OVERPRINT_PURPLE, width: 1.5 }),
+})
+const OTHER_COURSES_OPACITY = 0.4
 const SUGGESTION_DASH_PIXELS = [6, 5]
 const suggestionStyle = new Style({
   stroke: new Stroke({
@@ -243,6 +247,8 @@ interface Props {
   onLegSelected: (leg: number) => void
   // Where to show that a control or leg is kept when the course is set again.
   keptMarks: readonly LocalPoint[]
+  // Controls of the event's other courses, drawn faintly (D27).
+  otherControls: readonly LocalPoint[]
   costMap: CostMapImage | null
   sites: readonly ControlSiteCandidate[] | null
   course: Course | null
@@ -282,6 +288,7 @@ export function MapView({
   selectedLeg,
   onLegSelected,
   keptMarks,
+  otherControls,
   costMap,
   sites,
   course,
@@ -348,6 +355,7 @@ export function MapView({
   onStopMovedRef.current = onStopMoved
   const [centreSource] = useState(() => new VectorSource())
   const [keptSource] = useState(() => new VectorSource())
+  const [otherControlSource] = useState(() => new VectorSource())
   const [suggestionSource] = useState(() => new VectorSource())
   const [legToolLayer] = useState(() => new VectorLayer({ source: new VectorSource() }))
   const [plannedLegFeatures] = useState(() => ({
@@ -402,6 +410,11 @@ export function MapView({
         new VectorLayer({ source: courseRouteSource, style: routeStyle }),
         new VectorLayer({ source: routeSource, style: routeStyle }),
         new VectorLayer({ source: previewSource, style: previewStyle }),
+        new VectorLayer({
+          source: otherControlSource,
+          style: otherCourseControlStyle,
+          opacity: OTHER_COURSES_OPACITY,
+        }),
         courseLayer,
         descriptionLayer,
         legToolLayer,
@@ -646,6 +659,14 @@ export function MapView({
       new Feature(new LineString([[...suggestedMove.from], [...suggestedMove.to]])),
     ])
   }, [suggestedMove, info, suggestionSource])
+
+  useEffect(() => {
+    otherControlSource.clear()
+    const radius = paperMmToGroundMeters(CONTROL_CIRCLE_DIAMETER_MM, info.scale) / 2
+    otherControlSource.addFeatures(
+      otherControls.map(at => new Feature(new Circle([...at], radius))),
+    )
+  }, [otherControls, info, otherControlSource])
 
   useEffect(() => {
     keptSource.clear()

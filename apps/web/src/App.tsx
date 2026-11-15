@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { localPoint, type LocalPoint } from '@ratamestari/core'
 import {
+  addCourse,
   centreOfExtent,
+  controlCodesOf,
   hasRoomForCentre,
   printFrameAround,
+  setCourseOf,
   type ControlSiteCandidate,
   type Course,
-  type Orientation,
+  type EventPlan,
   type OverprintLayout,
   type PaperChoice,
   type SearchProgress,
@@ -37,6 +40,14 @@ import { MapStart, PanelHeader, PanelLine } from './WorkspaceStart'
 import { atLeastHalf, SheetHandle, sheetStyle, type SheetSize } from './SheetHandle'
 import { CoursePanel, hasCoarsePointer } from './CoursePanel'
 import { CourseRoutesPanel } from './CourseRoutesPanel'
+import { CourseTabs } from './CourseTabs'
+import {
+  eventWithOneCourse,
+  nextCourseName,
+  otherCoursesControls,
+  type CourseSnapshot,
+  type PlacedFrame,
+} from './event-workspace'
 import { createLegRouteCache, useCourseRoutes } from './course-routes'
 import { createRouteQueue, SUPERSEDED } from './route-queue'
 import { descriptionBoxFor } from './description-box'
@@ -137,11 +148,6 @@ const DEFAULT_REQUEST: CourseRequest = {
 
 const DEFAULT_WINNER_PACE = '5:00'
 
-interface PlacedFrame {
-  readonly centre: LocalPoint
-  readonly orientation: Orientation
-}
-
 const isSameRequest = (a: CourseRequest, b: CourseRequest) =>
   a.eventLevel === b.eventLevel &&
   a.format === b.format &&
@@ -208,7 +214,17 @@ export function App() {
   const [isPickingCentre, setIsPickingCentre] = useState(false)
   const [request, setRequest] = useState<CourseRequest>(DEFAULT_REQUEST)
   const [seed, setSeed] = useState(1)
-  const [course, setCourse] = useState<Course | null>(null)
+  const [course, setCourseState] = useState<Course | null>(null)
+  const [firstEvent] = useState(eventWithOneCourse)
+  const [event, setEvent] = useState<EventPlan>(firstEvent.event)
+  const [selectedCourseId, setSelectedCourseId] = useState(firstEvent.courseId)
+  const selectedCourseIdRef = useRef(selectedCourseId)
+  const otherCourses = useRef(new Map<string, CourseSnapshot>())
+  // Every change to the shown course also updates the event, so its control codes follow (D27).
+  const setCourse = (next: Course | null) => {
+    setCourseState(next)
+    setEvent(current => setCourseOf(current, selectedCourseIdRef.current, next))
+  }
   const [overprint, setOverprint] = useState<{
     course: Course
     layout: OverprintLayout
@@ -334,6 +350,13 @@ export function App() {
   }
 
   function clearWorkspace(fileName: string) {
+    const fresh = eventWithOneCourse()
+    otherCourses.current.clear()
+    selectedCourseIdRef.current = fresh.courseId
+    setSelectedCourseId(fresh.courseId)
+    setEvent(fresh.event)
+    void engine.forgetCourses()
+    void engine.selectCourse(fresh.courseId)
     setCourseFile(null)
     setPrintedCourseFile(null)
     setSuggestion(null)
@@ -477,6 +500,10 @@ export function App() {
 
   // Kept controls belong to one finish and one map; a new centre or map starts afresh.
   useEffect(() => setKept(NOTHING_KEPT), [competitionCentre])
+
+  useEffect(() => {
+    void engine.selectCourse(firstEvent.courseId)
+  }, [engine, firstEvent])
 
   async function generateCourse(
     nextRequest: CourseRequest,
@@ -705,6 +732,65 @@ export function App() {
   function stopSettingByHand() {
     setIsSettingByHand(false)
     setSelectedStop(null)
+  }
+
+  function showCourseOfEvent(courseId: string, next: CourseSnapshot) {
+    otherCourses.current.set(selectedCourseId, {
+      request,
+      seed,
+      course,
+      kept: keptRef.current,
+      undoHistory,
+      paper,
+      printScale,
+      placedFrame,
+      startWish,
+    })
+    otherCourses.current.delete(courseId)
+    void engine.selectCourse(courseId)
+    selectedCourseIdRef.current = courseId
+    setSelectedCourseId(courseId)
+    setRequest(next.request)
+    setSeed(next.seed)
+    setCourseState(next.course)
+    setKept(next.kept)
+    setUndoHistory(next.undoHistory)
+    setPaper(next.paper)
+    setPrintScale(next.printScale)
+    setPlacedFrame(next.placedFrame)
+    setStartWish(next.startWish)
+    setSelectedLeg(null)
+    setPlannedLeg(null)
+    setSuggestion(null)
+    setEditMessage(null)
+    setIsPlacingFrame(false)
+    stopSettingByHand()
+  }
+
+  function selectCourseOfEvent(courseId: string) {
+    const next = otherCourses.current.get(courseId)
+    if (courseId === selectedCourseId || !next || isGenerating || isEditing) return
+    showCourseOfEvent(courseId, next)
+  }
+
+  // A new course starts from the shown course's class and print settings, with no controls, and
+  // from its own seed so that setting it doesn't repeat a course already in the event.
+  function addCourseToEvent() {
+    if (isGenerating || isEditing) return
+    const added = addCourse(event, nextCourseName(event))
+    setEvent(added.event)
+    track('course-added', { courses: added.event.courses.length })
+    showCourseOfEvent(added.courseId, {
+      request,
+      seed: added.event.courses.length,
+      course: null,
+      kept: NOTHING_KEPT,
+      undoHistory: [],
+      paper,
+      printScale,
+      placedFrame: null,
+      startWish,
+    })
   }
 
   function tapCourse(hit: CourseHit | null, at: LocalPoint) {
@@ -1089,10 +1175,30 @@ export function App() {
     competitionCentre !== null &&
     !hasRoomForCentre(printFrame, competitionCentre)
 
+  const controlCodes = useMemo(() => {
+    const codes = controlCodesOf(event, selectedCourseId)
+    return course && codes.length === course.controls.length ? codes : undefined
+  }, [event, selectedCourseId, course])
   const descriptionBox = useMemo(
-    () => (course && mapInfo ? descriptionBoxFor(course, request, mapInfo, messages.labels) : null),
-    [course, request, mapInfo, messages.labels],
+    () =>
+      course && mapInfo
+        ? descriptionBoxFor(course, request, mapInfo, messages.labels, controlCodes)
+        : null,
+    [course, request, mapInfo, messages.labels, controlCodes],
   )
+  const otherControls = useMemo(
+    () => otherCoursesControls(event, selectedCourseId),
+    [event, selectedCourseId],
+  )
+  const courseTabs = event.courses.map(entry => ({
+    id: entry.id,
+    name: entry.name,
+    courseClass: courseNameOf(
+      entry.id === selectedCourseId
+        ? request
+        : (otherCourses.current.get(entry.id)?.request ?? request),
+    ),
+  }))
 
   return (
     <div
@@ -1148,6 +1254,7 @@ export function App() {
             selectedLeg={selectedLeg}
             onLegSelected={selectLeg}
             keptMarks={keptMarks}
+            otherControls={otherControls}
             costMap={showCostMap ? costMap : null}
             sites={showSites ? sites : null}
             course={course}
@@ -1327,6 +1434,15 @@ export function App() {
           </>
         )}
 
+        {state.status === 'ready' && !courseFile && (
+          <CourseTabs
+            tabs={courseTabs}
+            selected={selectedCourseId}
+            isDisabled={isGenerating || isEditing}
+            onSelect={selectCourseOfEvent}
+            onAdd={addCourseToEvent}
+          />
+        )}
         {state.status === 'ready' && (
           <CoursePanel
             request={request}

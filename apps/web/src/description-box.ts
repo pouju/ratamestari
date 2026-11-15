@@ -22,10 +22,12 @@ export function descriptionBoxFor(
   request: CourseRequest,
   map: MapInfo,
   labels: Messages['labels'],
+  controlCodes?: readonly number[],
 ): DescriptionBox {
   const sheet = descriptionSheet(course, {
     title: labels.formats[request.format],
     courseName: courseNameOf(request),
+    ...(controlCodes && { controlCodes }),
   })
   const rendered = renderDescriptionSheet(sheet, {
     pixelsPerMillimetre: DISPLAY_PIXELS_PER_MILLIMETRE,

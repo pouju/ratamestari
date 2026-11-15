@@ -219,6 +219,11 @@ export const en = {
     fixRefused: 'The control could not be fixed.',
     pdfFailed: (reason: string) => `The PDF could not be made: ${reason}`,
   },
+  event: {
+    coursesLabel: 'Courses of the event',
+    addCourse: 'Add course',
+    courseTab: (name: string, courseClass: string) => `${name}, ${courseClass}`,
+  },
   check: {
     entry: 'Or check a course you set in OCAD or Purple Pen:',
     openFile: 'open its IOF XML file',
