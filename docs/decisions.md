@@ -25,13 +25,13 @@ Read OCAD (`.ocd`) map files directly in the browser with [ocad2geojson](https:/
 
 ### Consequences and checklist
 
-- [ ] Add a `LICENSE` file (AGPL-3.0-or-later) and set `"license": "AGPL-3.0-or-later"` in `package.json`
-- [ ] Keep the repo public, and add a visible "Source code" link in the running app (AGPL network-use clause)
-- [ ] Use only AGPL-compatible dependencies (MIT, BSD and Apache-2.0 are fine)
-- [ ] Credit ocad2geojson and Per Liedman in the README
+- [x] Add a `LICENSE` file (AGPL-3.0-or-later) and set `"license": "AGPL-3.0-or-later"` in `package.json`
+- [x] Keep the repo public, and add a visible "Source code" link in the running app (AGPL network-use clause)
+- [x] Use only AGPL-compatible dependencies (MIT, BSD and Apache-2.0 are fine)
+- [x] Credit ocad2geojson and Per Liedman in the README
 - [ ] Tell all team members at kickoff that their contributions are AGPL. Going closed-source later would require replacing ocad2geojson **and** every contributor's agreement to relicense.
-- [ ] Wrap ocad2geojson in one adapter module that outputs our internal map format (features with a category such as forbidden, impassable, water, path or control feature, plus scale and georeference). Then the reader can be swapped later without touching the course logic.
-- [ ] Bundling: provide the `buffer` package and alias `fs` to an empty module (Vite or webpack 5)
+- [x] Wrap ocad2geojson in one adapter module that outputs our internal map format (features with a category such as forbidden, impassable, water, path or control feature, plus scale and georeference). Then the reader can be swapped later without touching the course logic.
+- [x] Bundling: provide the `buffer` package and alias `fs` to an empty module (Vite or webpack 5)
 
 ---
 

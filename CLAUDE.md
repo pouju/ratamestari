@@ -65,14 +65,15 @@ Out for the weekend: PNG/PDF map input, relay forking, planning a whole event's 
 ## Open setup checklist
 
 - [x] `LICENSE` file (AGPL-3.0-or-later) and `"license": "AGPL-3.0-or-later"` in `package.json`
-- [ ] Repo public; "Source code" link in the app (link exists; set `SOURCE_CODE_URL` in `apps/web/src/config.ts`)
+- [x] Repo public; "Source code" link in the app (`SOURCE_CODE_URL` in `apps/web/src/config.ts`)
 - [x] Credit ocad2geojson and Per Liedman in the README
 - [ ] Tell all team members at kickoff that contributions are AGPL
 - [x] ocad2geojson adapter module → internal map format (scale, extent, georef, SVG render, features with ISOM codes and per-map overrides)
 - [x] Bundler config: `buffer` + `string_decoder` polyfills, `fs` aliased to empty module
-- [x] Rules config file (IOF + SSL values): `packages/rules`; winning times and course lengths still to do
+- [x] Rules config file (IOF + SSL values): `packages/rules`, including winning times per class and format (`winning-time.ts`); course length follows from the winning time and the pace
 - [x] Releases and Pages deploy (D16): release-please, CI/release/deploy workflows, version in the app, README
-- [ ] First release (D16): enable Actions PRs and Pages source in repo settings, merge the Release PR; add a README screenshot once the new UI is ready
+- [x] First release (D16): Actions PRs and Pages source enabled, Release PRs merged (latest release v0.5.0)
+- [ ] README screenshot (D16)
 
 ## Recording new decisions
 

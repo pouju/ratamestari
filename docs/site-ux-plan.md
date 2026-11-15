@@ -13,18 +13,18 @@ So far the UI has grown one panel per engine feature. This plan decides what the
 3. **Works on a phone.** Most people will find Ratamestari from a link on their phone. The landing page and the whole workflow work there, not just a "use a bigger screen" message.
 4. **No API key needed.** The form is the main way to set a course. The assistant is an extra input, turned on in Settings.
 5. **Honest about status.** The landing page says what works, what is next, and that the course setter still owns the course.
-6. **English first, ready for Finnish.** No user-facing string is written inline, so adding a language is only a new message file.
+6. **English and Finnish.** No user-facing string is written inline, so adding a language is only a new message file.
 7. **Server-ready.** The same pages work when a server appears; only what sits behind `LlmProvider` and `Storage` changes.
 
 ## Site structure
 
-| Path      | Page      | What it is                                                                                             |
-| --------- | --------- | ------------------------------------------------------------------------------------------------------ |
-| `/`       | Landing   | What it is, the demo, how to use it, status, privacy, credits. Small bundle, no map or engine code.    |
-| `/app/`   | Workspace | The tool. React app with the engine worker.                                                            |
-| `/guide/` | Guide     | Later. Longer how-to and the rule digests as readable pages. Until then a section on the landing page. |
+| Path       | Page      | What it is                                                                                          |
+| ---------- | --------- | --------------------------------------------------------------------------------------------------- |
+| `/`        | Landing   | What it is, the demo, how to use it, status, privacy, credits. Small bundle, no map or engine code. |
+| `/app/`    | Workspace | The tool. React app with the engine worker.                                                         |
+| `/guides/` | Guides    | Animated how-to guides played on the sample map. Later maybe the rule digests as readable pages.    |
 
-Built as a **Vite multi-page app** (two HTML entry points). No client-side router, so GitHub Pages needs no `404.html` trick. `base` is set for the Pages sub-path. With a server later the same paths are served as they are. A Finnish version later lives at `/fi/` and `/fi/app/` or picks the language from the browser; the choice is remembered in the browser.
+Built as a **Vite multi-page app** (three HTML entry points). No client-side router, so GitHub Pages needs no `404.html` trick. `base` is set for the Pages sub-path. With a server later the same paths are served as they are. Every page is in English and Finnish on the same paths: the language comes from the browser (Finnish for a Finnish browser, else English), can be switched (a link on the landing and guide pages, Settings in the app), and the choice is remembered in the browser.
 
 ## The wow
 
@@ -157,7 +157,7 @@ The current two-control dev tool becomes a user tool, **Plan a leg**, in the map
 
 ## Localisation
 
-English only for now, built so that Finnish is just a new file.
+English and Finnish (`en.ts` and `fi.ts`); another language is just a new file.
 
 - **Message catalogue, no library.** `apps/web/src/i18n/en.ts` exports one nested `as const` object of messages; strings with values are functions (`findings: (count: number) => …`). `type Messages = typeof en` (widened to `string` and functions), and `fi.ts` must satisfy `Messages`, so TypeScript reports every missing or extra key. Components read messages from a React context: `const m = useMessages()` then `m.course.length`, with autocompletion and no string keys. Rejected: i18next (MIT, fine licence-wise) because it adds weight and loses the type checking unless set up with extra tooling.
 - **Formatting with `Intl`.** Numbers, distances, durations, dates and plurals go through `Intl.NumberFormat`, `Intl.PluralRules` and `Intl.DateTimeFormat` with the active locale ("11.4 km" in English, "11,4 km" in Finnish). One `format.ts` helper module, extending today's.
@@ -254,11 +254,11 @@ The demo is tomorrow. The course setter tools come first, in today's UI, because
 9. Phone layout: bottom sheet, press-and-hold drag, file picker.
 10. Assistant behind the Settings switch.
 11. Landing page as the second Vite entry with the recorded hero demo, status list and credits; GitHub Pages deploy.
-12. After the demo: centre suggestions, Finnish catalogue, guide pages.
+12. After the demo: Finnish catalogue and guide pages (both done); centre suggestions (not started).
 
 ## Answered questions
 
 1. **Credits text:** "Pouju" only.
 2. **Sample map:** an open rock area (about 1 km × 0.8 km, the bare-rock hills between the power line and the road), with a simple course in it.
 3. **Name in the UI:** "Ratamestari" alone; the other texts explain what it is.
-4. **Language detection:** decided when the Finnish catalogue exists (after the demo); until then the app is English only.
+4. **Language detection:** the language chosen before in this browser, else Finnish for a Finnish browser, else English (`apps/web/src/i18n/language-root.tsx`).

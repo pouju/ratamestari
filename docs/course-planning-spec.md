@@ -342,6 +342,8 @@ Tooling lives in `scripts/` and never ships to the browser or uploads anything.
 
 ## 15. Status (2026-10-24, paused after phase A)
 
+**Update (2026-11-15):** this spec's search (§8) has been replaced by the section planner in [`section-planning-spec.md`](section-planning-spec.md) (D19). Of the later phases, annealing and section rebuilds (0.2.0) and locked controls and legs (0.4.0) are built; diverse alternatives (§8.4), the phase D assistant tools (§10) and weight calibration (§11) are not. The list below is the state at the time.
+
 Phase A is built and committed; work on course generation is paused for demo preparation and resumes from here.
 
 ### Built
