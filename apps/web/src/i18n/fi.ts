@@ -255,6 +255,28 @@ export const fi: Messages = {
       'Lista lisää ratansa ja täydentää radat, joita ei ole vielä tehty. Tekemäsi radat pysyvät ennallaan.',
     saveOwnList: 'Tallenna nämä radat omaksi listaksi',
     ownListSaved: 'Tallennettu tähän selaimeen. Seuraavalla kerralla aloita omasta listasta.',
+    checks: {
+      title: count =>
+        count === 0
+          ? 'Ratojen kesken ei tarkistettavaa'
+          : count === 1
+            ? '1 tarkistettava asia ratojen kesken'
+            : `${count} tarkistettavaa asiaa ratojen kesken`,
+      courses: (names, count) => (count === 1 ? `Rata ${names}` : `Radat ${names}`),
+      texts: {
+        controlsTooClose: (a, b, metres, limit) =>
+          `Eri ratojen rastit ${a} ja ${b} ovat ${metres} päässä toisistaan, lähempänä kuin ${limit}`,
+        similarControlsClose: (a, b, metres, limit) =>
+          `Rastit ${a} ja ${b} ovat samanlaisia kohteita vain ${metres} päässä toisistaan; samanlaisten rastien väli on oltava ${limit}`,
+        similarCodesNear: (a, b, metres) =>
+          `Koodit ${a} ja ${b} sekoittuvat helposti rasteilla ${metres} päässä toisistaan`,
+        legSharedByCourses: (a, b) =>
+          `Rastiväli ${a}–${b} on usealla radalla, joten peesaaminen helpottuu`,
+        legRunBothWays: (a, b) =>
+          `Rastien ${a} ja ${b} väli juostaan vastakkaisiin suuntiin, joten juoksijat kohtaavat`,
+      },
+      ourReading: 'oma tulkintamme',
+    },
     courseTab: (name: string, courseClass: string) => `${name}, ${courseClass}`,
   },
   check: {

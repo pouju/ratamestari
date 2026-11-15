@@ -258,6 +258,29 @@ export const en = {
       "A list adds its courses and fills in courses that aren't set yet. Courses you have set stay as they are.",
     saveOwnList: 'Save these courses as my list',
     ownListSaved: 'Saved in this browser. Next time, start from My list.',
+    checks: {
+      title: (count: number) =>
+        count === 0
+          ? 'Nothing to check across the courses'
+          : count === 1
+            ? '1 thing to check across the courses'
+            : `${count} things to check across the courses`,
+      courses: (names: string, count: number) =>
+        count === 1 ? `Course ${names}` : `Courses ${names}`,
+      texts: {
+        controlsTooClose: (a: number, b: number, metres: string, limit: string) =>
+          `Controls ${a} and ${b} of different courses are ${metres} apart, closer than ${limit}`,
+        similarControlsClose: (a: number, b: number, metres: string, limit: string) =>
+          `Controls ${a} and ${b} are similar features only ${metres} apart; similar controls need ${limit}`,
+        similarCodesNear: (a: number, b: number, metres: string) =>
+          `Codes ${a} and ${b} are easy to mix up on controls ${metres} apart`,
+        legSharedByCourses: (a: number, b: number) =>
+          `The leg ${a}–${b} is on several courses, so runners can follow each other`,
+        legRunBothWays: (a: number, b: number) =>
+          `The leg between ${a} and ${b} is run in opposite directions, so runners meet head-on`,
+      },
+      ourReading: 'our reading',
+    },
     courseTab: (name: string, courseClass: string) => `${name}, ${courseClass}`,
   },
   check: {
