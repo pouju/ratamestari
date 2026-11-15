@@ -211,7 +211,7 @@ execFileSync(
 
 const document = svgDocument()
 const svgOf = (includesObject: (objectIndex: number) => boolean) =>
-  new XMLSerializer().serializeToString(map.renderSvg(document, includesObject) as unknown as Node)
+  new XMLSerializer().serializeToString(map.renderSvg(document, includesObject))
 const pageInput = {
   mapSvg: svgOf(i => !peripheral.marginObjectIndices.has(i)),
   mapScale: map.info.scale,

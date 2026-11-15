@@ -1,4 +1,4 @@
-import { PDFDict, PDFDocument, PDFName, StandardFonts, type PDFFont, type PDFRef } from 'pdf-lib'
+import { PDFDict, PDFDocument, PDFName, StandardFonts, type PDFFont } from 'pdf-lib'
 import { DOMParser } from 'xmldom'
 
 // Draws the SVG subset our map renderer and print page use as vector PDF operators, so PDF map
@@ -236,7 +236,7 @@ class ContentWriter {
       Resources: {},
     })
     const name = `P${++this.patternCount}`
-    this.patternResources.set(PDFName.of(name), this.pdf.context.register(stream) as PDFRef)
+    this.patternResources.set(PDFName.of(name), this.pdf.context.register(stream))
     return name
   }
 

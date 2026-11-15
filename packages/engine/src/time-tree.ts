@@ -7,7 +7,6 @@ import {
   type CostGrid,
 } from './cost-grid'
 import { MinHeap } from './min-heap'
-import { cellIndexOf } from './raster'
 
 const NEIGHBOUR_OFFSETS = [
   [1, 0],

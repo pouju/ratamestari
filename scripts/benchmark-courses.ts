@@ -324,7 +324,7 @@ function legend(): string {
 
 function histogram(legs: readonly number[]): number[] {
   const edges = FORMAT_QUALITY.long.legLengths.binEdgesMetres
-  const counts = new Array<number>(edges.length - 1).fill(0)
+  const counts = Array.from({ length: edges.length - 1 }, () => 0)
   for (const leg of legs) {
     const bin = edges.findIndex((edge, i) => i > 0 && leg < edge) - 1
     counts[bin < 0 ? counts.length - 1 : bin]!++

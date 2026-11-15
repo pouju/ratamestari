@@ -1,0 +1,80 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "import", "react"],
+  "categories": {
+    "correctness": "error"
+  },
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2024": true
+  },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "maps/**",
+    "docs/sources/**",
+    "coverage/**",
+    "**/test-results/**",
+    "**/playwright-report/**"
+  ],
+  "rules": {
+    "typescript/no-explicit-any": "error",
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/no-unnecessary-type-assertion": "error",
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn",
+    "react/jsx-no-literals": [
+      "error",
+      {
+        "allowedStrings": [
+          "Ratamestari",
+          "ocad2geojson",
+          "+",
+          "\u2212",
+          "\u00d7",
+          "\u2039",
+          "\u203a",
+          "\u2039 \u203a",
+          "Ctrl+Z"
+        ]
+      }
+    ],
+    "func-style": [
+      "error",
+      "declaration",
+      {
+        "allowArrowFunctions": true
+      }
+    ],
+    "import/extensions": [
+      "error",
+      "ignorePackages",
+      {
+        "js": "never",
+        "ts": "never",
+        "tsx": "never",
+        "css": "always",
+        "json": "always",
+        "svg": "always",
+        "png": "always",
+        "mjs": "always"
+      }
+    ],
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["@ratamestari/*/src/*", "@ratamestari/*/test/*"],
+            "message": "Import another package only through its index (CONTRIBUTING.md \u203a Code practices)."
+          }
+        ]
+      }
+    ],
+    "react/refs": "warn",
+    "react/immutability": "warn",
+    "react/set-state-in-effect": "warn"
+  }
+}

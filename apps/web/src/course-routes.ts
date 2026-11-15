@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { LocalPoint } from '@ratamestari/core'
 import type { Course, LegEvaluation } from '@ratamestari/engine'
 import type { Engine } from './engine'
@@ -83,7 +83,7 @@ export function useCourseRoutes(
   pace: number,
   isActive: boolean,
 ): readonly LegRoutesState[] | null {
-  const [found, setFound] = useState(0)
+  const [, setFound] = useState(0)
 
   useEffect(() => {
     if (!isActive || !course) return
@@ -100,12 +100,8 @@ export function useCourseRoutes(
     }
   }, [engine, queue, cache, course, pace, isActive])
 
-  return useMemo(
-    () =>
-      isActive && course
-        ? courseLegEnds(course).map(ends => cache.get(...ends, pace) ?? { status: 'finding' })
-        : null,
-    // `found` changes whenever another leg's routes arrive in the cache.
-    [cache, course, pace, isActive, found],
-  )
+  // Read from the cache while rendering; setFound renders again whenever another leg's routes arrive.
+  return isActive && course
+    ? courseLegEnds(course).map(ends => cache.get(...ends, pace) ?? { status: 'finding' })
+    : null
 }

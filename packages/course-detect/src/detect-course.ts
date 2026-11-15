@@ -246,7 +246,7 @@ function removeLegsThroughStops(
   controlRadius: number,
 ) {
   for (let a = 0; a < stops.length; a++) {
-    for (const c of [...neighbours[a]!]) {
+    for (const c of neighbours[a]!) {
       const between = [...neighbours[a]!].find(
         b =>
           b !== c &&

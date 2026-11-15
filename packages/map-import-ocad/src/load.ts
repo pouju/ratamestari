@@ -1,3 +1,5 @@
+// ocad2geojson ships no types; its declarations sit beside this adapter, the only file using it (D1).
+// oxlint-disable-next-line typescript/triple-slash-reference
 /// <reference path="./ocad2geojson.d.ts" />
 import { Buffer } from 'buffer'
 import readOcad, { type OcadFile } from 'ocad2geojson/src/ocad-reader'

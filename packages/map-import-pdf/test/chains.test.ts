@@ -15,7 +15,11 @@ describe('chainDashes', () => {
 
     const chains = chainDashes(pieces, 50)
 
-    expect(chains.map(chain => [...chain.pieceIndices].sort()).sort()).toEqual([
+    expect(
+      chains
+        .map(chain => [...chain.pieceIndices].sort((a, b) => a - b))
+        .sort((a, b) => a[0]! - b[0]!),
+    ).toEqual([
       [0, 2, 3, 5],
       [1, 4, 6],
     ])
@@ -42,6 +46,6 @@ describe('chainDots', () => {
 
     const chains = chainDots([...line.slice(5), lone, ...line.slice(0, 5)], 70)
 
-    expect(chains.map(chain => chain.pieceIndices.length).sort()).toEqual([1, 10])
+    expect(chains.map(chain => chain.pieceIndices.length).sort((a, b) => a - b)).toEqual([1, 10])
   })
 })

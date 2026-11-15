@@ -154,7 +154,7 @@ function editedCourse(course: Course, edit: (spec: CourseSpec) => Course | null)
   return edited && fittedAsSet(edited, terrain, lastSetting)
 }
 
-function useFeatures(
+function buildTerrainFrom(
   features: readonly MapFeature[],
   annotations: readonly MapAnnotation[],
   info: MapInfo,
@@ -208,12 +208,12 @@ const engine = {
   loadFeatures(features: readonly MapFeature[], info: MapInfo): void {
     map = null
     mapInfo = info
-    useFeatures(features, [], info)
+    buildTerrainFrom(features, [], info)
   },
 
   applySymbolCorrections(corrections: IsomCodeOverrides): void {
     if (!map) throw new Error('No map loaded in the engine')
-    useFeatures(map.features(corrections), map.annotations(corrections), map.info)
+    buildTerrainFrom(map.features(corrections), map.annotations(corrections), map.info)
   },
 
   overprintLayout(course: Course): OverprintLayout {

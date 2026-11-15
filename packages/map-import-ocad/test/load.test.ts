@@ -39,7 +39,7 @@ describe.skipIf(!localMapExists)('loadOcadMap with a local map from git-ignored 
 
   it('renders SVG', async () => {
     const map = await loadOcadMap(bytes)
-    const doc = new DOMImplementation().createDocument(null, 'svg', null) as unknown as Document
+    const doc = new DOMImplementation().createDocument(null, 'svg', null)
     const svg = map.renderSvg(doc)
     expect(svg.getAttribute('viewBox')).toBeTruthy()
     expect(svg.childNodes.length).toBeGreaterThan(1)
