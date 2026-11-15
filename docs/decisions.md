@@ -219,6 +219,7 @@ IOF XML 3.0 has no standard fields for control description symbols. Course contr
   - `packages/agent`: `LlmProvider` interface, Claude implementation, tool definitions
   - `apps/web`: the one-view workspace (D5)
 - **App:** React + Vite, with TanStack Store for app state and TanStack Form for settings. Add TanStack Query only if async worker/LLM plumbing needs it. No router (single view).
+  - **Amended 2026-11-15:** neither TanStack Store nor Form was ever installed; the app uses React state. For events (D27) the workspace state moves into pure reducer functions run with `useReducer` and tested without React. TanStack Store is still pre-1.0 (0.11) and would only save re-renders, which the engine worker makes cheap anyway. If a store library is needed later, Zustand (5.x) is the more established choice.
 - **Schemas:** Zod is the single source of truth for the course spec, the rules config and LLM tool inputs. Tool calls from the LLM are validated at runtime.
 - **Coordinates:** branded types for each coordinate system (OCAD paper units, ground metres, lat/lon, page/screen) so mixing them is a compile error. The engine works only in ground metres.
 - **Map display:** OpenLayers. The OCAD map is rendered in the browser (ocad2geojson → SVG → canvas/bitmap) and shown as a static image layer. The engine uses the vector features, never the image. The course, paper frame and description box are vector layers; controls are draggable with OpenLayers interactions.
