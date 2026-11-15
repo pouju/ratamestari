@@ -58,7 +58,7 @@ Follow the React documentation ([Managing State](https://react.dev/learn/managin
 
 ### Style
 
-- **Functional where it matters:** pure functions, immutable data (`readonly` types), no classes. Mutation inside a function is fine for speed, as in the engine's search and routing, as long as the function is pure from the outside.
+- **Functional where it matters:** pure functions, immutable data (`readonly` types), no classes, except `Error` subclasses and performance-critical data structures whose reason is written beside them (the route search's `MinHeap`). Mutation inside a function is fine for speed, as in the engine's search and routing, as long as the function is pure from the outside.
 - **`function` declarations for components and named functions with a body; arrow functions for short expressions and callbacks** (`const isSameSite = (a, b) => …`).
 - **Types:** strict TypeScript and branded coordinate types; Zod at the boundaries (requests, rules, assistant tool inputs). No `any`. `as` casts only in tests and at boundaries that have been checked, never to silence the compiler.
 - **Names over comments.** Comment only a non-obvious _why_.

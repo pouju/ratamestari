@@ -53,7 +53,7 @@ export async function svgToPdf(svg: string): Promise<Uint8Array> {
     if (id) patterns.set(id, pattern)
   }
   const patternResources = pdf.context.obj({})
-  const writer = new ContentWriter(pdf, font, patterns, patternResources)
+  const writer = contentWriter(pdf, font, patterns, patternResources)
   const [, , viewWidth = widthMm, viewHeight = heightMm] = viewBoxOf(root) ?? []
   const pageMatrix: Matrix = [
     (widthMm / viewWidth) * POINTS_PER_MM,
@@ -74,26 +74,25 @@ export async function svgToPdf(svg: string): Promise<Uint8Array> {
   return pdf.save()
 }
 
-class ContentWriter {
-  private readonly operators: string[] = []
-  private patternCount = 0
+// Writes the PDF content operators for an SVG tree; a pattern's tile gets a writer of its own.
+function contentWriter(
+  pdf: PDFDocument,
+  font: PDFFont,
+  patterns: Map<string, Element>,
+  patternResources: PDFDict,
+) {
+  const operators: string[] = []
+  let patternCount = 0
 
-  constructor(
-    private readonly pdf: PDFDocument,
-    private readonly font: PDFFont,
-    private readonly patterns: Map<string, Element>,
-    private readonly patternResources: PDFDict,
-  ) {}
-
-  content(): string {
-    return this.operators.join('\n')
+  function content(): string {
+    return operators.join('\n')
   }
 
-  children(parent: Element, matrix: Matrix, style: Style) {
-    for (const child of elements(parent.childNodes)) this.element(child, matrix, style)
+  function children(parent: Element, matrix: Matrix, style: Style) {
+    for (const child of elements(parent.childNodes)) element(child, matrix, style)
   }
 
-  private element(node: Element, parentMatrix: Matrix, parentStyle: Style) {
+  function element(node: Element, parentMatrix: Matrix, parentStyle: Style) {
     const tag = node.tagName
     if (tag === 'defs' || tag === 'pattern') return
     const style = styleOf(node, parentStyle)
@@ -101,31 +100,31 @@ class ContentWriter {
     const number = (name: string) => numberAttribute(node, name)
     switch (tag) {
       case 'svg':
-        return this.nestedSvg(node, matrix, style)
+        return nestedSvg(node, matrix, style)
       case 'g':
-        return this.children(node, matrix, style)
+        return children(node, matrix, style)
       case 'path':
-        return this.paint(pathOperators(node.getAttribute('d') ?? ''), matrix, style)
+        return paint(pathOperators(node.getAttribute('d') ?? ''), matrix, style)
       case 'rect':
-        return this.paint(
+        return paint(
           `${number('x')} ${number('y')} ${number('width')} ${number('height')} re`,
           matrix,
           style,
         )
       case 'circle':
-        return this.paint(
+        return paint(
           ellipseOperators(number('cx'), number('cy'), number('r'), number('r')),
           matrix,
           style,
         )
       case 'ellipse':
-        return this.paint(
+        return paint(
           ellipseOperators(number('cx'), number('cy'), number('rx'), number('ry')),
           matrix,
           style,
         )
       case 'line':
-        return this.paint(
+        return paint(
           `${number('x1')} ${number('y1')} m ${number('x2')} ${number('y2')} l`,
           matrix,
           { ...style, fill: null },
@@ -138,14 +137,14 @@ class ContentWriter {
           .map(Number)
         const points = values.flatMap((value, i) => (i % 2 === 0 ? [[value, values[i + 1]!]] : []))
         const operators = points.map(([x, y], i) => `${x} ${y} ${i === 0 ? 'm' : 'l'}`).join(' ')
-        return this.paint(tag === 'polygon' ? `${operators} h` : operators, matrix, style)
+        return paint(tag === 'polygon' ? `${operators} h` : operators, matrix, style)
       }
       case 'text':
-        return this.text(node, matrix, style)
+        return text(node, matrix, style)
     }
   }
 
-  private nestedSvg(node: Element, matrix: Matrix, style: Style) {
+  function nestedSvg(node: Element, matrix: Matrix, style: Style) {
     const [x, y, width, height] = ['x', 'y', 'width', 'height'].map(name =>
       numberAttribute(node, name),
     ) as [number, number, number, number]
@@ -167,19 +166,19 @@ class ContentWriter {
     const clip = corners.map(
       ([cornerX, cornerY], i) => `${round(cornerX)} ${round(cornerY)} ${i === 0 ? 'm' : 'l'}`,
     )
-    this.operators.push('q', `${clip.join(' ')} h W n`)
-    this.children(node, multiply(viewMatrix, matrix), style)
-    this.operators.push('Q')
+    operators.push('q', `${clip.join(' ')} h W n`)
+    children(node, multiply(viewMatrix, matrix), style)
+    operators.push('Q')
   }
 
-  private paint(path: string, matrix: Matrix, style: Style) {
+  function paint(path: string, matrix: Matrix, style: Style) {
     if (path === '') return
-    const fill = this.paintOperands(style.fill, 'fill', matrix)
-    const stroke = this.paintOperands(style.stroke, 'stroke', matrix)
+    const fill = paintOperands(style.fill, 'fill', matrix)
+    const stroke = paintOperands(style.stroke, 'stroke', matrix)
     if (!fill && !stroke) return
     const star = style.evenOdd ? '*' : ''
     const paintOperator = fill && stroke ? `B${star}` : fill ? `f${star}` : 'S'
-    this.operators.push(
+    operators.push(
       'q',
       `${matrixOperands(matrix)} cm`,
       ...(fill ? [fill] : []),
@@ -198,7 +197,7 @@ class ContentWriter {
     )
   }
 
-  private paintOperands(
+  function paintOperands(
     paint: string | null,
     use: 'fill' | 'stroke',
     matrix: Matrix,
@@ -206,7 +205,7 @@ class ContentWriter {
     if (!paint) return null
     const patternId = /^url\(#([^)]+)\)$/.exec(paint)?.[1]
     if (patternId) {
-      const name = this.patternFor(patternId, matrix)
+      const name = patternFor(patternId, matrix)
       if (!name) return null
       return use === 'fill' ? `/Pattern cs /${name} scn` : `/Pattern CS /${name} SCN`
     }
@@ -215,16 +214,16 @@ class ContentWriter {
     return `${rgb.join(' ')} ${use === 'fill' ? 'rg' : 'RG'}`
   }
 
-  private patternFor(id: string, matrix: Matrix): string | null {
-    const pattern = this.patterns.get(id)
+  function patternFor(id: string, matrix: Matrix): string | null {
+    const pattern = patterns.get(id)
     if (!pattern) return null
     const width = numberAttribute(pattern, 'width')
     const height = numberAttribute(pattern, 'height')
     if (!(width > 0) || !(height > 0)) return null
-    const tile = new ContentWriter(this.pdf, this.font, this.patterns, this.patternResources)
+    const tile = contentWriter(pdf, font, patterns, patternResources)
     tile.children(pattern, IDENTITY, styleOf(pattern, DEFAULT_STYLE))
     const patternMatrix = multiply(transformOf(pattern.getAttribute('patternTransform')), matrix)
-    const stream = this.pdf.context.flateStream(tile.content(), {
+    const stream = pdf.context.flateStream(tile.content(), {
       Type: 'Pattern',
       PatternType: 1,
       PaintType: 1,
@@ -235,12 +234,12 @@ class ContentWriter {
       Matrix: [...patternMatrix],
       Resources: {},
     })
-    const name = `P${++this.patternCount}`
-    this.patternResources.set(PDFName.of(name), this.pdf.context.register(stream))
+    const name = `P${++patternCount}`
+    patternResources.set(PDFName.of(name), pdf.context.register(stream))
     return name
   }
 
-  private text(node: Element, matrix: Matrix, style: Style) {
+  function text(node: Element, matrix: Matrix, style: Style) {
     const spans = elements(node.childNodes).filter(child => child.tagName === 'tspan')
     const runs =
       spans.length > 0
@@ -251,7 +250,7 @@ class ContentWriter {
       const rgb = rgbOf(run.style.fill ?? '')
       if (content === '' || !rgb) continue
       const size = run.style.fontSize
-      const width = this.font.widthOfTextAtSize(content, size)
+      const width = font.widthOfTextAtSize(content, size)
       const anchorShift =
         run.style.textAnchor === 'middle' ? width / 2 : run.style.textAnchor === 'end' ? width : 0
       const baselineShift = run.style.baseline === 'central' ? size * CENTRAL_BASELINE_SHIFT : 0
@@ -259,19 +258,20 @@ class ContentWriter {
         run.node.getAttribute(name) ? numberAttribute(run.node, name) : numberAttribute(node, name)
       const x = positionOf('x') - anchorShift
       const y = positionOf('y') + baselineShift
-      this.operators.push(
+      operators.push(
         'q',
         `${matrixOperands(matrix)} cm`,
         `${rgb.join(' ')} rg`,
         'BT',
         `/${FONT_NAME} ${size} Tf`,
         `1 0 0 -1 ${x} ${y} Tm`,
-        `${this.font.encodeText(content).toString()} Tj`,
+        `${font.encodeText(content).toString()} Tj`,
         'ET',
         'Q',
       )
     }
   }
+  return { content, children }
 }
 
 function styleOf(node: Element, parent: Style): Style {
