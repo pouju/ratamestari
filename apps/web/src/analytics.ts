@@ -15,6 +15,7 @@ interface AnalyticsEvents {
   readonly 'course-file-checked': undefined
   readonly 'pdf-downloaded': undefined
   readonly 'xml-downloaded': undefined
+  readonly 'event-xml-downloaded': { readonly courses: number }
   readonly 'assistant-turned-on': undefined
   readonly 'assistant-asked': undefined
 }

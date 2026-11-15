@@ -254,6 +254,10 @@ export const fi: Messages = {
     listNote:
       'Lista lisää ratansa ja täydentää radat, joita ei ole vielä tehty. Tekemäsi radat pysyvät ennallaan.',
     saveOwnList: 'Tallenna nämä radat omaksi listaksi',
+    downloadEventXml: 'Kaikkien ratojen IOF XML',
+    eventXmlNote:
+      'Yksi tiedosto, jossa ovat kaikki tehdyt radat yhteisine rasteineen, OCADiin, Condesiin tai Purple Peniin.',
+    eventFileName: mapName => `${mapName}-radat.xml`,
     ownListSaved: 'Tallennettu tähän selaimeen. Seuraavalla kerralla aloita omasta listasta.',
     checks: {
       title: count =>

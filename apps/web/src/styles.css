@@ -1245,6 +1245,9 @@ button.link {
   font-size: var(--font-size-body);
   font-weight: normal;
 }
+.event-export {
+  margin-bottom: var(--space-4);
+}
 .course-tabs .add-course {
   color: var(--colour-overprint);
 }
