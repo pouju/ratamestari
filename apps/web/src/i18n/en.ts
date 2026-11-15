@@ -257,6 +257,10 @@ export const en = {
     listNote:
       "A list adds its courses and fills in courses that aren't set yet. Courses you have set stay as they are.",
     saveOwnList: 'Save these courses as my list',
+    downloadEventXml: 'IOF XML of all courses',
+    eventXmlNote:
+      'One file with every set course and its shared controls, for OCAD, Condes or Purple Pen.',
+    eventFileName: (mapName: string) => `${mapName}-courses.xml`,
     ownListSaved: 'Saved in this browser. Next time, start from My list.',
     checks: {
       title: (count: number) =>

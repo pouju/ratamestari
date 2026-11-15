@@ -78,3 +78,16 @@ export function EventChecks({ findings, event, mapScale }: Props) {
     </section>
   )
 }
+
+// One IOF XML file with all set courses and their shared controls (D27).
+export function EventExport({ onDownload }: { onDownload: () => void }) {
+  const m = useMessages().event
+  return (
+    <div className="event-export">
+      <button type="button" className="panel-line-action" onClick={onDownload}>
+        {m.downloadEventXml}
+      </button>
+      <p className="request-note">{m.eventXmlNote}</p>
+    </div>
+  )
+}

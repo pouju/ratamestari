@@ -48,8 +48,9 @@ import { MapStart, PanelHeader, PanelLine } from './WorkspaceStart'
 import { atLeastHalf, SheetHandle, sheetStyle, type SheetSize } from './SheetHandle'
 import { CoursePanel } from './CoursePanel'
 import { CourseRoutesPanel } from './CourseRoutesPanel'
+import { descriptionSheet } from '@ratamestari/iof'
 import { CourseLists, CourseTabs } from './CourseTabs'
-import { EventChecks } from './EventChecks'
+import { EventChecks, EventExport } from './EventChecks'
 import {
   applyCourseList,
   loadOwnCourseList,
@@ -67,7 +68,7 @@ import {
 import { createLegRouteCache, useCourseRoutes } from './course-routes'
 import { createRouteQueue, SUPERSEDED } from './route-queue'
 import { descriptionBoxFor } from './description-box'
-import { downloadCourseXml } from './export-xml'
+import { downloadCourseXml, downloadEventXml } from './export-xml'
 import { savePrintPdf } from './print-pdf'
 import { useExperimentalFeatures } from './experimental'
 import {
@@ -1007,6 +1008,28 @@ export function App() {
     track('course-list-applied', { list: listName, courses: applied.event.courses.length })
   }
 
+  function downloadEventCoursesXml() {
+    if (state.status !== 'ready') return
+    const courses = event.courses.flatMap(entry => {
+      const entryCourse =
+        entry.id === selectedCourseId ? course : otherCourses.current.get(entry.id)?.course
+      if (!entryCourse) return []
+      const entryRequest = requestOfCourse(entry.id)
+      const name = isOpenCourse(entryRequest) ? entry.name : courseNameOf(entryRequest)
+      const codes = controlCodesOf(event, entry.id)
+      const sheet = descriptionSheet(entryCourse, {
+        title: messages.labels.formats[entryRequest.format],
+        courseName: name,
+        ...(codes.length === entryCourse.controls.length && { controlCodes: codes }),
+      })
+      return [{ className: name, course: entryCourse, sheet }]
+    })
+    if (courses.length === 0) return
+    const mapName = state.fileName.replace(/\.[^.]+$/, '')
+    downloadEventXml(mapName, courses, state.map.info, messages.event.eventFileName(mapName))
+    track('event-xml-downloaded', { courses: courses.length })
+  }
+
   function saveCoursesAsOwnList(): boolean {
     const list = event.courses.map(entry => ({
       name: entry.name,
@@ -1698,7 +1721,10 @@ export function App() {
           />
         )}
         {state.status === 'ready' && !courseFile && eventChecks && mapInfo && (
-          <EventChecks findings={eventChecks} event={event} mapScale={mapInfo.scale} />
+          <>
+            <EventChecks findings={eventChecks} event={event} mapScale={mapInfo.scale} />
+            <EventExport onDownload={downloadEventCoursesXml} />
+          </>
         )}
         {state.status === 'ready' && (
           <CoursePanel
