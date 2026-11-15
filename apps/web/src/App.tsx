@@ -6,6 +6,8 @@ import {
   controlCodesOf,
   hasRoomForCentre,
   printFrameAround,
+  removeCourse,
+  renameCourse,
   setCourseOf,
   type ControlSiteCandidate,
   type Course,
@@ -63,6 +65,7 @@ import {
   type LoadedMap,
 } from './pdf-map'
 import { SymbolPanel } from './SymbolPanel'
+import { loadSavedEvent, saveEvent, SAVED_EVENT_VERSION, type SavedEvent } from './saved-event'
 import {
   loadCorrections,
   mapKeyOf,
@@ -148,6 +151,9 @@ const DEFAULT_REQUEST: CourseRequest = {
 
 const DEFAULT_WINNER_PACE = '5:00'
 
+// Saving waits until edits pause, so a drag or a run of edits is written once.
+const SAVE_EVENT_DELAY_MS = 800
+
 const isSameRequest = (a: CourseRequest, b: CourseRequest) =>
   a.eventLevel === b.eventLevel &&
   a.format === b.format &&
@@ -220,6 +226,9 @@ export function App() {
   const [selectedCourseId, setSelectedCourseId] = useState(firstEvent.courseId)
   const selectedCourseIdRef = useRef(selectedCourseId)
   const otherCourses = useRef(new Map<string, CourseSnapshot>())
+  // The map whose saved event has been looked for; until then nothing is saved over it.
+  const [eventMapKey, setEventMapKey] = useState<string | null>(null)
+  const keepsKeptOnNextCentre = useRef(false)
   // Every change to the shown course also updates the event, so its control codes follow (D27).
   const setCourse = (next: Course | null) => {
     setCourseState(next)
@@ -332,6 +341,9 @@ export function App() {
       .loadMap(bytes, storedCorrections)
       .then(() => setEngineState('ready'))
       .catch(() => setEngineState('error'))
+    const saved = await loadSavedEvent(key)
+    if (saved) openSavedEvent(saved)
+    setEventMapKey(key)
     try {
       const t0 = performance.now()
       const map = await loadOcadMap(bytes)
@@ -349,7 +361,22 @@ export function App() {
     }
   }
 
+  function openSavedEvent(saved: SavedEvent) {
+    const shown = saved.courses[saved.selectedCourseId]!
+    otherCourses.current = new Map(
+      Object.entries(saved.courses).filter(([courseId]) => courseId !== saved.selectedCourseId),
+    )
+    void engine.restoreCourseSettings(saved.settings, saved.selectedCourseId)
+    setEvent(saved.event)
+    showSnapshot(saved.selectedCourseId, shown)
+    keepsKeptOnNextCentre.current = saved.competitionCentre !== null
+    setCompetitionCentre(saved.competitionCentre)
+    setPaceText(saved.paceText)
+    setIsSampleCoursePending(false)
+  }
+
   function clearWorkspace(fileName: string) {
+    setEventMapKey(null)
     const fresh = eventWithOneCourse()
     otherCourses.current.clear()
     selectedCourseIdRef.current = fresh.courseId
@@ -499,7 +526,48 @@ export function App() {
   }, [engine, engineState, showSites, sites])
 
   // Kept controls belong to one finish and one map; a new centre or map starts afresh.
-  useEffect(() => setKept(NOTHING_KEPT), [competitionCentre])
+  useEffect(() => {
+    if (keepsKeptOnNextCentre.current) keepsKeptOnNextCentre.current = false
+    else setKept(NOTHING_KEPT)
+  }, [competitionCentre])
+
+  useEffect(() => {
+    if (!mapKey || eventMapKey !== mapKey || isGenerating) return
+    const shown = shownCourseSnapshot()
+    const others = Object.fromEntries(otherCourses.current)
+    const timer = window.setTimeout(() => {
+      void engine.courseSettings().then(settings =>
+        saveEvent(mapKey, {
+          version: SAVED_EVENT_VERSION,
+          event,
+          selectedCourseId,
+          // Undo steps stay with the session; the saved event is the courses as they stand.
+          courses: { ...others, [selectedCourseId]: { ...shown, undoHistory: [] } },
+          settings,
+          competitionCentre,
+          paceText,
+        }),
+      )
+    }, SAVE_EVENT_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [
+    engine,
+    mapKey,
+    eventMapKey,
+    isGenerating,
+    event,
+    selectedCourseId,
+    request,
+    seed,
+    course,
+    kept,
+    paper,
+    printScale,
+    placedFrame,
+    startWish,
+    competitionCentre,
+    paceText,
+  ])
 
   useEffect(() => {
     void engine.selectCourse(firstEvent.courseId)
@@ -734,20 +802,26 @@ export function App() {
     setSelectedStop(null)
   }
 
+  const shownCourseSnapshot = (): CourseSnapshot => ({
+    request,
+    seed,
+    course,
+    kept: keptRef.current,
+    undoHistory,
+    paper,
+    printScale,
+    placedFrame,
+    startWish,
+  })
+
   function showCourseOfEvent(courseId: string, next: CourseSnapshot) {
-    otherCourses.current.set(selectedCourseId, {
-      request,
-      seed,
-      course,
-      kept: keptRef.current,
-      undoHistory,
-      paper,
-      printScale,
-      placedFrame,
-      startWish,
-    })
+    otherCourses.current.set(selectedCourseId, shownCourseSnapshot())
     otherCourses.current.delete(courseId)
     void engine.selectCourse(courseId)
+    showSnapshot(courseId, next)
+  }
+
+  function showSnapshot(courseId: string, next: CourseSnapshot) {
     selectedCourseIdRef.current = courseId
     setSelectedCourseId(courseId)
     setRequest(next.request)
@@ -765,6 +839,24 @@ export function App() {
     setEditMessage(null)
     setIsPlacingFrame(false)
     stopSettingByHand()
+  }
+
+  function renameCourseOfEvent(courseId: string, name: string) {
+    const trimmed = name.trim()
+    if (trimmed) setEvent(current => renameCourse(current, courseId, trimmed))
+  }
+
+  function removeCourseOfEvent(courseId: string) {
+    if (event.courses.length < 2 || isGenerating || isEditing) return
+    if (courseId === selectedCourseId) {
+      const index = event.courses.findIndex(entry => entry.id === courseId)
+      const neighbour = event.courses[index === 0 ? 1 : index - 1]!
+      const next = otherCourses.current.get(neighbour.id)
+      if (!next) return
+      showCourseOfEvent(neighbour.id, next)
+    }
+    otherCourses.current.delete(courseId)
+    setEvent(current => removeCourse(current, courseId))
   }
 
   function selectCourseOfEvent(courseId: string) {
@@ -1441,6 +1533,8 @@ export function App() {
             isDisabled={isGenerating || isEditing}
             onSelect={selectCourseOfEvent}
             onAdd={addCourseToEvent}
+            onRename={renameCourseOfEvent}
+            onRemove={removeCourseOfEvent}
           />
         )}
         {state.status === 'ready' && (

@@ -74,7 +74,7 @@ let sites: readonly ControlSiteCandidate[] = []
 let overprintDetail: OverprintDetailIndex = NO_OVERPRINT_DETAIL
 let peripheral: PeripheralInformation | null = null
 // The setting of the selected course; every course of the event keeps its own (D27).
-interface CourseSetting {
+export interface CourseSetting {
   readonly spec: CourseSpec
   readonly paper: PaperChoice
 }
@@ -181,6 +181,21 @@ const engine = {
   forgetCourses(): void {
     settingsOfOtherCourses.clear()
     lastSetting = null
+  },
+
+  // Settings by course id, to save the event with and give back when it is opened again.
+  courseSettings(): Record<string, CourseSetting> {
+    const settings = Object.fromEntries(settingsOfOtherCourses)
+    if (selectedCourse !== null && lastSetting) settings[selectedCourse] = lastSetting
+    return settings
+  },
+
+  restoreCourseSettings(settings: Readonly<Record<string, CourseSetting>>, selected: string): void {
+    settingsOfOtherCourses.clear()
+    for (const [courseId, setting] of Object.entries(settings))
+      if (courseId !== selected) settingsOfOtherCourses.set(courseId, setting)
+    lastSetting = settings[selected] ?? null
+    selectedCourse = selected
   },
 
   async loadMap(bytes: Uint8Array, corrections: IsomCodeOverrides): Promise<void> {
