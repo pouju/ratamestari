@@ -261,6 +261,7 @@ export function App() {
   } | null>(null)
   const sheet = useRef<HTMLElement>(null)
   const [sheetSize, setSheetSize] = useState<SheetSize>('peek')
+  const [sheetDragHeight, setSheetDragHeight] = useState<number | null>(null)
   const [paper, setPaper] = useState<PaperChoice>('auto')
   const [printScale, setPrintScale] = useState<PrintScaleChoice>('auto')
   const [placedFrame, setPlacedFrame] = useState<PlacedFrame | null>(null)
@@ -1439,8 +1440,13 @@ export function App() {
         )}
       </main>
 
-      <aside ref={sheet} style={sheetStyle(sheetSize)}>
-        <SheetHandle size={sheetSize} onSizeChange={setSheetSize} sheet={sheet} />
+      <aside ref={sheet} style={sheetStyle(sheetSize, sheetDragHeight)}>
+        <SheetHandle
+          size={sheetSize}
+          onSizeChange={setSheetSize}
+          onDrag={setSheetDragHeight}
+          sheet={sheet}
+        />
         <PanelHeader onOpenSettings={() => setIsSettingsOpen(true)} />
         {course && selectedLeg !== null && (
           <LegRoutesPanel
