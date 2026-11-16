@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { localPoint } from '@ratamestari/core'
 import { addCourse, setCourseOf, type ControlSiteCandidate, type Course } from '@ratamestari/engine'
-import { eventWithOneCourse, nextCourseName, otherCoursesControls } from '../src/event-workspace'
+import {
+  eventWithOneCourse,
+  nextCourseName,
+  otherCoursesControls,
+  otherCoursesOf,
+} from '../src/event-workspace'
 
 const site = (id: number) =>
   ({ id, position: localPoint(id * 100, 0) }) as unknown as ControlSiteCandidate
-const courseThrough = (...ids: number[]) => ({ controls: ids.map(site) }) as unknown as Course
+const courseThrough = (...ids: number[]) =>
+  ({ start: site(0), controls: ids.map(site) }) as unknown as Course
 
 describe('nextCourseName', () => {
   it('names courses A, B, C… skipping names in use', () => {
@@ -29,5 +35,18 @@ describe('otherCoursesControls', () => {
       localPoint(300, 0),
       localPoint(400, 0),
     ])
+  })
+})
+
+describe('otherCoursesOf', () => {
+  it("gives the other set courses' start and controls, not the course's own", () => {
+    const first = eventWithOneCourse()
+    const second = addCourse(first.event, 'B')
+    let event = setCourseOf(second.event, first.courseId, courseThrough(1, 2))
+    expect(otherCoursesOf(event, first.courseId)).toBeNull()
+    event = setCourseOf(event, second.courseId, courseThrough(2, 3))
+    const others = otherCoursesOf(event, second.courseId)!
+    expect(others.start.id).toBe(0)
+    expect(others.controls.map(control => control.id)).toEqual([1, 2])
   })
 })
