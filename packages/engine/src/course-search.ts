@@ -26,6 +26,7 @@ import {
   crossingSeverity,
   crowding,
   legCount,
+  legsAgainstOtherCourses,
   parallelLegs,
   routeDoglegOverlaps,
   directionChanges,
@@ -88,6 +89,8 @@ export interface CourseSpec {
   readonly locks?: CourseLocks | null
   // The event's other courses' controls (D27): the course shares them or keeps clear of them.
   readonly otherCourseSites?: readonly ControlSiteCandidate[]
+  // Their legs, to run none of them the other way.
+  readonly otherCourseLegs?: readonly (readonly [LocalPoint, LocalPoint])[]
 }
 
 export interface Finding {
@@ -1009,6 +1012,10 @@ function createEvaluation(
     return {
       legCount: asTerm('legCount', legCount(stops, profile.legLengths)),
       parallelLegs: asTerm('parallelLegs', parallelLegs(stops)),
+      againstOtherCourses: asTerm(
+        'againstOtherCourses',
+        legsAgainstOtherCourses(stops, spec.otherCourseLegs ?? []),
+      ),
       closeness: asTerm('closeness', closeness(stops)),
       crowding: asTerm(
         'crowding',

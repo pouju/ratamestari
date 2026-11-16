@@ -865,6 +865,7 @@ export const en = {
       parallelLegs: 'Legs side by side',
       closeness: 'Passing close again',
       crowding: 'Crowded controls',
+      againstOtherCourses: 'Legs against another course',
       legCount: 'Number of legs',
     } satisfies Record<keyof Course['breakdown']['terms'], string>,
   },

@@ -54,11 +54,16 @@ export function otherCoursesControls(event: EventPlan, courseId: string): LocalP
 }
 
 // What setting a course needs to know of the event's other set courses (D27): the start they
-// begin from and the controls the course shares or keeps clear of.
+// begin from, the controls the course shares or keeps clear of, and the legs between controls it
+// doesn't run the other way.
 export function otherCoursesOf(
   event: EventPlan,
   courseId: string,
-): { start: ControlSiteCandidate; controls: ControlSiteCandidate[] } | null {
+): {
+  start: ControlSiteCandidate
+  controls: ControlSiteCandidate[]
+  legs: [LocalPoint, LocalPoint][]
+} | null {
   const others = event.courses.filter(entry => entry.id !== courseId && entry.course !== null)
   const first = others[0]?.course
   if (!first) return null
@@ -66,5 +71,11 @@ export function otherCoursesOf(
   return {
     start: first.start,
     controls: event.controls.filter(control => ids.has(control.id)).map(control => control.site),
+    legs: others.flatMap(({ course }) => {
+      const stops = course?.controls ?? []
+      return stops
+        .slice(1)
+        .map((to, k): [LocalPoint, LocalPoint] => [stops[k]!.position, to.position])
+    }),
   }
 }

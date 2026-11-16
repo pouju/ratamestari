@@ -145,6 +145,7 @@ export {
   legLengths,
   mappedAreaWithin,
   measureCourseShape,
+  legsAgainstOtherCourses,
   parallelLegs,
   reversals,
   ring,
