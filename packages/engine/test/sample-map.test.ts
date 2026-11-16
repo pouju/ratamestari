@@ -127,6 +127,35 @@ describe('engine on the committed sample map', { timeout: SETUP_TIMEOUT_MS }, ()
     }
   })
 
+  it("weighs a leg run against another course's leg in the score", () => {
+    const mapped = [...terrain.mappedArea.keys()].filter(i => terrain.mappedArea[i])
+    const spec: CourseSpec = {
+      target: courseTargetFor({
+        eventLevel: 'national',
+        format: 'middle',
+        sex: 'D',
+        ageClass: 14,
+        skillLetter: 'A',
+      })!,
+      format: 'middle',
+      printScale: 10000,
+      competitionCentre: cellCenterOf(terrain.grid, mapped[Math.floor(mapped.length / 2)]!),
+      seed: 1,
+      paceSecondsPerKm: PACE_SECONDS_PER_KM,
+      improvementSteps: 0,
+    }
+    const first = searchCourse(terrain, sites, spec)!
+    const [a, b] = first.controls
+    const reversedLeg = searchCourse(terrain, sites, {
+      ...spec,
+      seed: 2,
+      locks: { start: first.start, controls: [b!, a!], keptLegs: [false, true, false] },
+      otherCourseLegs: [[a!.position, b!.position]],
+    })!
+    expect(reversedLeg.breakdown.terms.againstOtherCourses.value).toBeGreaterThan(0)
+    expect(reversedLeg.breakdown.terms.againstOtherCourses.contribution).toBeGreaterThan(0)
+  })
+
   it('sets a course around a planned leg, on paper that holds it', () => {
     const mapped = [...terrain.mappedArea.keys()].filter(i => terrain.mappedArea[i])
     const centre = cellCenterOf(terrain.grid, mapped[Math.floor(mapped.length / 2)]!)

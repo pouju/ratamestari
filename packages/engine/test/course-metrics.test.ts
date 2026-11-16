@@ -7,6 +7,7 @@ import {
   crowding,
   crowdingCounts,
   legCount,
+  legsAgainstOtherCourses,
   parallelLegs,
   convexHullArea,
   crossingSeverity,
@@ -162,6 +163,19 @@ describe('course metrics', () => {
     expect(result.value).toBe(10)
     expect(result.note).toMatch(/control 1, control 2/)
     expect(crowding(square, 300, 3).value).toBe(0)
+  })
+
+  it('finds legs another course runs the other way', () => {
+    const stops = course([0, 0], [1000, 0], [1000, 1000], [0, 1000], [0, 10])
+    const otherLegs = [
+      [localPoint(1000, 1000), localPoint(1000, 0)],
+      [localPoint(0, 1000), localPoint(1000, 1000)],
+      [localPoint(0, 0), localPoint(1000, 0)],
+    ] as const
+    const result = legsAgainstOtherCourses(stops, otherLegs)
+    expect(result.value).toBe(2)
+    expect(result.note).toBe('against another course: legs 2, 3')
+    expect(legsAgainstOtherCourses(stops, []).value).toBe(0)
   })
 
   it('compares the number of legs with what the leg mix suggests', () => {

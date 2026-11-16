@@ -854,6 +854,7 @@ export const fi: Messages = {
       parallelLegs: 'Rinnakkaiset rastivälit',
       closeness: 'Ohitukset läheltä uudelleen',
       crowding: 'Tiheät rastit',
+      againstOtherCourses: 'Vastakkaiset rastivälit toisen radan kanssa',
       legCount: 'Rastivälien määrä',
     },
   },

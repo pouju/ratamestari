@@ -39,7 +39,7 @@ describe('otherCoursesControls', () => {
 })
 
 describe('otherCoursesOf', () => {
-  it("gives the other set courses' start and controls, not the course's own", () => {
+  it("gives the other set courses' start, controls and legs, not the course's own", () => {
     const first = eventWithOneCourse()
     const second = addCourse(first.event, 'B')
     let event = setCourseOf(second.event, first.courseId, courseThrough(1, 2))
@@ -48,5 +48,6 @@ describe('otherCoursesOf', () => {
     const others = otherCoursesOf(event, second.courseId)!
     expect(others.start.id).toBe(0)
     expect(others.controls.map(control => control.id)).toEqual([1, 2])
+    expect(others.legs).toEqual([[localPoint(100, 0), localPoint(200, 0)]])
   })
 })

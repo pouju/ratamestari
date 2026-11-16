@@ -399,6 +399,29 @@ export function parallelLegs(stops: readonly LocalPoint[]): Metric {
   }
 }
 
+const SAME_SITE_METRES = 1
+
+// Legs that another course of the event runs the other way, between the same two controls:
+// runners meet head-on (RMK 4.5.S).
+export function legsAgainstOtherCourses(
+  stops: readonly LocalPoint[],
+  otherLegs: readonly (readonly [LocalPoint, LocalPoint])[],
+): Metric {
+  const isAt = (a: LocalPoint, b: LocalPoint) => distance(a, b) < SAME_SITE_METRES
+  const against = stops
+    .slice(1)
+    .map((to, i) => ({ from: stops[i]!, to, leg: i + 1 }))
+    .filter(({ from, to }) => otherLegs.some(([a, b]) => isAt(from, b) && isAt(to, a)))
+    .map(({ leg }) => leg)
+  return {
+    value: against.length,
+    note:
+      against.length === 0
+        ? 'no leg against another course'
+        : `against another course: legs ${against.join(', ')}`,
+  }
+}
+
 // Controls passed close by again later: near another, non-adjacent leg or near a control
 // several steps away in the course order.
 export function closeness(stops: readonly LocalPoint[]): Metric {

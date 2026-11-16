@@ -337,6 +337,7 @@ export const scoreWeightsSchema = citedSchema.extend({
   parallelLegs: z.number().nonnegative(),
   closeness: z.number().nonnegative(),
   crowding: z.number().nonnegative(),
+  againstOtherCourses: z.number().nonnegative(),
   legCount: z.number().nonnegative(),
 })
 
@@ -365,6 +366,7 @@ const WEIGHT_SOURCES = [
   ratamestarikirja('1.2.6.S'),
   ratamestarikirja('2.S.1'),
   ratamestarikirja('2.S.2'),
+  ratamestarikirja('4.5.S'),
 ]
 
 export const SCORE_WEIGHTS: Readonly<Record<Format, ScoreWeights>> = {
@@ -382,6 +384,7 @@ export const SCORE_WEIGHTS: Readonly<Record<Format, ScoreWeights>> = {
     parallelLegs: 30,
     closeness: 20,
     crowding: 40,
+    againstOtherCourses: 50,
     legCount: 40,
     sources: WEIGHT_SOURCES,
     interpretation: true,
@@ -401,6 +404,7 @@ export const SCORE_WEIGHTS: Readonly<Record<Format, ScoreWeights>> = {
     // Middle distance is compact by nature (RMK 2.S.2), so coming back near a control is common.
     closeness: 5,
     crowding: 40,
+    againstOtherCourses: 50,
     legCount: 30,
     sources: WEIGHT_SOURCES,
     interpretation: true,

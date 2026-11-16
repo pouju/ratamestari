@@ -262,11 +262,12 @@ const engine = {
       | { readonly locks: CourseLocks; readonly printArea: PrintArea | null }
       | { readonly legEnds: readonly [LocalPoint, LocalPoint] }
       | null = null,
-    // The event's other set courses (D27): their start, unless one is kept, and their controls,
-    // which this course shares or keeps clear of.
+    // The event's other set courses (D27): their start, unless one is kept, their controls, which
+    // this course shares or keeps clear of, and their legs, which it doesn't run the other way.
     otherCourses: {
       readonly start: ControlSiteCandidate | null
       readonly controls: readonly ControlSiteCandidate[]
+      readonly legs: readonly (readonly [LocalPoint, LocalPoint])[]
     } | null = null,
   ): Promise<Course | null> {
     if (!terrain) throw new Error('No map loaded in the engine')
@@ -306,6 +307,7 @@ const engine = {
       : {
           ...spec,
           otherCourseSites: otherCourses.controls,
+          otherCourseLegs: otherCourses.legs,
           locks:
             eventStart && !spec.locks?.start
               ? {
