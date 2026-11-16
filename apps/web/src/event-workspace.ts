@@ -2,6 +2,7 @@ import type { LocalPoint } from '@ratamestari/core'
 import {
   addCourse,
   emptyEvent,
+  type ControlSiteCandidate,
   type Course,
   type EventPlan,
   type Orientation,
@@ -50,4 +51,20 @@ export function otherCoursesControls(event: EventPlan, courseId: string): LocalP
   return event.controls
     .filter(control => others.has(control.id) && !own.has(control.id))
     .map(control => control.site.position)
+}
+
+// What setting a course needs to know of the event's other set courses (D27): the start they
+// begin from and the controls the course shares or keeps clear of.
+export function otherCoursesOf(
+  event: EventPlan,
+  courseId: string,
+): { start: ControlSiteCandidate; controls: ControlSiteCandidate[] } | null {
+  const others = event.courses.filter(entry => entry.id !== courseId && entry.course !== null)
+  const first = others[0]?.course
+  if (!first) return null
+  const ids = new Set(others.flatMap(entry => entry.controlIds))
+  return {
+    start: first.start,
+    controls: event.controls.filter(control => ids.has(control.id)).map(control => control.site),
+  }
 }

@@ -62,6 +62,7 @@ import {
   eventWithOneCourse,
   nextCourseName,
   otherCoursesControls,
+  otherCoursesOf,
   type CourseSnapshot,
   type PlacedFrame,
 } from './event-workspace'
@@ -687,6 +688,7 @@ export function App() {
         ),
         wish,
         aroundLeg ? { legEnds: aroundLeg } : locks && { locks, printArea: course!.printArea },
+        otherCoursesOf(event, selectedCourseIdRef.current),
       )
       setCourse(result)
       if (result && aroundLeg) setKept(keptAroundLeg(result, aroundLeg))

@@ -18,8 +18,8 @@ test('the IOF XML of all courses holds each course, sharing controls', async ({ 
   const xml = await readFile(await file.path(), 'utf8')
 
   expect(xml.match(/<Course>/g)).toHaveLength(2)
-  // Both courses finish at the competition centre, so they share the finish; each course still
-  // picks its own start until setting a course takes the others into account (D27, step 6).
+  // B starts from A's start and both finish at the competition centre (D27).
+  expect(xml.match(/<Control type="Start">/g)).toHaveLength(1)
   expect(xml.match(/<Control type="Finish">/g)).toHaveLength(1)
   const ids = [...xml.matchAll(/<Control(?: type="\w+")?><Id>(\w+)<\/Id>/g)].map(match => match[1])
   expect(new Set(ids).size).toBe(ids.length)

@@ -262,6 +262,12 @@ const engine = {
       | { readonly locks: CourseLocks; readonly printArea: PrintArea | null }
       | { readonly legEnds: readonly [LocalPoint, LocalPoint] }
       | null = null,
+    // The event's other set courses (D27): their start, unless one is kept, and their controls,
+    // which this course shares or keeps clear of.
+    otherCourses: {
+      readonly start: ControlSiteCandidate | null
+      readonly controls: readonly ControlSiteCandidate[]
+    } | null = null,
   ): Promise<Course | null> {
     if (!terrain) throw new Error('No map loaded in the engine')
     const automatic = specFor(
@@ -294,8 +300,23 @@ const engine = {
               ? { printArea: kept.printArea, printScale: kept.printArea.scale }
               : {}),
           }
-    lastSetting = { spec, paper }
-    return runSliced(setCourseOnPaperSteps(terrain, sites, spec, paper), onProgress)
+    const eventStart = otherCourses?.start ?? null
+    const inEvent: CourseSpec = !otherCourses
+      ? spec
+      : {
+          ...spec,
+          otherCourseSites: otherCourses.controls,
+          locks:
+            eventStart && !spec.locks?.start
+              ? {
+                  start: eventStart,
+                  controls: spec.locks?.controls ?? [],
+                  keptLegs: spec.locks?.keptLegs ?? [false],
+                }
+              : (spec.locks ?? null),
+        }
+    lastSetting = { spec: inEvent, paper }
+    return runSliced(setCourseOnPaperSteps(terrain, sites, inEvent, paper), onProgress)
   },
 
   // generateCourse then resolves with the best course found so far.
