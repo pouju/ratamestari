@@ -4,8 +4,9 @@ import {
   SIMILAR_CODES_NEAR_METERS,
   type EventCheckKind,
 } from '@ratamestari/rules'
-import { descriptionFeatureOf } from './control-sites'
+import { descriptionFeatureOf, type ControlSiteCandidate } from './control-sites'
 import type { EventControl, EventPlan } from './event'
+import { isSameSite } from './locks'
 
 export interface EventFinding {
   readonly kind: EventCheckKind
@@ -15,12 +16,32 @@ export interface EventFinding {
   readonly meters: number
 }
 
-const distance = (a: EventControl, b: EventControl) =>
-  Math.hypot(a.site.position[0] - b.site.position[0], a.site.position[1] - b.site.position[1])
+const siteDistance = (a: ControlSiteCandidate, b: ControlSiteCandidate) =>
+  Math.hypot(a.position[0] - b.position[0], a.position[1] - b.position[1])
 
-function isSimilarFeature(a: EventControl, b: EventControl): boolean {
-  const feature = descriptionFeatureOf(a.site)
-  return feature !== null && feature === descriptionFeatureOf(b.site)
+const distance = (a: EventControl, b: EventControl) => siteDistance(a.site, b.site)
+
+function isSimilarSite(a: ControlSiteCandidate, b: ControlSiteCandidate): boolean {
+  const feature = descriptionFeatureOf(a)
+  return feature !== null && feature === descriptionFeatureOf(b)
+}
+
+const isSimilarFeature = (a: EventControl, b: EventControl) => isSimilarSite(a.site, b.site)
+
+// A site a course may use beside other courses' controls (LS 11.41, IOF 19.4): the same site, which
+// the courses then share, or one far enough from each.
+export function keepsClearOf(
+  site: ControlSiteCandidate,
+  others: readonly ControlSiteCandidate[],
+  mapScale: number,
+): boolean {
+  const spacing = controlSpacingForScale(mapScale)
+  return others.every(other => {
+    if (isSameSite(site, other)) return true
+    const meters = siteDistance(site, other)
+    if (meters < spacing.minStraightMeters) return false
+    return meters >= spacing.minStraightMetersForSimilarSites || !isSimilarSite(site, other)
+  })
 }
 
 // What only shows when the event's courses are seen together; each course checks itself.

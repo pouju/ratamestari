@@ -8,6 +8,7 @@ import { findControlSites, type ControlSiteCandidate } from '../src/control-site
 import { setCourseOnPaper } from '../src/course-on-paper'
 import { searchCourse, type CourseSpec } from '../src/course-search'
 import { isUsableInPrintArea } from '../src/print-area'
+import { keepsClearOf } from '../src/event-checks'
 import { isSameSite } from '../src/locks'
 import { findPeripheralInformation, isInPeripheralBlock } from '../src/peripheral'
 import { cellCenterOf } from '../src/raster'
@@ -94,6 +95,36 @@ describe('engine on the committed sample map', { timeout: SETUP_TIMEOUT_MS }, ()
     expect(positions[1]!).toBeGreaterThan(positions[0]!)
     expect(positions[2]).toBe(positions[1]! + 1)
     expect(again.controls.map(site => site.id)).not.toEqual(first.controls.map(site => site.id))
+  })
+
+  it("sets a second course from the first course's start, clear of its controls", () => {
+    const mapped = [...terrain.mappedArea.keys()].filter(i => terrain.mappedArea[i])
+    const spec: CourseSpec = {
+      target: courseTargetFor({
+        eventLevel: 'national',
+        format: 'middle',
+        sex: 'D',
+        ageClass: 14,
+        skillLetter: 'A',
+      })!,
+      format: 'middle',
+      printScale: 10000,
+      competitionCentre: cellCenterOf(terrain.grid, mapped[Math.floor(mapped.length / 2)]!),
+      seed: 1,
+      paceSecondsPerKm: PACE_SECONDS_PER_KM,
+      improvementSteps: 50,
+    }
+    const first = searchCourse(terrain, sites, spec)!
+    const second = searchCourse(terrain, sites, {
+      ...spec,
+      seed: 2,
+      locks: { start: first.start, controls: [], keptLegs: [false] },
+      otherCourseSites: first.controls,
+    })!
+    expect(isSameSite(second.start, first.start)).toBe(true)
+    for (const site of second.controls) {
+      expect(keepsClearOf(site, first.controls, spec.printScale)).toBe(true)
+    }
   })
 
   it('sets a course around a planned leg, on paper that holds it', () => {

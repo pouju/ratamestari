@@ -67,6 +67,7 @@ import { distanceToSegment, isInsidePolygon, segmentsCross } from './polyline'
 import { BLOCKED, routableCellOf, type CostGrid } from './cost-grid'
 import { seededRandom, type Random } from './random'
 import { cellCenterOf, cellIndexOf } from './raster'
+import { keepsClearOf } from './event-checks'
 import type { Terrain } from './terrain'
 import { secondsFrom, secondsUntil } from './time-tree'
 
@@ -85,6 +86,8 @@ export interface CourseSpec {
   // The user's wish for the start, as straight-line metres from the finish.
   readonly startDistanceFromFinishMeters?: readonly [number, number] | null
   readonly locks?: CourseLocks | null
+  // The event's other courses' controls (D27): the course shares them or keeps clear of them.
+  readonly otherCourseSites?: readonly ControlSiteCandidate[]
 }
 
 export interface Finding {
@@ -465,11 +468,12 @@ function prepareSearch(
     const index = routableCellOf(grid, site.position)
     return index === null ? Number.POSITIVE_INFINITY : toFinishGrid[index]!
   }
-  const { printArea } = spec
+  const { printArea, otherCourseSites = [] } = spec
   const reachable = sites.filter(
     site =>
       (!printArea || isUsableInPrintArea(site.position, printArea)) &&
-      secondsToFinish(site) <= targetSeconds / 2,
+      secondsToFinish(site) <= targetSeconds / 2 &&
+      keepsClearOf(site, otherCourseSites, spec.printScale),
   )
   return {
     finish,
