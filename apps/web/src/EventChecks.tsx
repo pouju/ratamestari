@@ -1,6 +1,6 @@
 import type { EventFinding, EventPlan } from '@ratamestari/engine'
 import { citationText, controlSpacingForScale, EVENT_CHECKS } from '@ratamestari/rules'
-import { SeverityMark } from './CoursePanel'
+import { FindingExplanation, SeverityMark } from './CoursePanel'
 import { useFormat, useMessages } from './i18n'
 
 interface Props {
@@ -69,6 +69,7 @@ export function EventChecks({ findings, event, mapScale }: Props) {
                       ...(check.interpretation ? [m.ourReading] : []),
                     ].join(' · ')}
                   </span>
+                  <FindingExplanation explanation={m.explanations[finding.kind]} />
                 </div>
               </li>
             )

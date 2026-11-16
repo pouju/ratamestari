@@ -872,6 +872,22 @@ button.link {
   font-size: 13px;
   color: var(--colour-ink-soft);
 }
+.findings-explanation {
+  font-size: 13px;
+  color: var(--colour-ink-soft);
+}
+.findings-explanation summary {
+  cursor: pointer;
+  color: var(--colour-overprint);
+  min-height: 24px;
+}
+.findings-explanation p {
+  margin: var(--space-1) 0 0;
+}
+.findings-explanation strong {
+  color: var(--colour-ink);
+  font-weight: var(--font-weight-strong);
+}
 .findings-fix {
   flex: none;
   min-height: 32px;

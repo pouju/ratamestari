@@ -2,7 +2,7 @@ import { createContext, useContext, useMemo } from 'react'
 import { en } from './en'
 import { fi } from './fi'
 
-export type { FindingLimits, FindingText, StopName } from './en'
+export type { Explanation, FindingLimits, FindingText, StopName } from './en'
 export type Messages = typeof en
 
 export interface Language {

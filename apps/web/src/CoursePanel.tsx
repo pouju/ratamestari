@@ -15,7 +15,7 @@ import {
 } from '@ratamestari/rules'
 import { useEffect, useState } from 'react'
 import { offeredAgeClasses, withOfferedClass } from './class-choice'
-import { useFormat, useMessages } from './i18n'
+import { useFormat, useMessages, type Explanation } from './i18n'
 import type { KeptCount } from './kept'
 import { LockIcon } from './LegRoutesPanel'
 import {
@@ -475,6 +475,7 @@ function Findings({
       : texts.texts[finding.kind](finding.stops, finishStop, FINDING_LIMITS)
     return {
       ...described,
+      explanation: texts.explanations[isOpenLength ? 'lengthOutsideRange' : finding.kind],
       text: text.charAt(0).toUpperCase() + text.slice(1),
       basis:
         isOpenLength || described.basis === OUR_CHECK
@@ -492,12 +493,13 @@ function Findings({
       </h2>
       {findings.length > 0 && (
         <ul>
-          {findings.map(({ fixableControl, severity, text, basis }, i) => (
+          {findings.map(({ fixableControl, severity, text, basis, explanation }, i) => (
             <li key={i}>
               <SeverityMark severity={severity} label={m.severities[severity]} />
               <div className="findings-text">
                 <span>{text}</span>
                 <span className="findings-basis">{basis}</span>
+                <FindingExplanation explanation={explanation} />
               </div>
               {fixableControl !== null && (
                 <button
@@ -516,6 +518,22 @@ function Findings({
       )}
       <p className="findings-hint">{hasCoarsePointer() ? m.dragHintTouch : m.dragHint}</p>
     </section>
+  )
+}
+
+// Why the rule matters and what to do, folded away so the list stays short.
+export function FindingExplanation({ explanation }: { explanation: Explanation }) {
+  const m = useMessages().findings
+  return (
+    <details className="findings-explanation">
+      <summary>{m.more}</summary>
+      <p>
+        <strong>{m.why}</strong> {explanation.why}
+      </p>
+      <p>
+        <strong>{m.fix}</strong> {explanation.fix}
+      </p>
+    </details>
   )
 }
 

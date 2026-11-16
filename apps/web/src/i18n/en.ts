@@ -1,4 +1,5 @@
 import type { CompassDirection, Course, Finding } from '@ratamestari/engine'
+import type { EventCheckKind } from '@ratamestari/rules'
 import type { SearchPhase } from '../search-progress'
 
 export type StopName = number | 'start' | 'finish'
@@ -16,6 +17,94 @@ export type FindingText = (
   finishStop: number,
   limits: FindingLimits,
 ) => string
+
+// Why a check matters and what the user can do about it, written from the rules digests.
+export interface Explanation {
+  readonly why: string
+  readonly fix: string
+}
+
+const findingExplanations: Record<Finding['kind'] | 'lengthOutsideRange', Explanation> = {
+  spacing: {
+    why: 'A runner who navigates correctly to one control can punch the other by mistake. The rules set a minimum distance for the map scale, and more for similar features.',
+    fix: 'Press Fix to move the control to a nearby site that keeps the distance, or drag one of the controls farther away.',
+  },
+  acuteAngleWarnings: {
+    why: 'When the course turns back sharply, runners leaving the control show it to those still coming in.',
+    fix: 'Press Fix, or drag a control so that the next leg leaves at a wider angle. A hill or thicket between the routes also hides the runners, so check the angle on the map.',
+  },
+  acuteAngleNotes: {
+    why: 'Sharp angles let runners leaving the control show it to those coming in. Under 60° it is worth a look, though the terrain may hide the runners.',
+    fix: 'Check on the map whether a hill or thicket hides the runners. If not, press Fix or drag a control to widen the angle.',
+  },
+  difficultyOutsideRange: {
+    why: "Controls should suit the class's skill level: too hard is unfair for a beginner, too easy makes a demanding course simple.",
+    fix: 'Press Fix, or move the control to a feature that suits the level: larger and near a clear line feature for easier courses, smaller and without a catching feature for harder ones.',
+  },
+  courseLineCrossings: {
+    why: 'A crossing near a control or at a shallow angle makes the map harder to read. Far from controls and at nearly a right angle it is fine.',
+    fix: 'Drag a control so that the lines cross farther from the controls and closer to a right angle, or not at all.',
+  },
+  courseLinesThroughControls: {
+    why: "The line hides the detail inside the other control's circle, which runners need to find it.",
+    fix: 'Press Fix, or drag a control so that the line passes beside the circle.',
+  },
+  courseLinesOutsideMap: {
+    why: "The leg runs over ground the map doesn't show, so runners can't plan their route.",
+    fix: 'Press Fix, or drag a control so that the whole leg stays on the map.',
+  },
+  courseLinesOverDescriptions: {
+    why: 'The description box covers part of the leg and the map under it.',
+    fix: 'Drag the description box to another corner, or drag a control.',
+  },
+  stopsOutsidePrintArea: {
+    why: "A control outside the print area isn't on the printed map.",
+    fix: 'Move the print area or choose larger paper in Adjust print, or drag the control onto the paper.',
+  },
+  overlappingCircles: {
+    why: 'Circles on top of each other hide the detail runners need, and it is hard to tell which circle is which control.',
+    fix: 'Press Fix, or drag one of the controls farther away.',
+  },
+  winningTimeOutsideRange: {
+    why: "Each class has a winning time in the rules. A much shorter course isn't the race the class should run.",
+    fix: 'Pick a competition centre with more terrain around it, move the print area or choose larger paper, then set the course again.',
+  },
+  lengthOutsideRange: {
+    why: 'The course is shorter than the length chosen for it.',
+    fix: 'Pick a competition centre with more terrain around it, move the print area or choose larger paper, then set the course again.',
+  },
+  controlsWithoutFeature: {
+    why: 'Controls go on features shown on the map, so runners can find them from the map.',
+    fix: 'Press Fix, or drag the control onto a mapped feature.',
+  },
+  finalLegTooLong: {
+    why: 'A long last leg leaves the end of the course with little navigation.',
+    fix: 'Press Fix, or drag the last control closer to the finish.',
+  },
+}
+
+const eventCheckExplanations: Record<EventCheckKind, Explanation> = {
+  controlsTooClose: {
+    why: "A runner who navigates correctly can punch the other course's control by mistake.",
+    fix: 'Open one of the courses and drag its control farther away, or onto the same site so that the courses share the control.',
+  },
+  similarControlsClose: {
+    why: 'Two similar features close together are easy to mix up, even on different courses.',
+    fix: 'Open one of the courses and drag its control farther away or onto a different kind of feature.',
+  },
+  similarCodesNear: {
+    why: 'Runners check the code on the control. Similar codes on controls near each other are easy to misread.',
+    fix: 'Open one of the courses and move its control farther from the other.',
+  },
+  legSharedByCourses: {
+    why: 'Runners of one course can follow those of another on the leg, and following should not pay.',
+    fix: 'If the courses run at the same time, change the leg on one of them by dragging a control.',
+  },
+  legRunBothWays: {
+    why: 'Runners meet head-on and show each other where the controls are.',
+    fix: 'Change the leg on one of the courses, for example by dragging a control or setting the course again.',
+  },
+}
 
 const stopWord = (stop: StopName) => (typeof stop === 'number' ? String(stop) : stop)
 
@@ -284,6 +373,7 @@ export const en = {
           `The leg between ${a} and ${b} is run in opposite directions, so runners meet head-on`,
       },
       ourReading: 'our reading',
+      explanations: eventCheckExplanations,
     },
     courseTab: (name: string, courseClass: string) => `${name}, ${courseClass}`,
   },
@@ -465,6 +555,10 @@ export const en = {
       'the course cannot reach its target length; the terrain within reach of the competition centre, or inside the chosen print area, may be too small or too slow for it',
     ourCheck: 'our check',
     ourCheckNoRoutes: 'our check (no marked routes yet)',
+    explanations: findingExplanations,
+    more: 'Why, and how to fix',
+    why: 'Why it matters',
+    fix: 'How to fix',
   },
   symbols: {
     summary: (count: number, corrected: number) => `Map symbols (${count}, ${corrected} corrected)`,

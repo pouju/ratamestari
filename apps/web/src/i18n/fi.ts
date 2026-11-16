@@ -48,6 +48,88 @@ const findingTexts = {
   finalLegTooLong: () => 'viimeinen rastiväli maaliin on pitkä',
 } satisfies Record<keyof Messages['findings']['texts'], FindingText>
 
+const findingExplanations: Messages['findings']['explanations'] = {
+  spacing: {
+    why: 'Oikein suunnistanut voi leimata vahingossa väärän, lähellä olevan rastin. Säännöt määräävät karttamittakaavan mukaisen vähimmäisetäisyyden, ja samankaltaisille kohteille suuremman.',
+    fix: 'Paina Korjaa, niin rasti siirtyy läheiseen paikkaan, joka täyttää etäisyyden, tai vedä toinen rasteista kauemmas.',
+  },
+  acuteAngleWarnings: {
+    why: 'Kun rata kääntyy jyrkästi takaisin, rastilta lähtevät näyttävät sen vielä tuleville.',
+    fix: 'Paina Korjaa tai vedä rastia niin, että seuraava rastiväli lähtee loivemmassa kulmassa. Myös mäki tai tiheikkö reittien välissä kätkee juoksijat, joten katso kulma kartalta.',
+  },
+  acuteAngleNotes: {
+    why: 'Terävässä kulmassa rastilta lähtevät voivat näyttää sen tuleville. Alle 60° kannattaa katsoa, vaikka maasto voi kätkeä juoksijat.',
+    fix: 'Katso kartalta, kätkeekö mäki tai tiheikkö juoksijat. Jos ei, paina Korjaa tai vedä rastia kulman loiventamiseksi.',
+  },
+  difficultyOutsideRange: {
+    why: 'Rastien pitää sopia sarjan taitotasoon: liian vaikea on aloittelijalle epäreilu, liian helppo tekee vaativasta radasta helpon.',
+    fix: 'Paina Korjaa tai siirrä rasti tasoon sopivaan kohteeseen: helpoilla radoilla isompaan ja selvän johdattavan kohteen lähelle, vaikeilla pienempään ja ilman pysäyttävää kohdetta.',
+  },
+  courseLineCrossings: {
+    why: 'Risteys rastin lähellä tai loivassa kulmassa vaikeuttaa kartanlukua. Kaukana rasteista ja lähes suorassa kulmassa se on kunnossa.',
+    fix: 'Vedä rastia niin, että viivat risteävät kauempana rasteista ja lähempänä suoraa kulmaa, tai eivät ollenkaan.',
+  },
+  courseLinesThroughControls: {
+    why: 'Viiva peittää toisen rastin ympyrän sisällä olevat yksityiskohdat, joita sen löytämiseen tarvitaan.',
+    fix: 'Paina Korjaa tai vedä rastia niin, että viiva kulkee ympyrän ohi.',
+  },
+  courseLinesOutsideMap: {
+    why: 'Rastiväli kulkee alueella, jota kartta ei näytä, joten reittiä ei voi suunnitella.',
+    fix: 'Paina Korjaa tai vedä rastia niin, että koko rastiväli pysyy kartalla.',
+  },
+  courseLinesOverDescriptions: {
+    why: 'Rastinmääritteet peittävät osan rastiväliä ja sen alla olevaa karttaa.',
+    fix: 'Vedä rastinmääritteet toiseen kulmaan tai vedä rastia.',
+  },
+  stopsOutsidePrintArea: {
+    why: 'Tulostusalueen ulkopuolinen rasti ei näy tulostetulla kartalla.',
+    fix: 'Siirrä tulostusaluetta tai valitse isompi paperi tulostuksen asetuksista, tai vedä rasti paperille.',
+  },
+  overlappingCircles: {
+    why: 'Päällekkäiset ympyrät peittävät yksityiskohtia, joita juoksijat tarvitsevat, eikä ole selvää, mikä ympyrä on mikin rasti.',
+    fix: 'Paina Korjaa tai vedä toinen rasteista kauemmas.',
+  },
+  winningTimeOutsideRange: {
+    why: 'Jokaisella sarjalla on säännöissä voittoaika. Paljon lyhyempi rata ei ole se kilpailu, joka sarjan kuuluu juosta.',
+    fix: 'Valitse kilpailukeskus, jonka ympärillä on enemmän maastoa, siirrä tulostusaluetta tai valitse isompi paperi, ja tee rata uudelleen.',
+  },
+  lengthOutsideRange: {
+    why: 'Rata on lyhyempi kuin sille valittu pituus.',
+    fix: 'Valitse kilpailukeskus, jonka ympärillä on enemmän maastoa, siirrä tulostusaluetta tai valitse isompi paperi, ja tee rata uudelleen.',
+  },
+  controlsWithoutFeature: {
+    why: 'Rastit sijoitetaan kartalla näkyviin kohteisiin, jotta ne löytää kartan avulla.',
+    fix: 'Paina Korjaa tai vedä rasti kartalla näkyvään kohteeseen.',
+  },
+  finalLegTooLong: {
+    why: 'Pitkä viimeinen rastiväli jättää radan loppuun vähän suunnistettavaa.',
+    fix: 'Paina Korjaa tai vedä viimeinen rasti lähemmäs maalia.',
+  },
+}
+
+const eventCheckExplanations: Messages['event']['checks']['explanations'] = {
+  controlsTooClose: {
+    why: 'Oikein suunnistanut voi leimata vahingossa toisen radan rastin.',
+    fix: 'Avaa toinen radoista ja vedä sen rasti kauemmas, tai samaan paikkaan, jolloin radat käyttävät yhteistä rastia.',
+  },
+  similarControlsClose: {
+    why: 'Kaksi samankaltaista kohdetta lähekkäin menevät helposti sekaisin, vaikka ne olisivat eri radoilla.',
+    fix: 'Avaa toinen radoista ja vedä sen rasti kauemmas tai erilaiseen kohteeseen.',
+  },
+  similarCodesNear: {
+    why: 'Juoksija tarkistaa rastin koodin. Samankaltaiset koodit lähekkäisillä rasteilla on helppo lukea väärin.',
+    fix: 'Avaa toinen radoista ja siirrä sen rasti kauemmas toisesta.',
+  },
+  legSharedByCourses: {
+    why: 'Yhden radan juoksijat voivat seurata toisen radan juoksijoita rastivälillä, eikä seuraamisen pidä kannattaa.',
+    fix: 'Jos radat juostaan samaan aikaan, muuta rastiväliä toisella radoista vetämällä rastia.',
+  },
+  legRunBothWays: {
+    why: 'Juoksijat kohtaavat vastakkain ja näyttävät toisilleen rastien paikat.',
+    fix: 'Muuta rastiväliä toisella radoista, esimerkiksi vetämällä rastia tai tekemällä rata uudelleen.',
+  },
+}
+
 export const fi: Messages = {
   leg: {
     title: (from, to) =>
@@ -280,6 +362,7 @@ export const fi: Messages = {
           `Rastien ${a} ja ${b} väli juostaan vastakkaisiin suuntiin, joten juoksijat kohtaavat`,
       },
       ourReading: 'oma tulkintamme',
+      explanations: eventCheckExplanations,
     },
     courseTab: (name: string, courseClass: string) => `${name}, ${courseClass}`,
   },
@@ -442,6 +525,10 @@ export const fi: Messages = {
       'rata ei yllä tavoitepituuteensa; kilpailukeskuksen ympäristön tai valitun tulostusalueen maasto voi olla siihen liian pieni tai hidas',
     ourCheck: 'oma tarkistuksemme',
     ourCheckNoRoutes: 'oma tarkistuksemme (merkittyjä reittejä ei vielä huomioida)',
+    explanations: findingExplanations,
+    more: 'Miksi, ja miten korjata',
+    why: 'Miksi sillä on väliä',
+    fix: 'Miten korjata',
   },
   symbols: {
     summary: (count, corrected) => `Karttamerkit (${count}, korjattuja ${corrected})`,
