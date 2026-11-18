@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.6.0](https://github.com/pouju/ratamestari/compare/v0.5.0...v0.6.0) (2026-11-18)
+
+
+### Features
+
+* **engine:** avoid running another course's leg the other way ([4c381fb](https://github.com/pouju/ratamestari/commit/4c381fbc7bf2bdd29727ecc77ca34388cf406a5d))
+* **engine:** check an event's courses against each other ([7af375b](https://github.com/pouju/ratamestari/commit/7af375b3e385536d6e787c08200b1d2c95daa2ec))
+* **engine:** hold several courses on one map with fixed control codes ([7f99bea](https://github.com/pouju/ratamestari/commit/7f99bea42c080b140aa8d9703247d87b848b52b5))
+* **engine:** set a course clear of the event's other courses ([35aaf54](https://github.com/pouju/ratamestari/commit/35aaf54ab53c9369cafb451ec34d48c1e560d18f))
+* **iof:** write all courses of an event to one IOF XML file ([d1e91cf](https://github.com/pouju/ratamestari/commit/d1e91cfcaf87d0ffc949537ab7cfb696a3b13291))
+* **rules:** describe open courses by length and skill colour ([68b5f00](https://github.com/pouju/ratamestari/commit/68b5f007caaa6b51cfdbc77cb705c84ad34a9b5c))
+* **web:** download the IOF XML of all the event's courses ([ea5d326](https://github.com/pouju/ratamestari/commit/ea5d3266f3e336e5fbb47279be6f61aec44e7d4a))
+* **web:** explain why each rule check matters and how to fix it ([6cb7c43](https://github.com/pouju/ratamestari/commit/6cb7c4380cfea4a245a2639bc0e4bd5abd359157))
+* **web:** keep the event in the browser and let courses be named ([8492a71](https://github.com/pouju/ratamestari/commit/8492a7146467857c06f09e583b0209912c9edddb))
+* **web:** set each course from the event's start, clear of its other courses ([7a73f02](https://github.com/pouju/ratamestari/commit/7a73f02fcc0efe7ce7fe42b4eff18915e26532b2))
+* **web:** set open courses by length and skill colour ([3391fa7](https://github.com/pouju/ratamestari/commit/3391fa724724478b68b94cc40159ac969f58517a))
+* **web:** set several courses of an event side by side ([7e5f7db](https://github.com/pouju/ratamestari/commit/7e5f7db4ad3c7b0b7273b9fa46a104d628b23d70))
+* **web:** show the new product direction in the landing page's plans ([17d5907](https://github.com/pouju/ratamestari/commit/17d5907b202f337fbadba1965b95ebc3697261f8))
+* **web:** show what to check across the event's courses ([a9c271f](https://github.com/pouju/ratamestari/commit/a9c271f030c7e70bf318231c4aa0ae9d0e6e5bde))
+* **web:** start an event's courses from the weekly A–D list or my list ([3b57644](https://github.com/pouju/ratamestari/commit/3b57644499ef8e8ff7f7c885ffb31191b1cac2b8))
+
+
+### Bug fixes
+
+* **engine:** time long legs by their route, not as unreachable ([9ff777e](https://github.com/pouju/ratamestari/commit/9ff777e848ac43b169713ad8d7020e7f649fac35))
+* **web:** explain clearly how an open course's length is aimed at ([b318467](https://github.com/pouju/ratamestari/commit/b318467490ca8b34f1a8f76ce2d782ff609dfd85))
+
 ## [0.5.0](https://github.com/pouju/ratamestari/compare/v0.4.0...v0.5.0) (2026-10-25)
 
 
